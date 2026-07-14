@@ -37,7 +37,7 @@ SMTP_PASS=sua_senha
 EMAIL_FROM=Valorize+ <nao-responda@seu-dominio.com>
 ```
 
-Em produção, `MONGO_URI`, `JWT_SECRET` e `CLIENT_URL` são obrigatórios e a API encerra a inicialização quando algum deles estiver ausente. Use MongoDB Atlas: o modo local com `backend/data/store.json` é adequado para desenvolvimento, mas arquivos locais não são persistentes em funções serverless.
+Em produção, uma conexão MongoDB, `JWT_SECRET` e `CLIENT_URL` são obrigatórios e a API encerra a inicialização quando algum deles estiver ausente. O backend aceita tanto `MONGO_URI` quanto `MONGODB_URI`, nome usado pela integração oficial do MongoDB Atlas na Vercel. O modo local com `backend/data/store.json` é adequado para desenvolvimento, mas arquivos locais não são persistentes em funções serverless.
 
 As variáveis SMTP são necessárias para a recuperação de senha por e-mail. Sem elas, esse fluxo retorna indisponibilidade em produção em vez de expor um token de redefinição.
 

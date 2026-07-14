@@ -4,17 +4,19 @@ const { isProduction } = require("./security");
 let memoryMode = false;
 
 async function connectDatabase() {
-  if (!process.env.MONGO_URI) {
+  const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
+
+  if (!mongoUri) {
     if (isProduction()) {
-      throw new Error("MONGO_URI é obrigatória em produção.");
+      throw new Error("Uma conexão MongoDB é obrigatória em produção.");
     }
     memoryMode = true;
-    console.log("MONGO_URI ausente. API rodando com armazenamento local em memória/arquivo.");
+    console.log("MongoDB ausente. API rodando com armazenamento local em memória/arquivo.");
     return false;
   }
 
   if (!isDatabaseConnected()) {
-    await mongoose.connect(process.env.MONGO_URI, { serverSelectionTimeoutMS: 10000 });
+    await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 10000 });
   }
   memoryMode = false;
   console.log("MongoDB conectado.");

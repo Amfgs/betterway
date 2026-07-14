@@ -64,7 +64,7 @@ SMTP_PASS=
 EMAIL_FROM=
 ```
 
-Sem `MONGO_URI`, o backend usa um arquivo local em `backend/data/store.json`. Isso preserva logins, metas, limites, amigos e transacoes entre reinicios do servidor.
+Sem `MONGO_URI` ou `MONGODB_URI`, o backend usa um arquivo local em `backend/data/store.json`. Isso preserva logins, metas, limites, amigos e transações entre reinícios do servidor.
 
 Notícias reais: se `NEWS_API_KEY` estiver ausente, o backend usa Google News RSS em tempo real. Cotações: cripto usa CoinGecko; ações/FIIs usam Brapi sem token quando possível, e ficam completas com `BRAPI_API_KEY`.
 
