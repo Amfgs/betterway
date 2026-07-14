@@ -1,0 +1,36 @@
+const mongoose = require("mongoose");
+const { isProduction } = require("./security");
+
+let memoryMode = false;
+
+async function connectDatabase() {
+  if (!process.env.MONGO_URI) {
+    if (isProduction()) {
+      throw new Error("MONGO_URI é obrigatória em produção.");
+    }
+    memoryMode = true;
+    console.log("MONGO_URI ausente. API rodando com armazenamento local em memória/arquivo.");
+    return false;
+  }
+
+  if (!isDatabaseConnected()) {
+    await mongoose.connect(process.env.MONGO_URI, { serverSelectionTimeoutMS: 10000 });
+  }
+  memoryMode = false;
+  console.log("MongoDB conectado.");
+  return true;
+}
+
+function isDatabaseConnected() {
+  return mongoose.connection.readyState === 1;
+}
+
+function isMemoryMode() {
+  return memoryMode || !isDatabaseConnected();
+}
+
+module.exports = {
+  connectDatabase,
+  isDatabaseConnected,
+  isMemoryMode
+};

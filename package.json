@@ -1,0 +1,30 @@
+{
+  "name": "valorize-plus",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Valorize+ - plataforma financeira comportamental com web desktop, API Node e app mobile Expo.",
+  "workspaces": [
+    "backend",
+    "frontend",
+    "mobile"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c green,cyan \"npm run dev:backend\" \"npm run dev:web\"",
+    "dev:all": "concurrently -n api,web,mobile -c green,cyan,magenta \"npm run dev:backend\" \"npm run dev:web\" \"npm run dev:mobile\"",
+    "dev:backend": "npm --workspace backend run dev",
+    "dev:web": "npm --workspace frontend run dev",
+    "dev:mobile": "node scripts/start-mobile-local-api.js",
+    "dev:mobile:tunnel": "node scripts/start-mobile-local-api.js --tunnel",
+    "build:web": "npm --workspace frontend run build",
+    "start:backend": "npm --workspace backend start",
+    "lint": "npm --workspace frontend run lint"
+  },
+  "overrides": {
+    "form-data": "4.0.6",
+    "shell-quote": "1.8.4",
+    "undici": "6.27.0"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3"
+  }
+}

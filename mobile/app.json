@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Valorize+",
+    "slug": "valorize-plus",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.valorize-plus"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#10b981"
+      }
+    },
+    "extra": {
+      "apiUrl": "http://localhost:5050/api"
+    },
+    "plugins": [
+      "expo-secure-store"
+    ]
+  }
+}

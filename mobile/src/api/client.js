@@ -1,0 +1,79 @@
+import Constants from "expo-constants";
+import { Platform } from "react-native";
+
+function isLocalhost(host) {
+  return ["localhost", "127.0.0.1", "::1"].includes(host);
+}
+
+function isTunnelHost(host) {
+  return /exp\.direct|ngrok|expo\.dev|trycloudflare|loca\.lt/i.test(host);
+}
+
+function getExpoHost() {
+  const hostUri =
+    Constants.expoConfig?.hostUri ||
+    Constants.manifest2?.extra?.expoClient?.hostUri ||
+    Constants.manifest?.debuggerHost ||
+    "";
+  return hostUri.split(":")[0];
+}
+
+export const apiUrlStorageKey = "valorize_mobile_api_url";
+
+function resolveApiUrl() {
+  if (process.env.EXPO_PUBLIC_API_URL) return process.env.EXPO_PUBLIC_API_URL.replace(/\/$/, "");
+
+  const configuredUrl = Constants.expoConfig?.extra?.apiUrl;
+  if (configuredUrl && !configuredUrl.includes("localhost") && !configuredUrl.includes("127.0.0.1")) {
+    return configuredUrl.replace(/\/$/, "");
+  }
+
+  const expoHost = getExpoHost();
+  if (expoHost && !isLocalhost(expoHost) && !isTunnelHost(expoHost)) {
+    return `http://${expoHost}:5050/api`;
+  }
+
+  if (Platform.OS === "android") {
+    return "http://10.0.2.2:5050/api";
+  }
+
+  return "http://localhost:5050/api";
+}
+
+const DEFAULT_API_URL = resolveApiUrl();
+let runtimeApiUrl = DEFAULT_API_URL;
+
+export function setApiUrlOverride(value) {
+  runtimeApiUrl = String(value || DEFAULT_API_URL).replace(/\/$/, "");
+}
+
+export function getApiUrl() {
+  return runtimeApiUrl;
+}
+
+export async function apiRequest(path, { method = "GET", body, token } = {}) {
+  const response = await fetch(`${getApiUrl()}${path}`, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
+    body: body ? JSON.stringify(body) : undefined
+  });
+
+  if (!response.ok) {
+    let message = "Erro ao consultar a API.";
+    try {
+      const data = await response.json();
+      message = data.message || message;
+    } catch (error) {
+      message = response.statusText || message;
+    }
+    throw new Error(message);
+  }
+
+  if (response.status === 204) return null;
+  return response.json();
+}
+
+export { DEFAULT_API_URL as API_URL };
