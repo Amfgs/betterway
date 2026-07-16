@@ -22,9 +22,9 @@ Nenhuma auditoria consegue prometer risco zero. Esta revisão cobre o código, d
 
 ## Dependências
 
-- Backend de produção: nenhuma vulnerabilidade conhecida pelo `npm audit`.
-- Frontend de produção: nenhuma vulnerabilidade conhecida pelo `npm audit`.
-- O workspace Expo SDK 54 mantém avisos moderados transitivos no ferramental de build. Não há alerta alto ou crítico; a correção automática exige salto incompatível para um SDK futuro e não deve ser aplicada sem migração e teste do Expo Go.
+- Todos os workspaces: nenhuma vulnerabilidade conhecida pelo `npm audit --omit=dev`.
+- As dependências transitivas `postcss` e `uuid` do ferramental Expo foram fixadas em versões corrigidas por overrides de escopo restrito, mantendo o SDK 54.
+- A compatibilidade do mobile é verificada com Expo Doctor e exportação do bundle iOS antes da publicação.
 
 ## Ações obrigatórias antes do lançamento
 

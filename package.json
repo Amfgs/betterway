@@ -21,9 +21,20 @@
     "lint": "npm --workspace frontend run lint"
   },
   "overrides": {
+    "@expo/metro-config": {
+      "postcss": "8.5.15"
+    },
+    "@expo/ngrok": {
+      "uuid": "11.1.1"
+    },
     "form-data": "4.0.6",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
     "shell-quote": "1.8.4",
-    "undici": "6.27.0"
+    "undici": "6.27.0",
+    "xcode": {
+      "uuid": "11.1.1"
+    }
   },
   "devDependencies": {
     "concurrently": "^10.0.3"
