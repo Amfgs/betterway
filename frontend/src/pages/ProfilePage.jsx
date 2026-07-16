@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Activity, Clock3, LockKeyhole, LogOut, Moon, Save, Settings, ShieldCheck, Sun, Target, WalletCards, X } from "lucide-react";
 import { api, getErrorMessage } from "../api/client";
 import { StatCard } from "../components/StatCard";
+import { BankConnectionsPanel } from "../components/BankConnectionsPanel";
+import { WorkspaceHeader } from "../components/WorkspaceHeader";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { avatarOptions, avatarSrc, normalizeAvatar } from "../utils/avatars";
@@ -24,11 +27,13 @@ export function ProfilePage() {
   const [settingsForm, setSettingsForm] = useState({
     avatarUrl: normalizeAvatar(user?.avatarUrl),
     name: user?.name || "",
+    username: user?.username || "",
     email: user?.email || "",
     currentPassword: "",
     newPassword: ""
   });
   const [settingsMessage, setSettingsMessage] = useState("");
+  const navigate = useNavigate();
 
   async function loadProfileData() {
     const [summaryResponse, portfolioResponse] = await Promise.all([
@@ -49,6 +54,7 @@ export function ProfilePage() {
       ...current,
       avatarUrl: normalizeAvatar(user?.avatarUrl),
       name: user?.name || "",
+      username: user?.username || "",
       email: user?.email || ""
     }));
   }, [user]);
@@ -81,13 +87,26 @@ export function ProfilePage() {
       const payload = {
         avatarUrl: normalizeAvatar(settingsForm.avatarUrl),
         name: settingsForm.name,
+        username: settingsForm.username,
         email: settingsForm.email
       };
+      if (settingsForm.currentPassword) payload.currentPassword = settingsForm.currentPassword;
       if (settingsForm.newPassword) {
-        payload.currentPassword = settingsForm.currentPassword;
         payload.newPassword = settingsForm.newPassword;
       }
-      await updateProfile(payload);
+      const result = await updateProfile(payload);
+      if (result.requiresEmailVerification) {
+        navigate("/login", {
+          replace: true,
+          state: {
+            mode: "verify",
+            email: result.email,
+            verificationToken: result.devVerificationToken || "",
+            message: result.message
+          }
+        });
+        return;
+      }
       setForm((current) => ({ ...current, name: payload.name }));
       setSettingsForm((current) => ({ ...current, currentPassword: "", newPassword: "" }));
       setSettingsMessage("Configurações salvas.");
@@ -112,7 +131,7 @@ export function ProfilePage() {
       hoursForLimit,
       goalsProgress,
       netWorth: summary?.widgets?.netWorthEstimate || 0,
-      invested: portfolio?.totals?.currentValue || 0
+      invested: summary?.widgets?.investedCost || portfolio?.totals?.currentValue || 0
     };
   }, [form, portfolio, summary]);
 
@@ -137,7 +156,12 @@ export function ProfilePage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="workspace-page space-y-6">
+      <WorkspaceHeader
+        description="Atualize sua identidade, preferências, segurança e os dados usados nas análises comportamentais."
+        eyebrow="Conta e preferências"
+        title="Sua Better Way, configurada para você"
+      />
       {settingsOpen ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4">
           <form className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-white/10 bg-white p-5 shadow-2xl dark:bg-neutral-900" onSubmit={saveSettings}>
@@ -180,6 +204,18 @@ export function ProfilePage() {
                   <input className="mt-1 w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" value={settingsForm.name} onChange={(event) => updateSettings("name", event.target.value)} />
                 </label>
                 <label className="block">
+                  <span className="text-sm font-medium">Nome de usuário</span>
+                  <input
+                    autoCapitalize="none"
+                    autoComplete="username"
+                    className="mt-1 w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10"
+                    maxLength={24}
+                    minLength={3}
+                    onChange={(event) => updateSettings("username", event.target.value.replace(/^@+/, "").toLowerCase().replace(/[^a-z0-9._]/g, ""))}
+                    value={settingsForm.username}
+                  />
+                </label>
+                <label className="block sm:col-span-2">
                   <span className="text-sm font-medium">E-mail</span>
                   <input className="mt-1 w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" type="email" value={settingsForm.email} onChange={(event) => updateSettings("email", event.target.value)} />
                 </label>
@@ -187,14 +223,14 @@ export function ProfilePage() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="block">
                   <span className="text-sm font-medium">Senha atual</span>
-                  <input className="mt-1 w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" type="password" value={settingsForm.currentPassword} onChange={(event) => updateSettings("currentPassword", event.target.value)} />
+                  <input className="mt-1 w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" maxLength={72} type="password" value={settingsForm.currentPassword} onChange={(event) => updateSettings("currentPassword", event.target.value)} />
                 </label>
                 <label className="block">
                   <span className="text-sm font-medium">Nova senha</span>
-                  <input className="mt-1 w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" type="password" value={settingsForm.newPassword} onChange={(event) => updateSettings("newPassword", event.target.value)} />
+                  <input className="mt-1 w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" maxLength={72} type="password" value={settingsForm.newPassword} onChange={(event) => updateSettings("newPassword", event.target.value)} />
                 </label>
               </div>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">Para trocar a senha, preencha a senha atual e a nova senha. Para manter a senha, deixe os dois campos vazios.</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">A senha atual é obrigatória para trocar a senha ou o e-mail. Um novo e-mail precisará ser confirmado por código.</p>
               {settingsMessage ? <p className="rounded-lg bg-emerald-500/10 p-3 text-sm font-medium text-emerald-700 dark:text-emerald-300">{settingsMessage}</p> : null}
               <button className="rounded-lg bg-emerald-500 px-4 py-3 font-black text-white" type="submit">
                 Salvar configurações
@@ -211,7 +247,8 @@ export function ProfilePage() {
             </div>
             <div>
               <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Perfil e segurança</p>
-              <h1 className="text-3xl font-black">{user?.name}</h1>
+              <h2 className="text-3xl font-black">{user?.name}</h2>
+              <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">@{user?.username}</p>
               <p className="text-sm text-zinc-500 dark:text-zinc-400">{user?.email}</p>
             </div>
           </div>
@@ -235,6 +272,8 @@ export function ProfilePage() {
           </div>
         </div>
       </section>
+
+      <BankConnectionsPanel onChange={loadProfileData} />
 
       <section className="rounded-lg border border-red-200 bg-red-50 p-5 shadow-soft dark:border-red-500/30 dark:bg-red-500/10">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

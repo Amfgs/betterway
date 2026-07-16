@@ -26,7 +26,7 @@ function normalizePreferences(input = {}) {
 
 function buildLimitItems(limits, transactions) {
   const expensesByCategory = transactions
-    .filter((transaction) => transaction.type === "expense")
+    .filter((transaction) => transaction.type === "expense" && transaction.category !== "Investimentos")
     .reduce((map, transaction) => {
       map[transaction.category] = (map[transaction.category] || 0) + asNumber(transaction.amount);
       return map;
@@ -104,7 +104,7 @@ function buildStreak(transactions, preferences) {
     currentStreak,
     todayLogged,
     reminderTime: preferences.streakReminderTime,
-    nextAction: todayLogged ? "Streak protegido hoje." : "Abra o Valorize+ e registre suas entradas ou saídas.",
+    nextAction: todayLogged ? "Streak protegido hoje." : "Abra a Better Way e registre suas entradas ou saídas.",
     deadlineLabel: `Até ${preferences.streakReminderTime}`,
     appBlocking: {
       requested: preferences.appBlockingIntent,

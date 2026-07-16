@@ -28,7 +28,7 @@ export function NewsScreen() {
           <Text style={styles.eyebrow}>{article.source}</Text>
           <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900" }}>{article.title}</Text>
           <Text style={styles.subtitle}>{article.description || "Sem resumo disponível."}</Text>
-          <Button tone="ghost" onPress={() => Linking.openURL(article.url)}>
+          <Button tone="ghost" onPress={() => Linking.canOpenURL(article.url).then((supported) => supported && Linking.openURL(article.url))}>
             Ler fonte
           </Button>
         </View>

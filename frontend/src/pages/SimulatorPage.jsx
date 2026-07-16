@@ -35,7 +35,7 @@ const investmentTypeOptions = [
   { value: "custom", label: "Personalizado", annualRate: 12, description: "Defina manualmente a taxa esperada." }
 ];
 
-export function SimulatorPage() {
+export function SimulatorPage({ embedded = false }) {
   const [form, setForm] = useState(initialForm);
   const [projection, setProjection] = useState(null);
   const [summary, setSummary] = useState(null);
@@ -108,8 +108,8 @@ export function SimulatorPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+    <div className={`${embedded ? "embedded-page" : "workspace-page"} space-y-6`}>
+      {!embedded ? <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Simulador projetivo</p>
           <h1 className="text-3xl font-black">Investimentos com seus dados atuais</h1>
@@ -121,7 +121,7 @@ export function SimulatorPage() {
           <Calculator size={18} />
           Simular agora
         </button>
-      </div>
+      </div> : null}
 
       {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p> : null}
 

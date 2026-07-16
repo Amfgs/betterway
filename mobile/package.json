@@ -1,5 +1,5 @@
 {
-  "name": "@valorize/mobile",
+  "name": "@betterway/mobile",
   "version": "1.0.0",
   "private": true,
   "main": "index.js",
@@ -11,11 +11,15 @@
     "web": "expo start --web"
   },
   "dependencies": {
-    "expo": "~54.0.0",
+    "expo": "~54.0.36",
     "expo-constants": "18.0.13",
+    "expo-document-picker": "~14.0.8",
+    "expo-file-system": "~19.0.23",
     "expo-secure-store": "~15.0.8",
     "react": "19.1.0",
-    "react-native": "0.81.5"
+    "react-native": "0.81.5",
+    "react-native-pluggy-connect": "^1.4.1",
+    "react-native-webview": "13.15.0"
   },
   "devDependencies": {
     "@expo/ngrok": "4.1.3",

@@ -15,7 +15,7 @@ async function start() {
 
   const app = require("./app");
   const server = app.listen(port, () => {
-    console.log(`Valorize+ API rodando em http://localhost:${port}`);
+    console.log(`Better Way API rodando em http://localhost:${port}`);
   });
 
   server.on("error", (error) => {
@@ -28,6 +28,6 @@ async function start() {
 }
 
 start().catch((error) => {
-  console.error("Falha ao iniciar o Valorize+:", error.message);
+  console.error("Falha ao iniciar a Better Way:", error.message);
   process.exit(1);
 });

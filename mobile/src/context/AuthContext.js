@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import * as SecureStore from "expo-secure-store";
-import { apiRequest, apiUrlStorageKey, setApiUrlOverride } from "../api/client";
+import { apiRequest, apiUrlStorageKey, legacyApiUrlStorageKey, setApiUrlOverride } from "../api/client";
 
 const AuthContext = createContext(null);
-const tokenStorageKey = "valorize_mobile_token";
+const tokenStorageKey = "betterway_mobile_token";
+const legacyTokenStorageKey = "valorize_mobile_token";
 
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(null);
@@ -15,9 +16,15 @@ export function AuthProvider({ children }) {
 
     async function restoreSession() {
       try {
-        const storedApiUrl = await SecureStore.getItemAsync(apiUrlStorageKey);
+        const currentApiUrl = await SecureStore.getItemAsync(apiUrlStorageKey);
+        const legacyApiUrl = currentApiUrl ? null : await SecureStore.getItemAsync(legacyApiUrlStorageKey);
+        const storedApiUrl = currentApiUrl || legacyApiUrl;
+        if (legacyApiUrl) await SecureStore.setItemAsync(apiUrlStorageKey, legacyApiUrl);
         if (storedApiUrl) setApiUrlOverride(storedApiUrl);
-        const storedToken = await SecureStore.getItemAsync(tokenStorageKey);
+        const currentToken = await SecureStore.getItemAsync(tokenStorageKey);
+        const legacyToken = currentToken ? null : await SecureStore.getItemAsync(legacyTokenStorageKey);
+        const storedToken = currentToken || legacyToken;
+        if (legacyToken) await SecureStore.setItemAsync(tokenStorageKey, legacyToken);
         if (!storedToken) return;
         const data = await apiRequest("/auth/me", { token: storedToken });
         if (!alive) return;
@@ -25,6 +32,7 @@ export function AuthProvider({ children }) {
         setUser(data.user);
       } catch (error) {
         await SecureStore.deleteItemAsync(tokenStorageKey);
+        await SecureStore.deleteItemAsync(legacyTokenStorageKey);
       } finally {
         if (alive) setBooting(false);
       }
@@ -47,13 +55,28 @@ export function AuthProvider({ children }) {
   }
 
   async function register(payload) {
-    const data = await apiRequest("/auth/register", {
+    return apiRequest("/auth/register", {
+      method: "POST",
+      body: payload
+    });
+  }
+
+  async function verifyEmail(payload) {
+    const data = await apiRequest("/auth/verify-email", {
       method: "POST",
       body: payload
     });
     await SecureStore.setItemAsync(tokenStorageKey, data.token);
     setToken(data.token);
     setUser(data.user);
+    return data;
+  }
+
+  async function resendVerification(payload) {
+    return apiRequest("/auth/resend-verification", {
+      method: "POST",
+      body: payload
+    });
   }
 
   async function forgotPassword(payload) {
@@ -76,12 +99,23 @@ export function AuthProvider({ children }) {
       token,
       body: fields
     });
+    if (data.requiresEmailVerification) {
+      await SecureStore.deleteItemAsync(tokenStorageKey);
+      setToken(null);
+      setUser(null);
+      return data;
+    }
+    if (data.token) {
+      await SecureStore.setItemAsync(tokenStorageKey, data.token);
+      setToken(data.token);
+    }
     setUser(data.user);
-    return data.user;
+    return data;
   }
 
   async function logout() {
     await SecureStore.deleteItemAsync(tokenStorageKey);
+    await SecureStore.deleteItemAsync(legacyTokenStorageKey);
     setToken(null);
     setUser(null);
   }
@@ -93,6 +127,8 @@ export function AuthProvider({ children }) {
       user,
       login,
       register,
+      verifyEmail,
+      resendVerification,
       forgotPassword,
       resetPassword,
       updateProfile,

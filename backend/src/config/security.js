@@ -3,7 +3,12 @@ function isProduction() {
 }
 
 function getJwtSecret() {
-  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  if (process.env.JWT_SECRET) {
+    if (isProduction() && String(process.env.JWT_SECRET).length < 32) {
+      throw new Error("JWT_SECRET precisa ter ao menos 32 caracteres em produção.");
+    }
+    return process.env.JWT_SECRET;
+  }
   if (isProduction()) throw new Error("JWT_SECRET é obrigatória em produção.");
   return "dev-secret";
 }

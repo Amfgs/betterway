@@ -25,7 +25,7 @@ const apiUrl = process.env.EXPO_PUBLIC_API_URL || `http://${ip}:5050/api`;
 const mobileDir = path.resolve(__dirname, "../mobile");
 const args = ["expo", "start", "--go", mode === "tunnel" ? "--tunnel" : "--host", mode === "tunnel" ? undefined : "lan"].filter(Boolean);
 
-console.log(`Valorize+ mobile usando API compartilhada: ${apiUrl}`);
+console.log(`Better Way mobile usando API compartilhada: ${apiUrl}`);
 console.log("As contas criadas no web/localhost serão as mesmas se o backend em :5050 estiver rodando.");
 
 const child = spawn("npx", args, {

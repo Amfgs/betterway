@@ -1,24 +1,28 @@
 {
   "expo": {
-    "name": "Valorize+",
-    "slug": "valorize-plus",
+    "name": "Better Way",
+    "slug": "betterway",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
+    "icon": "./src/assets/brand/betterway-app-icon.png",
+    "scheme": "betterway",
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.valorize-plus"
+      "bundleIdentifier": "com.amfgs.betterway"
     },
     "android": {
+      "package": "com.amfgs.betterway",
       "adaptiveIcon": {
-        "backgroundColor": "#10b981"
+        "foregroundImage": "./src/assets/brand/betterway-adaptive-icon.png",
+        "backgroundColor": "#eff7f3"
       }
     },
     "extra": {
-      "apiUrl": "http://localhost:5050/api"
+      "apiUrl": "https://betterway-api.vercel.app/api"
     },
     "plugins": [
       "expo-secure-store"

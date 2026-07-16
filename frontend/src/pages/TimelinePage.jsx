@@ -45,7 +45,7 @@ function groupByMonth(transactions) {
   }, {});
 }
 
-export function TimelinePage() {
+export function TimelinePage({ embedded = false }) {
   const [transactions, setTransactions] = useState([]);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(null);
@@ -106,8 +106,8 @@ export function TimelinePage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div className={`${embedded ? "embedded-page" : "workspace-page"} space-y-6`}>
+      {!embedded ? <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Histórico completo</p>
           <h1 className="text-3xl font-black">Linha do tempo completa</h1>
@@ -117,7 +117,7 @@ export function TimelinePage() {
           <ArrowLeft size={17} />
           Voltar ao dashboard
         </Link>
-      </div>
+      </div> : null}
 
       {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p> : null}
       {loading ? <p className="rounded-lg bg-white p-4 text-sm text-zinc-500 shadow-soft dark:bg-neutral-900 dark:text-zinc-400">Carregando linha do tempo...</p> : null}

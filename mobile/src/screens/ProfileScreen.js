@@ -1,16 +1,17 @@
 import React, { useEffect, useState } from "react";
-import { Image, Pressable, ScrollView, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { apiRequest, getApiUrl } from "../api/client";
 import { Button, StatCard, colors, styles } from "../components/ui";
+import { BankConnectionsMobile } from "../components/BankConnectionsMobile";
 import { useAuth } from "../context/AuthContext";
 import { categoryLabel, currency, percent } from "../utils/formatters";
 
 const avatarOptions = [
-  { label: "Aurora", value: "aurora", source: require("../assets/avatars/avatar-aurora.png") },
-  { label: "Verde", value: "verde", source: require("../assets/avatars/avatar-verde.png") },
-  { label: "Solar", value: "solar", source: require("../assets/avatars/avatar-solar.png") },
-  { label: "Índigo", value: "indigo", source: require("../assets/avatars/avatar-indigo.png") },
-  { label: "Grafite", value: "grafite", source: require("../assets/avatars/avatar-grafite.png") }
+  { label: "Aurora", value: "aurora", source: require("../assets/avatars/avatar-aurora.webp") },
+  { label: "Pulso", value: "verde", source: require("../assets/avatars/avatar-verde.webp") },
+  { label: "Faísca", value: "solar", source: require("../assets/avatars/avatar-solar.webp") },
+  { label: "Horizonte", value: "indigo", source: require("../assets/avatars/avatar-indigo.webp") },
+  { label: "Brisa", value: "grafite", source: require("../assets/avatars/avatar-grafite.webp") }
 ];
 
 function normalizeAvatar(value) {
@@ -34,6 +35,7 @@ export function ProfileScreen() {
   const [widgetError, setWidgetError] = useState("");
   const [widgetSaving, setWidgetSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState("");
+  const [username, setUsername] = useState(user?.username || "");
   const protectedIncome = Math.max(Number(user?.salary || 0) - Number(user?.monthlyLimit || 0), 0);
   const workHoursForLimit = Number(user?.hourlyRate || 1) ? Number(user?.monthlyLimit || 0) / Number(user?.hourlyRate || 1) : 0;
 
@@ -77,9 +79,24 @@ export function ProfileScreen() {
     }
   }
 
+  async function saveUsername() {
+    setProfileMessage("");
+    setWidgetError("");
+    try {
+      await updateProfile({ username });
+      setProfileMessage("Nome de usuário atualizado.");
+    } catch (err) {
+      setWidgetError(err.message);
+    }
+  }
+
   useEffect(() => {
     loadWidgets();
   }, [token]);
+
+  useEffect(() => {
+    setUsername(user?.username || "");
+  }, [user?.username]);
 
   const preferences = widgetState?.preferences || {};
   const selectedWidget = widgetState?.selectedWidget;
@@ -92,13 +109,30 @@ export function ProfileScreen() {
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>Perfil financeiro</Text>
           <Text style={styles.title}>{user?.name || "Usuário"}</Text>
+          <Text style={[styles.subtitle, { color: colors.emerald, fontWeight: "800" }]}>@{user?.username}</Text>
           <Text style={styles.subtitle}>{user?.email}</Text>
         </View>
       </View>
 
       <View style={styles.card}>
+        <Text style={styles.eyebrow}>Identidade pública</Text>
+        <Text style={styles.subtitle}>É por este nome único que outras pessoas encontram você em Amigos.</Text>
+        <TextInput
+          autoCapitalize="none"
+          autoCorrect={false}
+          maxLength={24}
+          onChangeText={(value) => setUsername(value.replace(/^@+/, "").toLowerCase().replace(/[^a-z0-9._]/g, ""))}
+          placeholder="seu.usuario"
+          placeholderTextColor={colors.muted}
+          style={[styles.input, { marginTop: 12 }]}
+          value={username}
+        />
+        <View style={{ marginTop: 10 }}><Button onPress={saveUsername}>Salvar nome de usuário</Button></View>
+      </View>
+
+      <View style={styles.card}>
         <Text style={styles.eyebrow}>Avatar gerado</Text>
-        <Text style={styles.subtitle}>Selecione uma imagem local do Valorize+ para seu perfil.</Text>
+        <Text style={styles.subtitle}>Selecione uma imagem local da Better Way para seu perfil.</Text>
         {profileMessage ? <Text style={[styles.success, { marginTop: 10 }]}>{profileMessage}</Text> : null}
         <View style={[styles.chipRow, { marginTop: 12 }]}>
           {avatarOptions.map((avatar) => {
@@ -122,6 +156,8 @@ export function ProfileScreen() {
         </View>
       </View>
       <StatCard label="Valor-hora" value={currency(user?.hourlyRate)} detail="Usado para calcular o custo real das compras." />
+
+      <BankConnectionsMobile />
 
       <View style={[styles.card, { borderColor: colors.emerald }]}>
         <Text style={styles.eyebrow}>Leitura comportamental</Text>

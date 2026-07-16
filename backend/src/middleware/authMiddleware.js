@@ -11,11 +11,20 @@ async function authMiddleware(req, res, next) {
       return res.status(401).json({ message: "Token ausente." });
     }
 
-    const decoded = jwt.verify(token, getJwtSecret());
+    const decoded = jwt.verify(token, getJwtSecret(), { algorithms: ["HS256"] });
     const user = await repository.findUserById(decoded.sub);
 
     if (!user) {
       return res.status(401).json({ message: "Usuário não encontrado." });
+    }
+    if (Number(decoded.ver || 0) !== Number(user.authVersion || 0)) {
+      return res.status(401).json({ message: "Sua sessão foi encerrada após uma alteração de segurança." });
+    }
+    if (user.emailVerified === false) {
+      return res.status(403).json({
+        code: "EMAIL_NOT_VERIFIED",
+        message: "Confirme seu e-mail antes de acessar a conta."
+      });
     }
 
     req.user = user;

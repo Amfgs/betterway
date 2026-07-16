@@ -1,15 +1,15 @@
-import avatarAurora from "../assets/avatars/avatar-aurora.png";
-import avatarGrafite from "../assets/avatars/avatar-grafite.png";
-import avatarIndigo from "../assets/avatars/avatar-indigo.png";
-import avatarSolar from "../assets/avatars/avatar-solar.png";
-import avatarVerde from "../assets/avatars/avatar-verde.png";
+import avatarAurora from "../assets/avatars/avatar-aurora.webp";
+import avatarGrafite from "../assets/avatars/avatar-grafite.webp";
+import avatarIndigo from "../assets/avatars/avatar-indigo.webp";
+import avatarSolar from "../assets/avatars/avatar-solar.webp";
+import avatarVerde from "../assets/avatars/avatar-verde.webp";
 
 export const avatarOptions = [
   { label: "Aurora", value: "aurora", src: avatarAurora },
-  { label: "Verde", value: "verde", src: avatarVerde },
-  { label: "Solar", value: "solar", src: avatarSolar },
-  { label: "Índigo", value: "indigo", src: avatarIndigo },
-  { label: "Grafite", value: "grafite", src: avatarGrafite }
+  { label: "Pulso", value: "verde", src: avatarVerde },
+  { label: "Faísca", value: "solar", src: avatarSolar },
+  { label: "Horizonte", value: "indigo", src: avatarIndigo },
+  { label: "Brisa", value: "grafite", src: avatarGrafite }
 ];
 
 const avatarValues = new Set(avatarOptions.map((avatar) => avatar.value));

@@ -1,34 +1,5 @@
 const axios = require("axios");
 
-const fallbackPrices = {
-  PETR4: 37.82,
-  VALE3: 64.4,
-  ITUB4: 34.7,
-  BBDC4: 14.6,
-  BBAS3: 28.1,
-  WEGE3: 39.2,
-  ABEV3: 12.3,
-  BOVA11: 128.4,
-  IVVB11: 338.2,
-  SMAL11: 119.8,
-  HASH11: 44.3,
-  HGLG11: 164.2,
-  KNRI11: 142.3,
-  MXRF11: 10.5,
-  XPLG11: 99.6,
-  XPML11: 112.8,
-  VISC11: 108.4,
-  KNCR11: 103.6,
-  BTC: 360000,
-  ETH: 18500,
-  SOL: 720,
-  ADA: 3.1,
-  BNB: 3200,
-  USDT: 5.4,
-  XRP: 2.9,
-  DOGE: 0.92
-};
-
 const cryptoIds = {
   BTC: "bitcoin",
   ETH: "ethereum",
@@ -92,24 +63,29 @@ const marketCatalog = [
   { ticker: "DOGE", name: "Dogecoin", type: "crypto", currency: "BRL" }
 ];
 
-function fallbackFor(ticker) {
-  if (fallbackPrices[ticker]) return fallbackPrices[ticker];
-  const seed = ticker.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  return Number((18 + (seed % 120) + (seed % 9) / 10).toFixed(2));
+let catalogCache = { expiresAt: 0, items: [] };
+const historyCache = new Map();
+
+function brapiHeaders() {
+  return process.env.BRAPI_API_KEY
+    ? { Authorization: `Bearer ${process.env.BRAPI_API_KEY}` }
+    : {};
 }
 
 async function fetchBrapiQuotes(tickers) {
   if (!tickers.length) return {};
 
   try {
-    const params = process.env.BRAPI_API_KEY ? { token: process.env.BRAPI_API_KEY } : {};
     const chunkSize = process.env.BRAPI_API_KEY ? 12 : 3;
     const chunks = [];
     for (let index = 0; index < tickers.length; index += chunkSize) {
       chunks.push(tickers.slice(index, index + chunkSize));
     }
     const responses = await Promise.allSettled(
-      chunks.map((chunk) => axios.get(`https://brapi.dev/api/quote/${chunk.join(",")}`, { params, timeout: 7000 }))
+      chunks.map((chunk) => axios.get(`https://brapi.dev/api/quote/${chunk.join(",")}`, {
+        headers: brapiHeaders(),
+        timeout: 7000
+      }))
     );
     const results = responses
       .filter((result) => result.status === "fulfilled")
@@ -210,7 +186,7 @@ async function getQuotes(assets) {
     map[asset.ticker] =
       stockQuotes[asset.ticker] ||
       cryptoQuotes[asset.ticker] || {
-        price: fallbackFor(asset.ticker),
+        price: asFiniteNumber(asset.averagePrice || asset.referencePrice),
         changePercent: 0,
         change: 0,
         open: 0,
@@ -218,7 +194,7 @@ async function getQuotes(assets) {
         low: 0,
         volume: 0,
         marketTime: new Date().toISOString(),
-        source: "fallback"
+        source: asset.averagePrice || asset.referencePrice ? "manual" : "unavailable"
       };
     return map;
   }, {});
@@ -230,10 +206,11 @@ function asFiniteNumber(value) {
 }
 
 async function getMarketCatalog() {
+  if (catalogCache.expiresAt > Date.now() && catalogCache.items.length) return catalogCache.items;
   const quotes = await getQuotes(marketCatalog);
-  return marketCatalog.map((item) => ({
+  const items = marketCatalog.map((item) => ({
     ...item,
-    currentPrice: quotes[item.ticker]?.price || fallbackFor(item.ticker),
+    currentPrice: quotes[item.ticker]?.price || 0,
     changePercent: quotes[item.ticker]?.changePercent || 0,
     change: quotes[item.ticker]?.change || 0,
     open: quotes[item.ticker]?.open || 0,
@@ -241,12 +218,91 @@ async function getMarketCatalog() {
     low: quotes[item.ticker]?.low || 0,
     volume: quotes[item.ticker]?.volume || 0,
     marketTime: quotes[item.ticker]?.marketTime || new Date().toISOString(),
-    quoteSource: quotes[item.ticker]?.source || "fallback"
+    quoteSource: quotes[item.ticker]?.source || "unavailable"
   }));
+  catalogCache = { expiresAt: Date.now() + 12000, items };
+  return items;
+}
+
+function historyResult(ticker, source, points, available = true) {
+  return {
+    ticker,
+    source,
+    available: Boolean(available && points.length),
+    updatedAt: new Date().toISOString(),
+    points
+  };
+}
+
+async function fetchBrapiHistory(ticker) {
+  const response = await axios.get("https://brapi.dev/api/v2/stocks/historical", {
+    headers: brapiHeaders(),
+    params: { symbols: ticker, range: "1mo", interval: "1d", sortOrder: "asc" },
+    timeout: 8000
+  });
+  const data = response.data?.results?.[0]?.data?.historicalDataPrice || [];
+  const points = data
+    .map((item) => ({
+      timestamp: Number(item.date) * 1000,
+      open: asFiniteNumber(item.open),
+      high: asFiniteNumber(item.high),
+      low: asFiniteNumber(item.low),
+      close: asFiniteNumber(item.close ?? item.adjustedClose),
+      volume: asFiniteNumber(item.volume)
+    }))
+    .filter((item) => item.timestamp && item.close > 0)
+    .sort((a, b) => a.timestamp - b.timestamp);
+  return historyResult(ticker, "brapi", points);
+}
+
+async function fetchCryptoHistory(ticker) {
+  const id = cryptoIds[ticker];
+  if (!id) return historyResult(ticker, "coingecko", [], false);
+  const response = await axios.get(`https://api.coingecko.com/api/v3/coins/${id}/market_chart`, {
+    params: { vs_currency: "brl", days: 30, interval: "daily" },
+    timeout: 8000
+  });
+  const volumes = new Map((response.data?.total_volumes || []).map(([timestamp, volume]) => [timestamp, volume]));
+  const points = (response.data?.prices || [])
+    .map(([timestamp, price]) => ({
+      timestamp: Number(timestamp),
+      open: asFiniteNumber(price),
+      high: asFiniteNumber(price),
+      low: asFiniteNumber(price),
+      close: asFiniteNumber(price),
+      volume: asFiniteNumber(volumes.get(timestamp))
+    }))
+    .filter((item) => item.timestamp && item.close > 0);
+  return historyResult(ticker, "coingecko", points);
+}
+
+async function getMarketHistory(ticker, type) {
+  const normalizedTicker = String(ticker || "").trim().toUpperCase();
+  const key = `${type}:${normalizedTicker}`;
+  const cached = historyCache.get(key);
+  if (cached?.expiresAt > Date.now()) return cached.value;
+
+  if (type === "cash" || fixedIncomeTypes.has(type)) {
+    return historyResult(normalizedTicker, "manual", [], false);
+  }
+
+  try {
+    const value = type === "crypto"
+      ? await fetchCryptoHistory(normalizedTicker)
+      : await fetchBrapiHistory(normalizedTicker);
+    historyCache.set(key, { expiresAt: Date.now() + 5 * 60 * 1000, value });
+    return value;
+  } catch (error) {
+    console.warn(`Falha ao consultar histórico de ${normalizedTicker}:`, error.message);
+    const value = historyResult(normalizedTicker, type === "crypto" ? "coingecko" : "brapi", [], false);
+    historyCache.set(key, { expiresAt: Date.now() + 60 * 1000, value });
+    return value;
+  }
 }
 
 module.exports = {
   getQuotes,
   getMarketCatalog,
+  getMarketHistory,
   marketCatalog
 };

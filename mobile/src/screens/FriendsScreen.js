@@ -22,7 +22,9 @@ const defaultGoalDate = new Date(new Date().getFullYear(), new Date().getMonth()
 export function FriendsScreen() {
   const { token } = useAuth();
   const [friends, setFriends] = useState([]);
-  const [friendEmail, setFriendEmail] = useState("");
+  const [incomingRequests, setIncomingRequests] = useState([]);
+  const [outgoingRequests, setOutgoingRequests] = useState([]);
+  const [friendUsername, setFriendUsername] = useState("");
   const [goalForm, setGoalForm] = useState({
     name: "",
     targetAmount: "",
@@ -42,6 +44,8 @@ export function FriendsScreen() {
     if (!token) return;
     const data = await apiRequest("/friends", { token });
     setFriends(data.friends || []);
+    setIncomingRequests(data.incomingRequests || []);
+    setOutgoingRequests(data.outgoingRequests || []);
   }
 
   useEffect(() => {
@@ -54,16 +58,38 @@ export function FriendsScreen() {
   }
 
   async function addFriend() {
-    if (!friendEmail) return;
+    if (!friendUsername) return;
     clearFeedback();
     try {
-      await apiRequest("/friends", {
+      const data = await apiRequest("/friends", {
         method: "POST",
         token,
-        body: { email: friendEmail }
+        body: { username: friendUsername }
       });
-      setFriendEmail("");
-      setMessage("Amigo adicionado.");
+      setFriendUsername("");
+      setMessage(data.message || "Pedido de amizade enviado.");
+      await loadFriends();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function acceptFriend(id) {
+    clearFeedback();
+    try {
+      const data = await apiRequest(`/friends/${id}/accept`, { method: "POST", token });
+      setMessage(data.message || "Pedido de amizade aceito.");
+      await loadFriends();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function removeRequest(id, messageText) {
+    clearFeedback();
+    try {
+      await apiRequest(`/friends/requests/${id}`, { method: "DELETE", token });
+      setMessage(messageText);
       await loadFriends();
     } catch (err) {
       setError(err.message);
@@ -149,12 +175,13 @@ export function FriendsScreen() {
         <Text style={styles.label}>Adicionar amigo</Text>
         <TextInput
           autoCapitalize="none"
-          keyboardType="email-address"
-          onChangeText={setFriendEmail}
-          placeholder="email do amigo cadastrado"
+          autoCorrect={false}
+          maxLength={24}
+          onChangeText={(value) => setFriendUsername(value.replace(/^@+/, "").toLowerCase().replace(/[^a-z0-9._]/g, ""))}
+          placeholder="@nome.usuario"
           placeholderTextColor={colors.muted}
           style={[styles.input, { marginTop: 8 }]}
-          value={friendEmail}
+          value={friendUsername}
         />
         <View style={{ marginTop: 10 }}>
           <Button onPress={addFriend}>Adicionar</Button>
@@ -162,19 +189,42 @@ export function FriendsScreen() {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.label}>Amigos conectados</Text>
+        {incomingRequests.length ? <Text style={styles.label}>Pedidos recebidos</Text> : null}
+        {incomingRequests.map((request) => (
+          <View key={request.id} style={[styles.listItem, styles.rowBetween]}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.text, fontWeight: "900" }}>{request.name}</Text>
+              <Text style={styles.muted}>@{request.username}</Text>
+            </View>
+            <View style={{ gap: 6 }}>
+              <Pressable onPress={() => acceptFriend(request.id)} style={[styles.chip, styles.chipActive]}><Text style={[styles.chipText, styles.chipTextActive]}>Aceitar</Text></Pressable>
+              <Pressable onPress={() => removeRequest(request.id, "Pedido recusado.")} style={styles.chip}><Text style={styles.chipText}>Recusar</Text></Pressable>
+            </View>
+          </View>
+        ))}
+        {outgoingRequests.length ? <Text style={[styles.label, { marginTop: 12 }]}>Aguardando aceite</Text> : null}
+        {outgoingRequests.map((request) => (
+          <View key={request.id} style={[styles.listItem, styles.rowBetween]}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.text, fontWeight: "900" }}>{request.name}</Text>
+              <Text style={styles.muted}>@{request.username}</Text>
+            </View>
+            <Pressable onPress={() => removeRequest(request.id, "Pedido cancelado.")} style={styles.chip}><Text style={styles.chipText}>Cancelar</Text></Pressable>
+          </View>
+        ))}
+        <Text style={[styles.label, { marginTop: incomingRequests.length || outgoingRequests.length ? 16 : 0 }]}>Amigos conectados</Text>
         {friends.map((friend) => (
           <View key={friend.id} style={[styles.listItem, styles.rowBetween]}>
             <View style={{ flex: 1 }}>
               <Text style={{ color: colors.text, fontWeight: "900" }}>{friend.name}</Text>
-              <Text style={styles.muted}>{friend.email}</Text>
+              <Text style={styles.muted}>@{friend.username}</Text>
             </View>
             <Pressable onPress={() => removeFriend(friend.id)} style={[styles.chip, { borderColor: "#fecaca", backgroundColor: "#fef2f2" }]}>
               <Text style={[styles.chipText, { color: "#991b1b" }]}>Remover</Text>
             </Pressable>
           </View>
         ))}
-        {!friends.length ? <Text style={styles.muted}>Adicione uma conta existente para começar.</Text> : null}
+        {!friends.length ? <Text style={styles.muted}>Nenhuma amizade aceita ainda.</Text> : null}
       </View>
 
       <View style={styles.card}>

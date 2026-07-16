@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const { normalizeDateForStorage } = require("../utils/financial");
+const { availableUsername, isValidUsername, normalizeUsername } = require("../utils/validation");
 
 const dataDir = path.resolve(__dirname, "../../data");
 const dataFile = process.env.LOCAL_STORE_PATH || path.join(dataDir, "store.json");
@@ -12,8 +13,38 @@ function defaultState() {
     transactions: [],
     goals: [],
     limits: [],
-    assets: []
+    assets: [],
+    bankConnections: []
   };
+}
+
+function normalizeUsers(users) {
+  const used = new Set();
+  return users.map((user) => {
+    const current = normalizeUsername(user.username);
+    const identity = String(user.email || "").split("@")[0] || user.name || "usuario";
+    const username = isValidUsername(current) && !used.has(current)
+      ? current
+      : availableUsername(identity, used);
+    used.add(username);
+    return {
+      friendIds: [],
+      acceptedFriendIds: [],
+      sentFriendRequestIds: [],
+      receivedFriendRequestIds: [],
+      authVersion: 0,
+      emailVerified: true,
+      workHoursPerDay: 8,
+      widgetPreferences: {
+        primaryWidgetKind: "goal",
+        primaryWidgetId: "",
+        streakReminderTime: "22:30",
+        appBlockingIntent: false
+      },
+      ...user,
+      username
+    };
+  });
 }
 
 function normalizeState(raw) {
@@ -22,20 +53,12 @@ function normalizeState(raw) {
   return {
     ...base,
     ...clean,
-    users: (clean.users || base.users).map((user) => ({
-      friendIds: [],
-      widgetPreferences: {
-        primaryWidgetKind: "goal",
-        primaryWidgetId: "",
-        streakReminderTime: "22:30",
-        appBlockingIntent: false
-      },
-      ...user
-    })),
+    users: normalizeUsers(clean.users || base.users),
     transactions: clean.transactions || base.transactions,
     goals: (clean.goals || base.goals).map((goal) => ({ participantIds: [], movements: [], ...goal })),
     limits: (clean.limits || base.limits).map((limit) => ({ participantIds: [], ...limit })),
-    assets: clean.assets || base.assets
+    assets: clean.assets || base.assets,
+    bankConnections: clean.bankConnections || base.bankConnections
   };
 }
 
@@ -62,7 +85,34 @@ function id() {
 function withoutPassword(user) {
   const clean = clone(user);
   delete clean.passwordHash;
+  delete clean.resetPasswordHash;
+  delete clean.resetPasswordExpiresAt;
+  delete clean.resetPasswordAttempts;
+  delete clean.resetPasswordSentAt;
+  delete clean.emailVerificationHash;
+  delete clean.emailVerificationExpiresAt;
+  delete clean.emailVerificationAttempts;
+  delete clean.emailVerificationSentAt;
   return clean;
+}
+
+function publicUser(user) {
+  if (!user) return null;
+  return {
+    id: user.id,
+    _id: user.id,
+    name: user.name,
+    username: user.username || "",
+    avatarUrl: user.avatarUrl || ""
+  };
+}
+
+function duplicateUsernameError() {
+  const error = new Error("Este nome de usuário já está em uso.");
+  error.code = 11000;
+  error.keyPattern = { username: 1 };
+  error.expose = true;
+  return error;
 }
 
 function byUser(collection, idToFind) {
@@ -77,13 +127,23 @@ function canAccess(item, idToFind) {
 }
 
 function saveState() {
-  fs.mkdirSync(dataDir, { recursive: true });
-  fs.writeFileSync(dataFile, JSON.stringify(state, null, 2));
+  const targetDir = path.dirname(dataFile);
+  const temporaryFile = `${dataFile}.${process.pid}.tmp`;
+  fs.mkdirSync(targetDir, { recursive: true, mode: 0o700 });
+  fs.writeFileSync(temporaryFile, JSON.stringify(state, null, 2), { mode: 0o600 });
+  fs.renameSync(temporaryFile, dataFile);
+  fs.chmodSync(dataFile, 0o600);
 }
 
 module.exports = {
   async findUserByEmail(email, includePassword = false) {
     const user = state.users.find((item) => item.email === String(email).toLowerCase());
+    if (!user) return null;
+    return includePassword ? clone(user) : withoutPassword(user);
+  },
+  async findUserByUsername(username, includePassword = false) {
+    const normalized = normalizeUsername(username);
+    const user = state.users.find((item) => item.username === normalized);
     if (!user) return null;
     return includePassword ? clone(user) : withoutPassword(user);
   },
@@ -93,13 +153,22 @@ module.exports = {
     return includePassword ? clone(user) : withoutPassword(user);
   },
   async createUser(payload) {
+    const username = normalizeUsername(payload.username);
+    if (state.users.some((item) => item.username === username)) throw duplicateUsernameError();
     const created = {
       id: id(),
       _id: null,
       salary: 4500,
       monthlyLimit: 3200,
       hourlyRate: 25,
+      workHoursPerDay: 8,
       theme: "dark",
+      authVersion: 0,
+      emailVerified: true,
+      friendIds: [],
+      acceptedFriendIds: [],
+      sentFriendRequestIds: [],
+      receivedFriendRequestIds: [],
       widgetPreferences: {
         primaryWidgetKind: "goal",
         primaryWidgetId: "",
@@ -107,6 +176,7 @@ module.exports = {
         appBlockingIntent: false
       },
       ...payload,
+      username,
       email: payload.email.toLowerCase(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -119,9 +189,14 @@ module.exports = {
   async updateUser(idToFind, fields) {
     const index = state.users.findIndex((item) => String(item.id) === String(idToFind));
     if (index === -1) return null;
+    const username = fields.username === undefined ? undefined : normalizeUsername(fields.username);
+    if (username && state.users.some((item, itemIndex) => itemIndex !== index && item.username === username)) {
+      throw duplicateUsernameError();
+    }
     state.users[index] = {
       ...state.users[index],
       ...fields,
+      ...(username ? { username } : {}),
       updatedAt: new Date().toISOString()
     };
     saveState();
@@ -159,6 +234,25 @@ module.exports = {
     saveState();
     return clone(state.transactions[index]);
   },
+  async claimInvestmentTransaction(userIdToFind, transactionId) {
+    const index = state.transactions.findIndex(
+      (item) =>
+        String(item.userId) === String(userIdToFind) &&
+        String(item.id) === String(transactionId) &&
+        item.type === "expense" &&
+        item.category === "Investimentos" &&
+        item.investmentStatus === "pending"
+    );
+    if (index === -1) return null;
+    state.transactions[index] = {
+      ...state.transactions[index],
+      investmentStatus: "resolving",
+      resolvingAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    saveState();
+    return clone(state.transactions[index]);
+  },
   async deleteTransaction(userIdToFind, transactionId) {
     const index = state.transactions.findIndex(
       (item) => String(item.userId) === String(userIdToFind) && String(item.id) === String(transactionId)
@@ -188,7 +282,7 @@ module.exports = {
   },
   async updateGoal(userIdToFind, goalId, fields) {
     const index = state.goals.findIndex(
-      (item) => canAccess(item, userIdToFind) && String(item.id) === String(goalId)
+      (item) => String(item.userId) === String(userIdToFind) && String(item.id) === String(goalId)
     );
     if (index === -1) return null;
     state.goals[index] = {
@@ -228,7 +322,7 @@ module.exports = {
   },
   async deleteGoal(userIdToFind, goalId) {
     const index = state.goals.findIndex(
-      (item) => canAccess(item, userIdToFind) && String(item.id) === String(goalId)
+      (item) => String(item.userId) === String(userIdToFind) && String(item.id) === String(goalId)
     );
     if (index === -1) return false;
     state.goals.splice(index, 1);
@@ -273,7 +367,7 @@ module.exports = {
   },
   async updateLimit(userIdToFind, limitId, fields) {
     const index = state.limits.findIndex(
-      (item) => canAccess(item, userIdToFind) && String(item.id) === String(limitId)
+      (item) => String(item.userId) === String(userIdToFind) && String(item.id) === String(limitId)
     );
     if (index === -1) return null;
     state.limits[index] = {
@@ -286,7 +380,7 @@ module.exports = {
   },
   async deleteLimit(userIdToFind, limitId) {
     const index = state.limits.findIndex(
-      (item) => canAccess(item, userIdToFind) && String(item.id) === String(limitId)
+      (item) => String(item.userId) === String(userIdToFind) && String(item.id) === String(limitId)
     );
     if (index === -1) return false;
     state.limits.splice(index, 1);
@@ -335,25 +429,154 @@ module.exports = {
     saveState();
     return true;
   },
-  async listFriends(userIdToFind) {
+  async listFriendships(userIdToFind) {
     const user = state.users.find((item) => String(item.id) === String(userIdToFind));
-    const friendIds = user?.friendIds || [];
-    return state.users.filter((item) => friendIds.includes(item.id)).map(withoutPassword);
+    if (!user) return { friends: [], incomingRequests: [], outgoingRequests: [] };
+    const select = (ids) => state.users.filter((item) => ids.includes(item.id)).map(publicUser);
+    return {
+      friends: select(user.acceptedFriendIds || []),
+      incomingRequests: select(user.receivedFriendRequestIds || []),
+      outgoingRequests: select(user.sentFriendRequestIds || [])
+    };
   },
-  async addFriend(userIdToFind, friendEmail) {
+  async requestFriend(userIdToFind, friendUsername) {
     const userIndex = state.users.findIndex((item) => String(item.id) === String(userIdToFind));
-    const friend = state.users.find((item) => item.email === String(friendEmail).toLowerCase());
+    const friendIndex = state.users.findIndex((item) => item.username === normalizeUsername(friendUsername));
+    const friend = state.users[friendIndex];
     if (userIndex === -1 || !friend || friend.id === userIdToFind) return null;
-    const friendIds = new Set(state.users[userIndex].friendIds || []);
-    friendIds.add(friend.id);
-    state.users[userIndex].friendIds = Array.from(friendIds);
+
+    const user = state.users[userIndex];
+    if ((user.acceptedFriendIds || []).includes(friend.id)) {
+      return { status: "existing", user: publicUser(friend) };
+    }
+
+    if ((user.receivedFriendRequestIds || []).includes(friend.id)) {
+      const accepted = new Set(user.acceptedFriendIds || []);
+      const reciprocal = new Set(friend.acceptedFriendIds || []);
+      accepted.add(friend.id);
+      reciprocal.add(user.id);
+      user.acceptedFriendIds = [...accepted];
+      friend.acceptedFriendIds = [...reciprocal];
+      user.receivedFriendRequestIds = (user.receivedFriendRequestIds || []).filter((value) => value !== friend.id);
+      user.sentFriendRequestIds = (user.sentFriendRequestIds || []).filter((value) => value !== friend.id);
+      friend.receivedFriendRequestIds = (friend.receivedFriendRequestIds || []).filter((value) => value !== user.id);
+      friend.sentFriendRequestIds = (friend.sentFriendRequestIds || []).filter((value) => value !== user.id);
+      saveState();
+      return { status: "accepted", user: publicUser(friend) };
+    }
+
+    user.sentFriendRequestIds = [...new Set([...(user.sentFriendRequestIds || []), friend.id])];
+    friend.receivedFriendRequestIds = [...new Set([...(friend.receivedFriendRequestIds || []), user.id])];
     saveState();
-    return withoutPassword(friend);
+    return { status: "pending", user: publicUser(friend) };
+  },
+  async acceptFriend(userIdToFind, requesterId) {
+    const user = state.users.find((item) => String(item.id) === String(userIdToFind));
+    const requester = state.users.find((item) => String(item.id) === String(requesterId));
+    if (!user || !requester || !(user.receivedFriendRequestIds || []).includes(requester.id)) return null;
+    user.acceptedFriendIds = [...new Set([...(user.acceptedFriendIds || []), requester.id])];
+    requester.acceptedFriendIds = [...new Set([...(requester.acceptedFriendIds || []), user.id])];
+    user.receivedFriendRequestIds = (user.receivedFriendRequestIds || []).filter((value) => value !== requester.id);
+    requester.sentFriendRequestIds = (requester.sentFriendRequestIds || []).filter((value) => value !== user.id);
+    saveState();
+    return publicUser(requester);
+  },
+  async deleteFriendRequest(userIdToFind, otherId) {
+    const user = state.users.find((item) => String(item.id) === String(userIdToFind));
+    const other = state.users.find((item) => String(item.id) === String(otherId));
+    if (!user || !other) return false;
+    user.sentFriendRequestIds = (user.sentFriendRequestIds || []).filter((value) => String(value) !== String(other.id));
+    user.receivedFriendRequestIds = (user.receivedFriendRequestIds || []).filter((value) => String(value) !== String(other.id));
+    other.sentFriendRequestIds = (other.sentFriendRequestIds || []).filter((value) => String(value) !== String(user.id));
+    other.receivedFriendRequestIds = (other.receivedFriendRequestIds || []).filter((value) => String(value) !== String(user.id));
+    saveState();
+    return true;
   },
   async deleteFriend(userIdToFind, friendId) {
     const userIndex = state.users.findIndex((item) => String(item.id) === String(userIdToFind));
-    if (userIndex === -1) return false;
-    state.users[userIndex].friendIds = (state.users[userIndex].friendIds || []).filter((idToKeep) => String(idToKeep) !== String(friendId));
+    const friendIndex = state.users.findIndex((item) => String(item.id) === String(friendId));
+    if (userIndex === -1 || friendIndex === -1) return false;
+    state.users[userIndex].acceptedFriendIds = (state.users[userIndex].acceptedFriendIds || []).filter((value) => String(value) !== String(friendId));
+    state.users[friendIndex].acceptedFriendIds = (state.users[friendIndex].acceptedFriendIds || []).filter((value) => String(value) !== String(userIdToFind));
+    state.goals = state.goals.map((goal) => {
+      if (String(goal.userId) === String(userIdToFind)) {
+        return { ...goal, participantIds: (goal.participantIds || []).filter((value) => String(value) !== String(friendId)) };
+      }
+      if (String(goal.userId) === String(friendId)) {
+        return { ...goal, participantIds: (goal.participantIds || []).filter((value) => String(value) !== String(userIdToFind)) };
+      }
+      return goal;
+    });
+    state.limits = state.limits.map((limit) => {
+      if (String(limit.userId) === String(userIdToFind)) {
+        return { ...limit, participantIds: (limit.participantIds || []).filter((value) => String(value) !== String(friendId)) };
+      }
+      if (String(limit.userId) === String(friendId)) {
+        return { ...limit, participantIds: (limit.participantIds || []).filter((value) => String(value) !== String(userIdToFind)) };
+      }
+      return limit;
+    });
+    saveState();
+    return true;
+  },
+  async getAcceptedFriendIds(userIdToFind) {
+    const user = state.users.find((item) => String(item.id) === String(userIdToFind));
+    return clone(user?.acceptedFriendIds || []).map(String);
+  },
+  async listBankConnections(userIdToFind) {
+    return clone(byUser("bankConnections", userIdToFind)).sort(
+      (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)
+    );
+  },
+  async findBankConnection(userIdToFind, connectionId) {
+    const connection = state.bankConnections.find(
+      (item) => String(item.userId) === String(userIdToFind) && String(item.id) === String(connectionId)
+    );
+    return connection ? clone(connection) : null;
+  },
+  async upsertBankConnection(userIdToFind, provider, externalId, fields) {
+    const index = state.bankConnections.findIndex(
+      (item) =>
+        String(item.userId) === String(userIdToFind) &&
+        item.provider === provider &&
+        item.externalId === externalId
+    );
+    if (index !== -1) {
+      state.bankConnections[index] = {
+        ...state.bankConnections[index],
+        ...fields,
+        userId: userIdToFind,
+        provider,
+        externalId,
+        updatedAt: new Date().toISOString()
+      };
+      saveState();
+      return clone(state.bankConnections[index]);
+    }
+
+    const created = {
+      id: id(),
+      _id: null,
+      userId: userIdToFind,
+      provider,
+      externalId,
+      accounts: [],
+      investments: [],
+      ...fields,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    created._id = created.id;
+    state.bankConnections.push(created);
+    saveState();
+    return clone(created);
+  },
+  async deleteBankConnection(userIdToFind, connectionId) {
+    const index = state.bankConnections.findIndex(
+      (item) => String(item.userId) === String(userIdToFind) && String(item.id) === String(connectionId)
+    );
+    if (index === -1) return false;
+    state.bankConnections.splice(index, 1);
     saveState();
     return true;
   }

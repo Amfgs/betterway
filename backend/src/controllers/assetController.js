@@ -1,7 +1,8 @@
 const asyncHandler = require("../utils/asyncHandler");
 const repository = require("../services/repository");
-const { getMarketCatalog, getQuotes } = require("../services/marketService");
+const { getMarketCatalog, getMarketHistory, getQuotes } = require("../services/marketService");
 const { asNumber } = require("../utils/financial");
+const { cleanText, numberInRange } = require("../utils/validation");
 
 const fixedIncomeTypes = new Set([
   "cash",
@@ -15,6 +16,12 @@ const fixedIncomeTypes = new Set([
   "fund",
   "pension"
 ]);
+const allowedAssetTypes = new Set(["stock", "fii", "etf", "crypto", ...fixedIncomeTypes]);
+
+function validTicker(value) {
+  const ticker = normalizeTicker(value);
+  return /^[A-Z0-9][A-Z0-9._-]{0,29}$/.test(ticker) ? ticker : null;
+}
 
 function enrichPortfolio(assets, quotes) {
   const enriched = assets.map((asset) => {
@@ -124,13 +131,22 @@ const market = asyncHandler(async (req, res) => {
   });
 });
 
+const marketHistory = asyncHandler(async (req, res) => {
+  const ticker = validTicker(req.query.ticker);
+  const type = String(req.query.type || "stock");
+  if (!ticker || !allowedAssetTypes.has(type)) {
+    return res.status(400).json({ message: "Ativo inválido para consulta de histórico." });
+  }
+  return res.json({ history: await getMarketHistory(ticker, type) });
+});
+
 const pendingInvestments = asyncHandler(async (req, res) => {
   const transactions = await repository.listTransactions(req.user.id);
   const pending = transactions.filter((transaction) => {
     return (
       transaction.type === "expense" &&
       transaction.category === "Investimentos" &&
-      transaction.investmentStatus !== "resolved"
+      transaction.investmentStatus === "pending"
     );
   });
 
@@ -148,9 +164,21 @@ const resolveInvestment = asyncHandler(async (req, res) => {
   if (!transaction || transaction.type !== "expense" || transaction.category !== "Investimentos") {
     return res.status(404).json({ message: "Saída de investimento não encontrada." });
   }
+  if (transaction.investmentStatus !== "pending") {
+    return res.status(409).json({ message: "Esse investimento já foi explicado e incorporado à carteira." });
+  }
+  if (splits.length > 50) return res.status(400).json({ message: "Use no máximo 50 divisões por lançamento." });
 
   const normalizedSplits = splits.map(normalizeSplit);
-  const invalid = normalizedSplits.find((split) => !split.ticker || !split.amount || !split.quantity || !split.averagePrice);
+  const invalid = normalizedSplits.find((split) => {
+    return (
+      !validTicker(split.ticker) ||
+      !allowedAssetTypes.has(split.type) ||
+      numberInRange(split.amount, 0.01, 1e15) === null ||
+      numberInRange(split.quantity, 0.00000001, 1e15) === null ||
+      numberInRange(split.averagePrice, 0.00000001, 1e15) === null
+    );
+  });
   if (invalid) {
     return res.status(400).json({ message: "Cada parte precisa ter ticker, valor, quantidade e preço médio válidos." });
   }
@@ -163,26 +191,41 @@ const resolveInvestment = asyncHandler(async (req, res) => {
     });
   }
 
-  const createdSplits = [];
-  for (const split of normalizedSplits) {
-    const asset = await upsertAssetFromSplit(req.user.id, split);
-    createdSplits.push({
-      assetId: asset.id,
-      ticker: split.ticker,
-      name: split.name,
-      type: split.type,
-      amount: split.amount,
-      quantity: split.quantity,
-      averagePrice: split.averagePrice,
-      createdAt: new Date().toISOString()
-    });
+  const claimedTransaction = await repository.claimInvestmentTransaction(req.user.id, transaction.id);
+  if (!claimedTransaction) {
+    return res.status(409).json({ message: "Esse investimento já está sendo processado ou foi explicado." });
   }
 
-  const updatedTransaction = await repository.updateTransaction(req.user.id, transaction.id, {
-    investmentStatus: "resolved",
-    investmentSplits: createdSplits,
-    resolvedAt: new Date().toISOString()
-  });
+  let updatedTransaction;
+  try {
+    const createdSplits = [];
+    for (const split of normalizedSplits) {
+      const asset = await upsertAssetFromSplit(req.user.id, split);
+      createdSplits.push({
+        assetId: asset.id,
+        ticker: split.ticker,
+        name: split.name,
+        type: split.type,
+        amount: split.amount,
+        quantity: split.quantity,
+        averagePrice: split.averagePrice,
+        createdAt: new Date().toISOString()
+      });
+    }
+
+    updatedTransaction = await repository.updateTransaction(req.user.id, transaction.id, {
+      investmentStatus: "resolved",
+      investmentSplits: createdSplits,
+      resolvingAt: null,
+      resolvedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    await repository.updateTransaction(req.user.id, transaction.id, {
+      investmentStatus: "pending",
+      resolvingAt: null
+    });
+    throw error;
+  }
   const assets = await repository.listAssets(req.user.id);
   const quotes = await getQuotes(assets);
 
@@ -194,18 +237,22 @@ const resolveInvestment = asyncHandler(async (req, res) => {
 
 const create = asyncHandler(async (req, res) => {
   const { ticker, name, type, quantity, averagePrice, currency } = req.body;
-  if (!ticker || !quantity || averagePrice === undefined) {
+  const normalizedTicker = validTicker(ticker);
+  const normalizedType = type || "stock";
+  const validQuantity = numberInRange(quantity, 0.00000001, 1e15);
+  const validAveragePrice = numberInRange(averagePrice, 0.00000001, 1e15);
+  if (!normalizedTicker || !allowedAssetTypes.has(normalizedType) || validQuantity === null || validAveragePrice === null) {
     return res.status(400).json({ message: "Ticker, quantidade e preço médio são obrigatórios." });
   }
 
   const asset = await repository.createAsset({
     userId: req.user.id,
-    ticker,
-    name,
-    type,
-    quantity: asNumber(quantity),
-    averagePrice: asNumber(averagePrice),
-    currency
+    ticker: normalizedTicker,
+    name: cleanText(name, 120),
+    type: normalizedType,
+    quantity: validQuantity,
+    averagePrice: validAveragePrice,
+    currency: cleanText(currency || "BRL", 8).toUpperCase()
   });
 
   return res.status(201).json({ asset });
@@ -218,6 +265,22 @@ const update = asyncHandler(async (req, res) => {
     }
     return acc;
   }, {});
+
+  if (fields.ticker !== undefined) {
+    fields.ticker = validTicker(fields.ticker);
+    if (!fields.ticker) return res.status(400).json({ message: "Ticker inválido." });
+  }
+  if (fields.type !== undefined && !allowedAssetTypes.has(fields.type)) {
+    return res.status(400).json({ message: "Tipo de ativo inválido." });
+  }
+  if (fields.quantity !== undefined && numberInRange(fields.quantity, 0.00000001, 1e15) === null) {
+    return res.status(400).json({ message: "Quantidade inválida." });
+  }
+  if (fields.averagePrice !== undefined && numberInRange(fields.averagePrice, 0.00000001, 1e15) === null) {
+    return res.status(400).json({ message: "Preço médio inválido." });
+  }
+  if (fields.name !== undefined) fields.name = cleanText(fields.name, 120);
+  if (fields.currency !== undefined) fields.currency = cleanText(fields.currency, 8).toUpperCase();
 
   const asset = await repository.updateAsset(req.user.id, req.params.id, fields);
   if (!asset) return res.status(404).json({ message: "Ativo não encontrado." });
@@ -233,6 +296,7 @@ const remove = asyncHandler(async (req, res) => {
 module.exports = {
   portfolio,
   market,
+  marketHistory,
   pendingInvestments,
   resolveInvestment,
   create,

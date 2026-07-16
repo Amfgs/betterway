@@ -1,35 +1,57 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Check, LockKeyhole, Moon, ShieldCheck, Sun } from "lucide-react";
-import heroImage from "../assets/landing/valorize-hero.webp";
+import heroImage from "../assets/landing/betterway-hero.webp";
 import { getErrorMessage } from "../api/client";
 import { Logo } from "../components/Logo";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 
 export function AuthPage() {
-  const { login, register, forgotPassword, resetPassword, isAuthenticated, loading } = useAuth();
+  const {
+    login,
+    register,
+    verifyEmail,
+    resendVerification,
+    forgotPassword,
+    resetPassword,
+    isAuthenticated,
+    loading
+  } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [mode, setMode] = useState("login");
   const [form, setForm] = useState({
     name: "",
+    username: "",
     email: "",
     password: "",
+    confirmPassword: "",
+    verificationToken: "",
     resetToken: "",
     salary: "",
     monthlyLimit: "",
-    hourlyRate: ""
+    hourlyRate: "",
+    workHoursPerDay: "8"
   });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [showForgotHint, setShowForgotHint] = useState(false);
+  const [showVerificationHint, setShowVerificationHint] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const requested = params.get("mode");
-    if (requested === "reset") {
+    const requested = location.state?.mode || params.get("mode");
+    if (requested === "verify") {
+      setMode("verify");
+      setForm((current) => ({
+        ...current,
+        email: location.state?.email || params.get("email") || current.email,
+        verificationToken: location.state?.verificationToken || params.get("token") || current.verificationToken
+      }));
+      if (location.state?.message) setSuccess(location.state.message);
+    } else if (requested === "reset") {
       setMode("reset");
       setForm((current) => ({
         ...current,
@@ -39,7 +61,7 @@ export function AuthPage() {
     } else if (requested === "register") {
       setMode("register");
     }
-  }, [location.search]);
+  }, [location.search, location.state]);
 
   if (!loading && isAuthenticated) return <Navigate to="/dashboard" replace />;
 
@@ -52,12 +74,28 @@ export function AuthPage() {
     setError("");
     setSuccess("");
     setShowForgotHint(false);
+    setShowVerificationHint(false);
     try {
       if (mode === "login") {
         await login({ email: form.email, password: form.password });
         navigate(location.state?.from?.pathname || "/dashboard", { replace: true });
       } else if (mode === "register") {
-        await register(form);
+        if (form.password !== form.confirmPassword) {
+          setError("As senhas não coincidem.");
+          return;
+        }
+        const response = await register({ ...form, hourlyRate: calculatedHourlyRate });
+        setMode("verify");
+        setSuccess(response.message);
+        setForm((current) => ({
+          ...current,
+          email: response.email || current.email,
+          password: "",
+          confirmPassword: "",
+          verificationToken: response.devVerificationToken || ""
+        }));
+      } else if (mode === "verify") {
+        await verifyEmail({ email: form.email, token: form.verificationToken });
         navigate(location.state?.from?.pathname || "/dashboard", { replace: true });
       } else if (mode === "forgot") {
         const response = await forgotPassword({ email: form.email });
@@ -66,7 +104,7 @@ export function AuthPage() {
           setMode("reset");
           setForm((current) => ({ ...current, resetToken: response.devResetToken, password: "" }));
         }
-      } else {
+      } else if (mode === "reset") {
         const response = await resetPassword({ email: form.email, token: form.resetToken, newPassword: form.password });
         setSuccess(response.message);
         setMode("login");
@@ -75,6 +113,7 @@ export function AuthPage() {
     } catch (err) {
       const message = getErrorMessage(err);
       setError(message);
+      setShowVerificationHint(err?.response?.data?.code === "EMAIL_NOT_VERIFIED");
       setShowForgotHint(
         message.toLowerCase().includes("e-mail já está cadastrado") ||
           message.toLowerCase().includes("email já está cadastrado") ||
@@ -88,19 +127,60 @@ export function AuthPage() {
     setError("");
     setSuccess("");
     setShowForgotHint(false);
+    setShowVerificationHint(false);
   }
 
-  const eyebrow = mode === "login" ? "Bem-vindo de volta" : mode === "register" ? "Comece em poucos passos" : mode === "forgot" ? "Recupere o acesso" : "Proteja sua conta";
-  const heading = mode === "login" ? "Entre no Valorize+" : mode === "register" ? "Crie sua conta" : mode === "forgot" ? "Esqueceu a senha?" : "Defina uma nova senha";
-  const description = mode === "login"
-    ? "Continue de onde parou e veja como está sua vida financeira hoje."
-    : mode === "register"
-      ? "Conte um pouco sobre sua realidade para receber uma experiência mais útil desde o início."
-      : mode === "forgot"
-        ? "Informe o e-mail da conta. Enviaremos as instruções para você voltar com segurança."
-        : "Use o código recebido por e-mail e escolha uma senha com pelo menos 6 caracteres.";
-  const cta = mode === "login" ? "Entrar no painel" : mode === "register" ? "Criar minha conta" : mode === "forgot" ? "Enviar instruções" : "Redefinir senha";
+  async function resendCode() {
+    setError("");
+    setSuccess("");
+    try {
+      const response = await resendVerification({ email: form.email });
+      setSuccess(response.message);
+      if (response.devVerificationToken) update("verificationToken", response.devVerificationToken);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  }
+
+  const modeCopy = {
+    login: {
+      eyebrow: "Bem-vindo de volta",
+      heading: "Entre na Better Way",
+      description: "Continue de onde parou e veja como está sua vida financeira hoje.",
+      cta: "Entrar no painel"
+    },
+    register: {
+      eyebrow: "Comece em poucos passos",
+      heading: "Crie sua conta",
+      description: "Conte um pouco sobre sua realidade para receber uma experiência mais útil desde o início.",
+      cta: "Criar minha conta"
+    },
+    verify: {
+      eyebrow: "Só falta confirmar",
+      heading: "Verifique seu e-mail",
+      description: "Digite o código enviado para ativar sua conta. Ele é válido por 24 horas.",
+      cta: "Confirmar e entrar"
+    },
+    forgot: {
+      eyebrow: "Recupere o acesso",
+      heading: "Esqueceu a senha?",
+      description: "Informe o e-mail da conta. Enviaremos um código numérico para você voltar com segurança.",
+      cta: "Enviar código"
+    },
+    reset: {
+      eyebrow: "Proteja sua conta",
+      heading: "Defina uma nova senha",
+      description: "Use o código recebido por e-mail e escolha uma senha com pelo menos 8 caracteres.",
+      cta: "Redefinir senha"
+    }
+  };
+  const { eyebrow, heading, description, cta } = modeCopy[mode] || modeCopy.login;
   const inputClass = "auth-input";
+  const salaryValue = Number(form.salary || 0);
+  const workHoursValue = Number(form.workHoursPerDay || 0);
+  const calculatedHourlyRate = salaryValue > 0 && workHoursValue > 0
+    ? (salaryValue / (workHoursValue * 22)).toFixed(2)
+    : "0.00";
 
   return (
     <div className="auth-layout">
@@ -122,7 +202,7 @@ export function AuthPage() {
 
       <main className="auth-panel">
         <div className="auth-panel-top">
-          <Link aria-label="Valorize+ início" className="auth-mobile-logo" to="/"><Logo size={36} /></Link>
+          <Link aria-label="Better Way início" className="auth-mobile-logo" to="/"><Logo size={36} /></Link>
           <button aria-label="Alternar tema" className="auth-theme-button" onClick={toggleTheme} title="Alternar tema" type="button">
             {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
           </button>
@@ -144,26 +224,57 @@ export function AuthPage() {
 
           <form className="auth-form" onSubmit={submit}>
             {mode === "register" ? (
-              <label><span>Nome</span><input autoComplete="name" className={inputClass} onChange={(event) => update("name", event.target.value)} required value={form.name} /></label>
+              <>
+                <label><span>Nome</span><input autoComplete="name" className={inputClass} onChange={(event) => update("name", event.target.value)} required value={form.name} /></label>
+                <label>
+                  <span>Nome de usuário</span>
+                  <input
+                    autoCapitalize="none"
+                    autoComplete="username"
+                    className={inputClass}
+                    maxLength={24}
+                    minLength={3}
+                    onChange={(event) => update("username", event.target.value.replace(/^@+/, "").toLowerCase().replace(/[^a-z0-9._]/g, "").slice(0, 24))}
+                    placeholder="seu.usuario"
+                    required
+                    value={form.username}
+                  />
+                  <small className="auth-inline-hint">Seu identificador único para amizades. Use letras, números, ponto ou sublinhado.</small>
+                </label>
+              </>
             ) : null}
             <label>
               <span>E-mail</span>
               <input autoComplete="email" className={inputClass} onChange={(event) => update("email", event.target.value)} placeholder="voce@email.com" required type="email" value={form.email} />
             </label>
-            {mode !== "forgot" ? (
+            {["login", "register", "reset"].includes(mode) ? (
               <label>
                 <span>{mode === "reset" ? "Nova senha" : "Senha"}</span>
-                <input autoComplete={mode === "login" ? "current-password" : "new-password"} className={inputClass} minLength={6} onChange={(event) => update("password", event.target.value)} placeholder="••••••••" required type="password" value={form.password} />
+                <input autoComplete={mode === "login" ? "current-password" : "new-password"} className={inputClass} maxLength={72} minLength={mode === "login" ? undefined : 8} onChange={(event) => update("password", event.target.value)} placeholder="••••••••" required type="password" value={form.password} />
+              </label>
+            ) : null}
+            {mode === "register" ? (
+              <label>
+                <span>Confirme a senha</span>
+                <input autoComplete="new-password" className={inputClass} maxLength={72} minLength={8} onChange={(event) => update("confirmPassword", event.target.value)} placeholder="••••••••" required type="password" value={form.confirmPassword} />
+              </label>
+            ) : null}
+            {mode === "verify" ? (
+              <label>
+                <span>Código de verificação</span>
+                <input autoComplete="one-time-code" className={inputClass} inputMode="numeric" onChange={(event) => update("verificationToken", event.target.value.replace(/\D/g, "").slice(0, 8))} placeholder="00000000" required value={form.verificationToken} />
               </label>
             ) : null}
             {mode === "reset" ? (
-              <label><span>Código recebido por e-mail</span><input className={inputClass} onChange={(event) => update("resetToken", event.target.value)} required value={form.resetToken} /></label>
+              <label><span>Código recebido por e-mail</span><input autoComplete="one-time-code" className={inputClass} inputMode="numeric" onChange={(event) => update("resetToken", event.target.value.replace(/\D/g, "").slice(0, 8))} placeholder="00000000" required value={form.resetToken} /></label>
             ) : null}
             {mode === "register" ? (
               <div className="auth-financial-grid">
-                <label><span>Salário líquido</span><input className={inputClass} min="0" onChange={(event) => update("salary", event.target.value)} type="number" value={form.salary} /></label>
+                <label><span>Salário líquido</span><input className={inputClass} min="0" onChange={(event) => update("salary", event.target.value)} required type="number" value={form.salary} /></label>
                 <label><span>Teto mensal</span><input className={inputClass} min="0" onChange={(event) => update("monthlyLimit", event.target.value)} type="number" value={form.monthlyLimit} /></label>
-                <label><span>Valor por hora</span><input className={inputClass} min="0" onChange={(event) => update("hourlyRate", event.target.value)} step="0.01" type="number" value={form.hourlyRate} /></label>
+                <label><span>Horas trabalhadas por dia</span><input className={inputClass} max="24" min="1" onChange={(event) => update("workHoursPerDay", event.target.value)} required step="0.5" type="number" value={form.workHoursPerDay} /></label>
+                <label><span>Valor por hora calculado</span><input aria-describedby="hourly-rate-help" className={`${inputClass} auth-input-calculated`} readOnly value={`R$ ${calculatedHourlyRate}`} /></label>
+                <small className="auth-field-hint" id="hourly-rate-help">Cálculo considerando 22 dias úteis por mês.</small>
               </div>
             ) : null}
 
@@ -171,12 +282,14 @@ export function AuthPage() {
               <div className="auth-message error" role="alert">
                 <p>{error}</p>
                 {showForgotHint ? <button onClick={() => switchMode("forgot")} type="button">Recuperar minha senha</button> : null}
+                {showVerificationHint ? <button onClick={() => switchMode("verify")} type="button">Verificar meu e-mail</button> : null}
               </div>
             ) : null}
             {success ? <p className="auth-message success" role="status">{success}</p> : null}
 
             <button className="auth-submit" type="submit">{cta}<ArrowRight size={18} /></button>
             {mode === "login" ? <button className="auth-forgot" onClick={() => switchMode("forgot")} type="button">Esqueceu a senha?</button> : null}
+            {mode === "verify" ? <button className="auth-forgot" onClick={resendCode} type="button">Reenviar código</button> : null}
           </form>
 
           <p className="auth-security-note">

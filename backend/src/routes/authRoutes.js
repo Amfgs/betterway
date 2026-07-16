@@ -1,13 +1,32 @@
 const express = require("express");
+const rateLimit = require("express-rate-limit");
 const authController = require("../controllers/authController");
 const authMiddleware = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-router.post("/register", authController.register);
+const emailActionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 8,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { message: "Muitas solicitações de e-mail. Aguarde alguns minutos." }
+});
+
+const codeAttemptLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { message: "Muitas tentativas de código. Solicite um novo código mais tarde." }
+});
+
+router.post("/register", emailActionLimiter, authController.register);
 router.post("/login", authController.login);
-router.post("/forgot-password", authController.forgotPassword);
-router.post("/reset-password", authController.resetPassword);
+router.post("/verify-email", codeAttemptLimiter, authController.verifyEmail);
+router.post("/resend-verification", emailActionLimiter, authController.resendVerification);
+router.post("/forgot-password", emailActionLimiter, authController.forgotPassword);
+router.post("/reset-password", codeAttemptLimiter, authController.resetPassword);
 router.get("/me", authMiddleware, authController.me);
 router.put("/me", authMiddleware, authController.updateProfile);
 

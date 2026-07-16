@@ -1,5 +1,6 @@
 const asyncHandler = require("../utils/asyncHandler");
 const repository = require("../services/repository");
+const { summarizeConnections } = require("../services/bankSummaryService");
 const {
   asNumber,
   calculateOpportunity,
@@ -12,6 +13,15 @@ const {
   limitStatus,
   monthKey
 } = require("../utils/financial");
+const { cleanText, isValidDateKey, isValidMonthKey, numberInRange } = require("../utils/validation");
+
+function validateMonthFilter(req, res) {
+  if (req.query.month && !isValidMonthKey(req.query.month)) {
+    res.status(400).json({ message: "Informe o mês no formato AAAA-MM." });
+    return false;
+  }
+  return true;
+}
 
 function totalsByCategory(transactions) {
   const totals = transactions
@@ -89,6 +99,10 @@ function buildBehaviorMessage(status, usagePercent) {
 }
 
 const list = asyncHandler(async (req, res) => {
+  if (!validateMonthFilter(req, res)) return;
+  if (req.query.type && !["income", "expense"].includes(req.query.type)) {
+    return res.status(400).json({ message: "Tipo de transação inválido." });
+  }
   const transactions = await repository.listTransactions(req.user.id, req.query);
   return res.json({ transactions });
 });
@@ -96,19 +110,23 @@ const list = asyncHandler(async (req, res) => {
 const create = asyncHandler(async (req, res) => {
   const { title, amount, type, category, isSuperfluous, date, notes } = req.body;
 
-  if (!title || !amount || !type || !category) {
+  const cleanTitle = cleanText(title, 120);
+  const cleanCategory = cleanText(category, 80);
+  const validAmount = numberInRange(amount, 0.01, 1e15);
+  if (!cleanTitle || validAmount === null || !["income", "expense"].includes(type) || !cleanCategory) {
     return res.status(400).json({ message: "Título, valor, tipo e categoria são obrigatórios." });
   }
+  if (date && !isValidDateKey(date)) return res.status(400).json({ message: "Informe uma data válida." });
 
   const transaction = await repository.createTransaction({
     userId: req.user.id,
-    title,
-    amount: Math.abs(asNumber(amount)),
+    title: cleanTitle,
+    amount: validAmount,
     type,
-    category,
+    category: cleanCategory,
     isSuperfluous: Boolean(isSuperfluous),
     date: normalizeDateForStorage(date || new Date()),
-    notes,
+    notes: cleanText(notes, 1000),
     investmentStatus: isInvestmentTransaction({ type, category }) ? "pending" : "not_applicable"
   });
 
@@ -134,18 +152,44 @@ const update = asyncHandler(async (req, res) => {
     return acc;
   }, {});
 
-  if (currentTransaction && (fields.type !== undefined || fields.category !== undefined)) {
+  if (!currentTransaction) return res.status(404).json({ message: "Transação não encontrada." });
+  if (fields.title !== undefined) {
+    fields.title = cleanText(fields.title, 120);
+    if (!fields.title) return res.status(400).json({ message: "Informe um título válido." });
+  }
+  if (fields.amount !== undefined) {
+    const amountValue = numberInRange(req.body.amount, 0.01, 1e15);
+    if (amountValue === null) return res.status(400).json({ message: "Informe um valor válido." });
+    fields.amount = amountValue;
+  }
+  if (fields.type !== undefined && !["income", "expense"].includes(fields.type)) {
+    return res.status(400).json({ message: "Tipo de transação inválido." });
+  }
+  if (fields.category !== undefined) {
+    fields.category = cleanText(fields.category, 80);
+    if (!fields.category) return res.status(400).json({ message: "Informe uma categoria válida." });
+  }
+  if (fields.date !== undefined && !isValidDateKey(req.body.date)) {
+    return res.status(400).json({ message: "Informe uma data válida." });
+  }
+  if (fields.notes !== undefined) fields.notes = cleanText(fields.notes, 1000);
+  if (fields.isSuperfluous !== undefined) fields.isSuperfluous = Boolean(fields.isSuperfluous);
+
+  if (fields.type !== undefined || fields.category !== undefined || fields.amount !== undefined) {
     const nextTransaction = {
       ...currentTransaction,
       ...fields
     };
     fields.investmentStatus = isInvestmentTransaction(nextTransaction)
-      ? currentTransaction.investmentStatus === "resolved"
-        ? "resolved"
-        : "pending"
+      ? fields.amount !== undefined && currentTransaction.investmentStatus === "resolved"
+        ? "pending"
+        : currentTransaction.investmentStatus === "resolved"
+          ? "resolved"
+          : "pending"
       : "not_applicable";
     if (fields.investmentStatus !== "resolved") {
       fields.investmentSplits = [];
+      fields.resolvingAt = null;
       fields.resolvedAt = null;
     }
   }
@@ -162,14 +206,16 @@ const remove = asyncHandler(async (req, res) => {
 });
 
 const summary = asyncHandler(async (req, res) => {
+  if (!validateMonthFilter(req, res)) return;
   const month = req.query.month || currentMonthKey();
   const window = financialWindow(month);
-  const [periodTransactions, allTransactions, goals, limits, assets] = await Promise.all([
+  const [periodTransactions, allTransactions, goals, limits, assets, bankConnections] = await Promise.all([
     repository.listTransactions(req.user.id, { month }),
     repository.listTransactions(req.user.id),
     repository.listGoals(req.user.id),
     repository.listLimits(req.user.id),
-    repository.listAssets(req.user.id)
+    repository.listAssets(req.user.id),
+    repository.listBankConnections(req.user.id)
   ]);
 
   const monthlyIncome = periodTransactions
@@ -185,10 +231,16 @@ const summary = asyncHandler(async (req, res) => {
   const balance = monthlyIncome - monthlyExpenses;
   const usagePercent = req.user.monthlyLimit ? (expensesForLimit / req.user.monthlyLimit) * 100 : 0;
   const status = limitStatus(usagePercent);
-  const bankBalance = allTransactions.reduce((sum, transaction) => {
+  const ledgerBankBalance = allTransactions.reduce((sum, transaction) => {
     return transaction.type === "income" ? sum + asNumber(transaction.amount) : sum - asNumber(transaction.amount);
   }, 0);
-  const investedCost = assets.reduce((sum, asset) => sum + asNumber(asset.quantity) * asNumber(asset.averagePrice), 0);
+  const connected = summarizeConnections(bankConnections);
+  const bankBalance = connected.accountCount ? connected.accountBalance : ledgerBankBalance;
+  const manuallyInvestedCost = assets.reduce(
+    (sum, asset) => sum + asNumber(asset.quantity) * asNumber(asset.averagePrice),
+    0
+  );
+  const investedCost = manuallyInvestedCost + connected.investmentBalance;
 
   return res.json({
     month: window.month,
@@ -208,6 +260,10 @@ const summary = asyncHandler(async (req, res) => {
       status,
       behaviorMessage: buildBehaviorMessage(status, usagePercent),
       bankBalance,
+      ledgerBankBalance,
+      bankBalanceSource: connected.accountCount ? "connected" : "transactions",
+      connectedAccountBalance: connected.accountBalance,
+      connectedInvestmentBalance: connected.investmentBalance,
       investedCost,
       netWorthEstimate: bankBalance + investedCost
     },

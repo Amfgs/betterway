@@ -27,13 +27,24 @@ const rssFeeds = [
   }
 ];
 
+let newsCache = { expiresAt: 0, articles: [] };
+
+function safeHttpUrl(value) {
+  try {
+    const url = new URL(String(value || ""));
+    return ["http:", "https:"].includes(url.protocol) ? url.toString() : "";
+  } catch {
+    return "";
+  }
+}
+
 function normalizeArticle(article, fallbackSource) {
   const source = typeof article.source === "object" ? article.source.text : article.source;
   return {
     title: cleanText(article.title),
     description: cleanText(article.description),
     source: cleanText(source || fallbackSource),
-    url: article.link,
+    url: safeHttpUrl(article.link),
     publishedAt: article.pubDate ? new Date(article.pubDate).toISOString() : new Date().toISOString(),
     category: fallbackSource
   };
@@ -64,9 +75,9 @@ async function getNewsApiArticles() {
     title: cleanText(article.title),
     description: cleanText(article.description),
     source: cleanText(article.source?.name || "NewsAPI"),
-    url: article.url,
+    url: safeHttpUrl(article.url),
     publishedAt: article.publishedAt,
-    imageUrl: article.urlToImage,
+    imageUrl: safeHttpUrl(article.urlToImage),
     category: "Mercado"
   }));
 }
@@ -77,7 +88,7 @@ async function getRssArticles() {
       const response = await axios.get(feed.url, {
         timeout: 8000,
         headers: {
-          "User-Agent": "ValorizePlus/1.0"
+          "User-Agent": "BetterWay/1.0"
         }
       });
       const parsed = parser.parse(response.data);
@@ -94,23 +105,35 @@ async function getRssArticles() {
 }
 
 async function getFinancialNews() {
-  try {
-    const newsApiArticles = await getNewsApiArticles();
-    const articles = newsApiArticles.length ? newsApiArticles : await getRssArticles();
-    const seen = new Set();
+  if (newsCache.expiresAt > Date.now() && newsCache.articles.length) return newsCache.articles;
 
-    return articles
-      .filter((article) => {
-        const key = `${article.title}-${article.url}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .slice(0, 24);
+  let articles = [];
+  try {
+    articles = await getNewsApiArticles();
   } catch (error) {
-    console.warn("Falha ao consultar notícias reais:", error.message);
-    return [];
+    console.warn("Falha ao consultar NewsAPI; usando RSS:", error.message);
   }
+  if (!articles.length) {
+    try {
+      articles = await getRssArticles();
+    } catch (error) {
+      console.warn("Falha ao consultar notícias RSS:", error.message);
+    }
+  }
+
+  const seen = new Set();
+  const cleanArticles = articles
+    .filter((article) => article.title && article.url)
+    .filter((article) => {
+      const key = `${article.title}-${article.url}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 24);
+
+  if (cleanArticles.length) newsCache = { expiresAt: Date.now() + 5 * 60 * 1000, articles: cleanArticles };
+  return cleanArticles;
 }
 
 module.exports = {

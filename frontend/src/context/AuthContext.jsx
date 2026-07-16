@@ -22,6 +22,15 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    const expireSession = () => {
+      removeStoredValue(storageKeys.authToken, storageKeys.legacyAuthToken);
+      setUser(null);
+    };
+    window.addEventListener("betterway:session-expired", expireSession);
+    return () => window.removeEventListener("betterway:session-expired", expireSession);
+  }, []);
+
   async function login(credentials) {
     const response = await api.post("/auth/login", credentials);
     localStorage.setItem(storageKeys.authToken, response.data.token);
@@ -31,9 +40,19 @@ export function AuthProvider({ children }) {
 
   async function register(payload) {
     const response = await api.post("/auth/register", payload);
+    return response.data;
+  }
+
+  async function verifyEmail(payload) {
+    const response = await api.post("/auth/verify-email", payload);
     localStorage.setItem(storageKeys.authToken, response.data.token);
     setUser(response.data.user);
-    return response.data.user;
+    return response.data;
+  }
+
+  async function resendVerification(payload) {
+    const response = await api.post("/auth/resend-verification", payload);
+    return response.data;
   }
 
   async function forgotPassword(payload) {
@@ -53,8 +72,14 @@ export function AuthProvider({ children }) {
 
   async function updateProfile(fields) {
     const response = await api.put("/auth/me", fields);
+    if (response.data.requiresEmailVerification) {
+      removeStoredValue(storageKeys.authToken, storageKeys.legacyAuthToken);
+      setUser(null);
+      return response.data;
+    }
+    if (response.data.token) localStorage.setItem(storageKeys.authToken, response.data.token);
     setUser(response.data.user);
-    return response.data.user;
+    return response.data;
   }
 
   const value = useMemo(
@@ -64,6 +89,8 @@ export function AuthProvider({ children }) {
       isAuthenticated: Boolean(user),
       login,
       register,
+      verifyEmail,
+      resendVerification,
       forgotPassword,
       resetPassword,
       logout,

@@ -1,6 +1,10 @@
-# Valorize+
+# Better Way
 
 App financeiro comportamental com API Node/Express, web desktop em React/Vite e mobile em Expo.
+
+Produção atual: [betterway.vercel.app](https://betterway.vercel.app) · API: [betterway-api.vercel.app](https://betterway-api.vercel.app/api/health)
+
+O domínio `betterway.com.br` já está associado aos projetos da Vercel e aguarda os registros no Registro.br. Consulte [DOMAIN_SETUP.md](./DOMAIN_SETUP.md). A arquitetura e o checklist de segurança estão em [SECURITY.md](./SECURITY.md).
 
 ## Rodando o projeto
 
@@ -22,7 +26,7 @@ Para mobile:
 npm run dev:mobile
 ```
 
-Se o QR Code do Expo nao abrir corretamente no celular ou aparecer "Nenhum dado usavel encontrado", use o tunel:
+Se o QR Code do Expo não abrir corretamente no celular ou aparecer "Nenhum dado usável encontrado", use o túnel:
 
 ```bash
 npm run dev:mobile:tunnel
@@ -62,6 +66,7 @@ SMTP_SECURE=false
 SMTP_USER=
 SMTP_PASS=
 EMAIL_FROM=
+RESEND_API_KEY=
 ```
 
 Sem `MONGO_URI` ou `MONGODB_URI`, o backend usa um arquivo local em `backend/data/store.json`. Isso preserva logins, metas, limites, amigos e transações entre reinícios do servidor.
@@ -84,19 +89,15 @@ Se estiver `localhost`, o iPhone está tentando falar com ele mesmo, não com o 
 
 ## Recuperação de senha por e-mail
 
-O fluxo de "Esqueceu a senha?" envia um código/link por e-mail usando SMTP. Configure no `backend/.env`:
+O fluxo de "Esqueceu a senha?" envia um código por e-mail usando a API da Resend, com SMTP como alternativa. Depois de verificar o subdomínio `mail.betterway.com.br` na Resend, configure no `backend/.env`:
 
 ```env
 APP_WEB_URL=http://localhost:5173
-SMTP_HOST=smtp.seu-provedor.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=seu_usuario
-SMTP_PASS=sua_senha
-EMAIL_FROM="Valorize+ <no-reply@valorize.local>"
+EMAIL_FROM="Better Way <conta@mail.betterway.com.br>"
+RESEND_API_KEY=re_sua_chave
 ```
 
-Sem SMTP configurado, o backend mantém o fluxo em modo desenvolvimento: ele imprime o token no terminal e também retorna `devResetToken` para teste local.
+Sem Resend ou SMTP configurado, o backend mantém o fluxo em modo desenvolvimento: ele imprime o token no terminal e também retorna `devResetToken` para teste local.
 
 ## Estrutura
 

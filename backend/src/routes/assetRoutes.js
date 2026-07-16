@@ -7,6 +7,7 @@ const router = express.Router();
 router.use(authMiddleware);
 router.get("/portfolio", assetController.portfolio);
 router.get("/market", assetController.market);
+router.get("/market/history", assetController.marketHistory);
 router.get("/pending-investments", assetController.pendingInvestments);
 router.post("/resolve-investment", assetController.resolveInvestment);
 router.post("/", assetController.create);

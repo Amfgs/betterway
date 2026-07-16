@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { api, getErrorMessage } from "../api/client";
 
-export function NewsPage() {
+export function NewsPage({ embedded = false }) {
   const [articles, setArticles] = useState([]);
   const [error, setError] = useState("");
 
@@ -14,12 +14,12 @@ export function NewsPage() {
   }, []);
 
   return (
-    <div className="space-y-6">
-      <div>
+    <div className={`${embedded ? "embedded-page" : "workspace-page"} space-y-6`}>
+      {!embedded ? <div>
         <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Central de informação</p>
         <h1 className="text-3xl font-black">Notícias de economia e mercado</h1>
         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Feed real atualizado via NewsAPI ou Google News RSS.</p>
-      </div>
+      </div> : null}
       {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p> : null}
       {!articles.length && !error ? (
         <p className="rounded-lg border border-black/5 bg-white p-4 text-sm text-zinc-500 shadow-soft dark:border-white/10 dark:bg-neutral-900 dark:text-zinc-400">

@@ -11,7 +11,7 @@ module.exports = async function handler(req, res) {
     return app(req, res);
   } catch (error) {
     connectionPromise = null;
-    console.error("Falha ao iniciar a API:", error.message);
+    console.error("Falha ao iniciar a API em produção.");
     return res.status(503).json({ message: "Serviço temporariamente indisponível." });
   }
 };

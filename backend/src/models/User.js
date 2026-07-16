@@ -7,6 +7,16 @@ const userSchema = new mongoose.Schema(
       required: true,
       trim: true
     },
+    username: {
+      type: String,
+      unique: true,
+      sparse: true,
+      lowercase: true,
+      trim: true,
+      minlength: 3,
+      maxlength: 24,
+      match: /^[a-z0-9][a-z0-9._]*[a-z0-9]$/
+    },
     email: {
       type: String,
       required: true,
@@ -23,12 +33,57 @@ const userSchema = new mongoose.Schema(
       required: true,
       select: false
     },
+    authVersion: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
     resetPasswordHash: {
       type: String,
       default: "",
       select: false
     },
     resetPasswordExpiresAt: {
+      type: Date,
+      default: null,
+      select: false
+    },
+    resetPasswordAttempts: {
+      type: Number,
+      min: 0,
+      default: 0,
+      select: false
+    },
+    resetPasswordSentAt: {
+      type: Date,
+      default: null,
+      select: false
+    },
+    emailVerified: {
+      type: Boolean,
+      default: true
+    },
+    emailVerifiedAt: {
+      type: Date,
+      default: null
+    },
+    emailVerificationHash: {
+      type: String,
+      default: "",
+      select: false
+    },
+    emailVerificationExpiresAt: {
+      type: Date,
+      default: null,
+      select: false
+    },
+    emailVerificationAttempts: {
+      type: Number,
+      min: 0,
+      default: 0,
+      select: false
+    },
+    emailVerificationSentAt: {
       type: Date,
       default: null,
       select: false
@@ -45,12 +100,36 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 25
     },
+    workHoursPerDay: {
+      type: Number,
+      min: 1,
+      max: 24,
+      default: 8
+    },
     theme: {
       type: String,
       enum: ["light", "dark"],
       default: "dark"
     },
     friendIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User"
+      }
+    ],
+    acceptedFriendIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User"
+      }
+    ],
+    sentFriendRequestIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User"
+      }
+    ],
+    receivedFriendRequestIds: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User"

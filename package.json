@@ -1,8 +1,8 @@
 {
-  "name": "valorize-plus",
+  "name": "betterway",
   "version": "1.0.0",
   "private": true,
-  "description": "Valorize+ - plataforma financeira comportamental com web desktop, API Node e app mobile Expo.",
+  "description": "Better Way - plataforma financeira comportamental com web desktop, API Node e app mobile Expo.",
   "workspaces": [
     "backend",
     "frontend",
@@ -17,6 +17,7 @@
     "dev:mobile:tunnel": "node scripts/start-mobile-local-api.js --tunnel",
     "build:web": "npm --workspace frontend run build",
     "start:backend": "npm --workspace backend start",
+    "test": "npm --workspace backend test",
     "lint": "npm --workspace frontend run lint"
   },
   "overrides": {

@@ -12,21 +12,19 @@ export const colors = {
   amber: "#d97706",
   red: "#dc2626",
   ink: "#0f172a",
-  brandBlue: "#2563eb",
-  brandIndigo: "#4f46e5",
-  brandViolet: "#7c3aed",
-  brandPurple: "#a855f7",
-  brandFuchsia: "#e879f9"
+  brandDeep: "#0d6b4f",
+  brandBright: "#1fbd82",
+  brandLime: "#b8f34a"
 };
 
-export function Button({ children, onPress, tone = "primary" }) {
+export function Button({ children, disabled = false, onPress, tone = "primary" }) {
   const isGhost = tone === "ghost";
   const isLink = tone === "link";
   const isBrand = tone === "brand";
   const isBrandLink = tone === "brandLink";
   const container = isLink || isBrandLink ? styles.linkButton : isGhost ? styles.ghostButton : isBrand ? styles.brandButton : styles.primaryButton;
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.button, container, pressed ? { opacity: 0.75 } : null]}>
+    <Pressable disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.button, container, disabled ? { opacity: 0.45 } : null, pressed ? { opacity: 0.75 } : null]}>
       <Text style={[styles.buttonText, isGhost ? styles.ghostText : null, isLink ? styles.linkText : null, isBrandLink ? styles.brandLinkText : null]}>
         {children}
       </Text>
@@ -34,19 +32,21 @@ export function Button({ children, onPress, tone = "primary" }) {
   );
 }
 
-export function Field({ label, value, onChangeText, keyboardType = "default", secureTextEntry = false, placeholder }) {
+export function Field({ editable = true, label, value, onChangeText, keyboardType = "default", secureTextEntry = false, placeholder, ...inputProps }) {
   return (
     <View style={styles.field}>
       <Text style={styles.label}>{label}</Text>
       <TextInput
         autoCapitalize="none"
+        editable={editable}
         keyboardType={keyboardType}
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={colors.muted}
         secureTextEntry={secureTextEntry}
-        style={styles.input}
+        style={[styles.input, !editable ? styles.inputCalculated : null]}
         value={String(value ?? "")}
+        {...inputProps}
       />
     </View>
   );
@@ -77,6 +77,11 @@ export const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg
   },
+  inputCalculated: {
+    backgroundColor: colors.panelSoft,
+    color: colors.emerald,
+    fontWeight: "800"
+  },
   content: {
     paddingHorizontal: 18,
     paddingTop: 18,
@@ -95,7 +100,7 @@ export const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 18,
     gap: 8,
-    shadowColor: colors.brandViolet,
+    shadowColor: colors.brandBright,
     shadowOpacity: 0.3,
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 12 }
@@ -133,36 +138,10 @@ export const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 10
   },
-  brandMark: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: colors.brandIndigo
-  },
-  brandMarkText: {
-    color: "#ffffff",
-    fontSize: 20,
-    fontWeight: "900"
-  },
-  brandPlus: {
-    color: colors.brandFuchsia,
-    fontSize: 16,
-    fontWeight: "900",
-    marginLeft: 1
-  },
-  brandWord: {
-    color: "#ffffff",
-    fontSize: 20,
-    fontWeight: "900",
-    letterSpacing: -0.3
-  },
   authBadge: {
     alignSelf: "flex-start",
-    backgroundColor: "rgba(124,58,237,0.2)",
-    borderColor: "rgba(124,58,237,0.45)",
+    backgroundColor: "rgba(31,189,130,0.16)",
+    borderColor: "rgba(184,243,74,0.34)",
     borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 11,
@@ -170,13 +149,13 @@ export const styles = StyleSheet.create({
     marginBottom: 12
   },
   authBadgeText: {
-    color: "#c4b5fd",
+    color: "#d7ff87",
     fontSize: 12,
     fontWeight: "800"
   },
   segment: {
     flexDirection: "row",
-    backgroundColor: "#ede9fe",
+    backgroundColor: "#e3f3eb",
     borderRadius: 14,
     padding: 4,
     gap: 4
@@ -327,7 +306,7 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.emerald
   },
   brandButton: {
-    backgroundColor: colors.brandViolet
+    backgroundColor: colors.brandDeep
   },
   ghostButton: {
     backgroundColor: "#ffffff",
@@ -348,7 +327,7 @@ export const styles = StyleSheet.create({
     color: colors.emerald
   },
   brandLinkText: {
-    color: colors.brandViolet
+    color: colors.brandDeep
   },
   loading: {
     alignItems: "center",

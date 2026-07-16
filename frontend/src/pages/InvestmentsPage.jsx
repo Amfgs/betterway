@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Area,
   AreaChart,
@@ -13,11 +14,15 @@ import {
   XAxis,
   YAxis
 } from "recharts";
-import { Eye, Plus, Trash2, TrendingUp } from "lucide-react";
+import { BriefcaseBusiness, Calculator, Eye, Newspaper, Plus, Trash2, TrendingUp } from "lucide-react";
 import { api, getErrorMessage } from "../api/client";
 import { StatCard } from "../components/StatCard";
+import { WorkspaceHeader, WorkspaceTabs } from "../components/WorkspaceHeader";
+import { useAuth } from "../context/AuthContext";
 import { currency, percent } from "../utils/formatters";
-import { readStoredValue, storageKeys } from "../utils/storageKeys";
+import { readScopedStoredValue, removeStoredValue, scopedStorageKey, storageKeys } from "../utils/storageKeys";
+import { NewsPage } from "./NewsPage";
+import { SimulatorPage } from "./SimulatorPage";
 
 const colors = ["#10b981", "#14b8a6", "#f59e0b", "#ef4444"];
 
@@ -93,6 +98,12 @@ const fixedIncomeTypes = new Set([
   "pension"
 ]);
 
+const investmentTabs = [
+  { id: "portfolio", label: "Minha carteira", to: "/investimentos", icon: BriefcaseBusiness },
+  { id: "simulator", label: "Simular futuro", to: "/investimentos?view=simulador", icon: Calculator },
+  { id: "news", label: "Mercado agora", to: "/investimentos?view=noticias", icon: Newspaper }
+];
+
 function createSplit(amount = "") {
   return {
     ticker: "",
@@ -119,48 +130,26 @@ function assetRisk(asset) {
   return { label: "Baixo", tone: "safe", text: "Funciona como reserva ou caixa dentro da carteira." };
 }
 
-function buildHistory(asset) {
-  if (!asset) return [];
-
-  const seed = String(asset.ticker || "FT").split("").reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  const currentPrice = Number(asset.currentPrice || asset.averagePrice || 0);
-  const changeBias = Number(asset.changePercent || 0) / 100;
-  const volatility = asset.type === "crypto" ? 0.035 : asset.type === "stock" ? 0.018 : asset.type === "fii" ? 0.009 : 0.002;
-  const points = [];
-
-  for (let index = 13; index >= 0; index -= 1) {
-    const date = new Date();
-    date.setDate(date.getDate() - index);
-    const wave = Math.sin((seed + index) * 0.9) * volatility;
-    const drift = changeBias * (index / 13);
-    const price = currentPrice / Math.max(1 + drift + wave, 0.2);
-    const previous = points[points.length - 1]?.price || price;
-
-    points.push({
-      label: date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
-      price: Number(price.toFixed(2)),
-      value: Number((price * Number(asset.quantity || 0)).toFixed(2)),
-      dailyChange: Number((((price - previous) / Math.max(previous, 1)) * 100).toFixed(2))
-    });
-  }
-
-  points[points.length - 1].price = Number(currentPrice.toFixed(2));
-  points[points.length - 1].value = Number((currentPrice * Number(asset.quantity || 0)).toFixed(2));
-  return points;
-}
-
 export function InvestmentsPage() {
+  const { user } = useAuth();
+  const visualizerKey = scopedStorageKey(storageKeys.investmentVisualizer, user?.id);
+  const visualizerTickerKey = scopedStorageKey(storageKeys.investmentVisualizerTicker, user?.id);
+  const [searchParams] = useSearchParams();
+  const requestedView = searchParams.get("view");
+  const activeView = requestedView === "simulador" ? "simulator" : requestedView === "noticias" ? "news" : "portfolio";
   const [portfolio, setPortfolio] = useState(null);
   const [market, setMarket] = useState({ items: [], updatedAt: null });
   const [form, setForm] = useState(emptyAsset);
-  const [selectedAssetId, setSelectedAssetId] = useState(() =>
-    readStoredValue(storageKeys.investmentVisualizer, storageKeys.legacyInvestmentVisualizer, "")
+  const [selectedAssetId, setSelectedAssetId] = useState(
+    () => readScopedStoredValue(storageKeys.investmentVisualizer, storageKeys.legacyInvestmentVisualizer, user?.id, "")
   );
   const [pendingInvestments, setPendingInvestments] = useState([]);
   const [selectedPending, setSelectedPending] = useState(null);
   const [splitRows, setSplitRows] = useState([createSplit()]);
   const [resolveLoading, setResolveLoading] = useState(false);
   const [liveLoading, setLiveLoading] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [historyMeta, setHistoryMeta] = useState({ source: "", available: false, loading: false });
   const [error, setError] = useState("");
 
   async function load() {
@@ -174,7 +163,7 @@ export function InvestmentsPage() {
       setPortfolio(portfolioResponse.data.portfolio);
       setMarket(marketResponse.data);
       setPendingInvestments(pendingResponse.data.pendingInvestments || []);
-      if (!selectedPending && pendingResponse.data.pendingInvestments?.length) {
+      if (activeView === "portfolio" && !selectedPending && pendingResponse.data.pendingInvestments?.length) {
         openPendingInvestment(pendingResponse.data.pendingInvestments[0]);
       }
     } catch (err) {
@@ -196,8 +185,9 @@ export function InvestmentsPage() {
   }
 
   useEffect(() => {
+    if (activeView !== "portfolio") setSelectedPending(null);
     load();
-  }, []);
+  }, [activeView]);
 
   useEffect(() => {
     const options = [
@@ -209,31 +199,43 @@ export function InvestmentsPage() {
       return;
     }
     if (!options.includes(selectedAssetId)) {
-      const savedTicker = readStoredValue(
+      const savedTicker = readScopedStoredValue(
         storageKeys.investmentVisualizerTicker,
-        storageKeys.legacyInvestmentVisualizerTicker
+        storageKeys.legacyInvestmentVisualizerTicker,
+        user?.id,
+        ""
       );
       const portfolioMatch = savedTicker ? (portfolio?.assets || []).find((asset) => asset.ticker === savedTicker) : null;
       const marketMatch = savedTicker ? (market?.items || []).find((asset) => asset.ticker === savedTicker) : null;
       const fallbackByTicker = portfolioMatch ? `portfolio:${portfolioMatch.id}` : marketMatch ? `market:${marketMatch.ticker}` : "";
-      const savedKey = readStoredValue(storageKeys.investmentVisualizer, storageKeys.legacyInvestmentVisualizer);
+      const savedKey = readScopedStoredValue(
+        storageKeys.investmentVisualizer,
+        storageKeys.legacyInvestmentVisualizer,
+        user?.id,
+        ""
+      );
       setSelectedAssetId(fallbackByTicker || (options.includes(savedKey) ? savedKey : options[0]));
     }
-  }, [portfolio, market, selectedAssetId]);
+  }, [portfolio, market, selectedAssetId, visualizerKey, visualizerTickerKey]);
 
   useEffect(() => {
     if (selectedAssetId) {
-      localStorage.setItem(storageKeys.investmentVisualizer, selectedAssetId);
+      localStorage.setItem(visualizerKey, selectedAssetId);
       const [source, value] = selectedAssetId.split(":");
       const selectedAsset =
         source === "portfolio"
           ? (portfolio?.assets || []).find((asset) => String(asset.id) === value)
           : (market?.items || []).find((asset) => asset.ticker === value);
       if (selectedAsset?.ticker) {
-        localStorage.setItem(storageKeys.investmentVisualizerTicker, selectedAsset.ticker);
+        localStorage.setItem(visualizerTickerKey, selectedAsset.ticker);
       }
     }
-  }, [selectedAssetId, portfolio, market]);
+  }, [selectedAssetId, portfolio, market, visualizerKey, visualizerTickerKey]);
+
+  useEffect(() => {
+    removeStoredValue(storageKeys.investmentVisualizer, storageKeys.legacyInvestmentVisualizer);
+    removeStoredValue(storageKeys.investmentVisualizerTicker, storageKeys.legacyInvestmentVisualizerTicker);
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => refreshMarket({ silent: true }), 15000);
@@ -343,20 +345,79 @@ export function InvestmentsPage() {
     [selectedAssetId, visualOptions]
   );
   const selectedRisk = assetRisk(selectedAsset);
-  const history = useMemo(() => buildHistory(selectedAsset), [selectedAsset]);
   const firstPoint = history[0];
   const lastPoint = history[history.length - 1];
   const visualReturn = firstPoint && lastPoint ? ((lastPoint.price - firstPoint.price) / Math.max(firstPoint.price, 1)) * 100 : 0;
   const allocationPercent = totals.currentValue && selectedAsset?.currentValue ? (selectedAsset.currentValue / totals.currentValue) * 100 : 0;
-  const high = history.length ? Math.max(...history.map((item) => item.price)) : 0;
-  const low = history.length ? Math.min(...history.map((item) => item.price)) : 0;
+  const high = history.length ? Math.max(...history.map((item) => item.high || item.price)) : 0;
+  const low = history.length ? Math.min(...history.map((item) => item.low || item.price)) : 0;
+
+  useEffect(() => {
+    let active = true;
+    if (!selectedAsset?.ticker) {
+      setHistory([]);
+      return undefined;
+    }
+    setHistoryMeta((current) => ({ ...current, loading: true }));
+    api.get("/assets/market/history", {
+      params: { ticker: selectedAsset.ticker, type: selectedAsset.type }
+    }).then((response) => {
+      if (!active) return;
+      const payload = response.data.history || {};
+      const points = (payload.points || []).map((point) => ({
+        ...point,
+        label: new Date(point.timestamp).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+        price: Number(point.close || 0),
+        value: Number(point.close || 0) * Number(selectedAsset.quantity || 0)
+      }));
+      setHistory(points);
+      setHistoryMeta({ source: payload.source || "", available: Boolean(payload.available), loading: false });
+    }).catch(() => {
+      if (!active) return;
+      setHistory([]);
+      setHistoryMeta({ source: "", available: false, loading: false });
+    });
+    return () => {
+      active = false;
+    };
+  }, [selectedAsset?.ticker, selectedAsset?.type, selectedAsset?.quantity]);
+
+  if (activeView === "simulator") {
+    return (
+      <div className="workspace-page space-y-6">
+        <WorkspaceHeader
+          description="Teste aportes, frequência e prazo usando sua realidade financeira como ponto de partida."
+          eyebrow="Planeje antes de investir"
+          title="Transforme possibilidades em cenários claros"
+        />
+        <WorkspaceTabs active={activeView} tabs={investmentTabs} />
+        <SimulatorPage embedded />
+      </div>
+    );
+  }
+
+  if (activeView === "news") {
+    return (
+      <div className="workspace-page space-y-6">
+        <WorkspaceHeader
+          description="Notícias reais e recentes para entender movimentos que podem afetar sua carteira."
+          eyebrow="Contexto de mercado"
+          title="Informação útil, perto das suas decisões"
+        />
+        <WorkspaceTabs active={activeView} tabs={investmentTabs} />
+        <NewsPage embedded />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Home do investidor</p>
-        <h1 className="text-3xl font-black">Carteira consolidada</h1>
-      </div>
+    <div className="workspace-page space-y-6">
+      <WorkspaceHeader
+        description="Acompanhe posições, explique novos aportes e aprofunde a leitura de cada ativo."
+        eyebrow="Seu patrimônio em movimento"
+        title="Carteira consolidada, decisões mais conscientes"
+      />
+      <WorkspaceTabs active={activeView} tabs={investmentTabs} />
       {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p> : null}
       {selectedPending ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4">
@@ -410,7 +471,7 @@ export function InvestmentsPage() {
                   </div>
                   {isFixedIncomeType(row.type) ? (
                     <p className="mt-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-                      Para renda fixa, o Valorize+ registra o valor aplicado como posição financeira. Quantidade e preço médio são calculados automaticamente.
+                      Para renda fixa, a Better Way registra o valor aplicado como posição financeira. Quantidade e preço médio são calculados automaticamente.
                     </p>
                   ) : null}
                 </div>
@@ -501,7 +562,7 @@ export function InvestmentsPage() {
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Visualizador</p>
-            <h2 className="text-xl font-black">Análise por ativo em tempo real</h2>
+            <h2 className="text-xl font-black">Análise por ativo com atualização periódica</h2>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
               Atualiza a cada 15s · última leitura: {market.updatedAt ? new Date(market.updatedAt).toLocaleTimeString("pt-BR") : "aguardando cotação"}
             </p>
@@ -541,16 +602,25 @@ export function InvestmentsPage() {
                 </div>
               </div>
               <div className="mt-4 h-[30rem]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={history}>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                    <XAxis dataKey="label" />
-                    <YAxis domain={["auto", "auto"]} />
-                    <Tooltip formatter={(value, name) => [name === "value" ? currency(value) : currency(value), name === "value" ? "Valor" : "Preço"]} />
-                    <Area dataKey="price" stroke="#10b981" fill="#10b981" fillOpacity={0.18} name="Preço" />
-                  </AreaChart>
-                </ResponsiveContainer>
+                {history.length ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={history}>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                      <XAxis dataKey="label" />
+                      <YAxis domain={["auto", "auto"]} />
+                      <Tooltip formatter={(value) => currency(value)} />
+                      <Area dataKey="price" stroke="#10b981" fill="#10b981" fillOpacity={0.18} name="Preço de fechamento" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="grid h-full place-items-center rounded-lg bg-stone-100 px-6 text-center text-sm text-zinc-500 dark:bg-neutral-800 dark:text-zinc-400">
+                    {historyMeta.loading
+                      ? "Consultando o histórico real do ativo..."
+                      : "A fonte selecionada não oferece histórico para este item. Nenhuma curva sintética é exibida."}
+                  </div>
+                )}
               </div>
+              {historyMeta.source ? <p className="mt-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">Histórico fornecido por {historyMeta.source === "brapi" ? "Brapi" : historyMeta.source === "coingecko" ? "CoinGecko" : "dados manuais"}.</p> : null}
             </div>
 
             <div className="grid gap-4">

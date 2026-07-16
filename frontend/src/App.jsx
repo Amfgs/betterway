@@ -9,15 +9,12 @@ const DashboardPage = lazy(() => import("./pages/DashboardPage").then((module) =
 const FriendsPage = lazy(() => import("./pages/FriendsPage").then((module) => ({ default: module.FriendsPage })));
 const InvestmentsPage = lazy(() => import("./pages/InvestmentsPage").then((module) => ({ default: module.InvestmentsPage })));
 const LandingPage = lazy(() => import("./pages/LandingPage").then((module) => ({ default: module.LandingPage })));
-const NewsPage = lazy(() => import("./pages/NewsPage").then((module) => ({ default: module.NewsPage })));
 const ProfilePage = lazy(() => import("./pages/ProfilePage").then((module) => ({ default: module.ProfilePage })));
-const SimulatorPage = lazy(() => import("./pages/SimulatorPage").then((module) => ({ default: module.SimulatorPage })));
-const TimelinePage = lazy(() => import("./pages/TimelinePage").then((module) => ({ default: module.TimelinePage })));
 
 function RouteLoading() {
   return (
     <div className="grid min-h-screen place-items-center bg-[#f3f5f1] text-sm font-bold text-zinc-500 dark:bg-[#0a0f0d] dark:text-zinc-400">
-      Carregando Valorize+...
+      Carregando Better Way...
     </div>
   );
 }
@@ -31,13 +28,13 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<Shell />}>
             <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/linha-do-tempo" element={<TimelinePage />} />
             <Route path="/investimentos" element={<InvestmentsPage />} />
-            <Route path="/simulador" element={<SimulatorPage />} />
             <Route path="/calendario" element={<CalendarPage />} />
             <Route path="/amigos" element={<FriendsPage />} />
-            <Route path="/noticias" element={<NewsPage />} />
             <Route path="/perfil" element={<ProfilePage />} />
+            <Route path="/linha-do-tempo" element={<Navigate to="/dashboard?view=timeline" replace />} />
+            <Route path="/simulador" element={<Navigate to="/investimentos?view=simulador" replace />} />
+            <Route path="/noticias" element={<Navigate to="/investimentos?view=noticias" replace />} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

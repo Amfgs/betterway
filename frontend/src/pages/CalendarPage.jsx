@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, Plus, Trash2, X } from "lucide-react";
 import { api, getErrorMessage } from "../api/client";
+import { WorkspaceHeader } from "../components/WorkspaceHeader";
+import { useAuth } from "../context/AuthContext";
 import { currency, shortDate } from "../utils/formatters";
-import { readStoredValue, storageKeys } from "../utils/storageKeys";
+import { readScopedStoredValue, removeStoredValue, scopedStorageKey, storageKeys } from "../utils/storageKeys";
 
 const defaultWeekdays = [0, 1, 2, 3, 4, 5, 6];
 const weekdayOptions = [
@@ -47,9 +49,9 @@ function compactCurrency(value) {
   return `R$ ${Math.round(Number(value || 0)).toLocaleString("pt-BR")}`;
 }
 
-function loadSpecs() {
+function loadSpecs(userId) {
   try {
-    const parsed = JSON.parse(readStoredValue(storageKeys.calendarSpecs, storageKeys.legacyCalendarSpecs, "{}") || "{}");
+    const parsed = JSON.parse(readScopedStoredValue(storageKeys.calendarSpecs, storageKeys.legacyCalendarSpecs, userId, "{}"));
     const includedWeekdays = Array.isArray(parsed.includedWeekdays)
       ? parsed.includedWeekdays.map(Number).filter((day) => defaultWeekdays.includes(day))
       : defaultWeekdays;
@@ -66,18 +68,26 @@ function loadSpecs() {
 }
 
 export function CalendarPage() {
+  const { user } = useAuth();
   const [month, setMonth] = useState(inputMonth());
   const [transactions, setTransactions] = useState([]);
   const [summary, setSummary] = useState(null);
-  const [specs, setSpecs] = useState(loadSpecs);
+  const [specs, setSpecs] = useState(() => loadSpecs(user?.id));
   const [form, setForm] = useState({ date: inputDate(), amount: "", note: "" });
   const [selectedDayKey, setSelectedDayKey] = useState(null);
   const [dayForm, setDayForm] = useState({ amount: "", note: "" });
   const [error, setError] = useState("");
 
   useEffect(() => {
-    localStorage.setItem(storageKeys.calendarSpecs, JSON.stringify(specs));
-  }, [specs]);
+    if (!user?.id) return;
+    localStorage.setItem(scopedStorageKey(storageKeys.calendarSpecs, user.id), JSON.stringify(specs));
+  }, [specs, user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    removeStoredValue(storageKeys.calendarSpecs, storageKeys.legacyCalendarSpecs);
+    setSpecs(loadSpecs(user.id));
+  }, [user?.id]);
 
   useEffect(() => {
     setError("");
@@ -292,7 +302,7 @@ export function CalendarPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="workspace-page space-y-6">
       {selectedDay ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4">
           <div className="w-full max-w-lg rounded-lg border border-white/10 bg-white p-5 shadow-2xl dark:bg-neutral-900">
@@ -353,19 +363,17 @@ export function CalendarPage() {
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Calendário financeiro</p>
-          <h1 className="text-3xl font-black">Limites divididos pelos dias restantes</h1>
-          <p className="mt-1 max-w-3xl text-sm text-zinc-500 dark:text-zinc-400">
-            O calendário usa seus limites cadastrados e os gastos já feitos para recalcular quanto ainda pode ser gasto por dia até o fim do mês.
-          </p>
-        </div>
-        <label>
-          <span className="text-sm text-zinc-500 dark:text-zinc-400">Mês</span>
-          <input className="mt-1 w-full rounded-lg border border-black/10 bg-white px-3 py-3 dark:border-white/10 dark:bg-neutral-900" type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
-        </label>
-      </div>
+      <WorkspaceHeader
+        actions={(
+          <label className="workspace-month-control">
+            <span>Mês planejado</span>
+            <input type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
+          </label>
+        )}
+        description="Seus limites são redistribuídos pelos dias ativos, respeitando reservas, exceções e o ritmo da semana."
+        eyebrow="Planejamento diário"
+        title="Um valor possível para cada dia do mês"
+      />
 
       {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p> : null}
 

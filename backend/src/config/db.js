@@ -18,6 +18,8 @@ async function connectDatabase() {
   if (!isDatabaseConnected()) {
     await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 10000 });
   }
+  const { ensureLegacyUsernames } = require("../services/userMigration");
+  await ensureLegacyUsernames();
   memoryMode = false;
   console.log("MongoDB conectado.");
   return true;

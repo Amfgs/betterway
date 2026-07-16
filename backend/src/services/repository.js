@@ -3,6 +3,7 @@ const Transaction = require("../models/Transaction");
 const Goal = require("../models/Goal");
 const Limit = require("../models/Limit");
 const Asset = require("../models/Asset");
+const BankConnection = require("../models/BankConnection");
 const { isDatabaseConnected } = require("../config/db");
 const { financialWindow, isInsideFinancialWindow } = require("../utils/financial");
 const memoryStore = require("./memoryStore");
@@ -22,7 +23,27 @@ function safeUser(doc) {
   const user = normalize(doc);
   if (!user) return null;
   delete user.passwordHash;
+  delete user.resetPasswordHash;
+  delete user.resetPasswordExpiresAt;
+  delete user.resetPasswordAttempts;
+  delete user.resetPasswordSentAt;
+  delete user.emailVerificationHash;
+  delete user.emailVerificationExpiresAt;
+  delete user.emailVerificationAttempts;
+  delete user.emailVerificationSentAt;
   return user;
+}
+
+function publicUser(doc) {
+  const user = normalize(doc);
+  if (!user) return null;
+  return {
+    id: user.id,
+    _id: user.id,
+    name: user.name,
+    username: user.username || "",
+    avatarUrl: user.avatarUrl || ""
+  };
 }
 
 function analysisRange(month) {
@@ -34,7 +55,23 @@ function analysisRange(month) {
 async function findUserByEmail(email, includePassword = false) {
   if (!isDatabaseConnected()) return memoryStore.findUserByEmail(email, includePassword);
   let query = User.findOne({ email: String(email).toLowerCase() });
-  if (includePassword) query = query.select("+passwordHash +resetPasswordHash +resetPasswordExpiresAt");
+  if (includePassword) {
+    query = query.select(
+      "+passwordHash +resetPasswordHash +resetPasswordExpiresAt +resetPasswordAttempts +resetPasswordSentAt +emailVerificationHash +emailVerificationExpiresAt +emailVerificationAttempts +emailVerificationSentAt"
+    );
+  }
+  const user = await query;
+  return includePassword ? normalize(user) : safeUser(user);
+}
+
+async function findUserByUsername(username, includePassword = false) {
+  if (!isDatabaseConnected()) return memoryStore.findUserByUsername(username, includePassword);
+  let query = User.findOne({ username: String(username).toLowerCase() });
+  if (includePassword) {
+    query = query.select(
+      "+passwordHash +resetPasswordHash +resetPasswordExpiresAt +resetPasswordAttempts +resetPasswordSentAt +emailVerificationHash +emailVerificationExpiresAt +emailVerificationAttempts +emailVerificationSentAt"
+    );
+  }
   const user = await query;
   return includePassword ? normalize(user) : safeUser(user);
 }
@@ -42,7 +79,11 @@ async function findUserByEmail(email, includePassword = false) {
 async function findUserById(id, includePassword = false) {
   if (!isDatabaseConnected()) return memoryStore.findUserById(id, includePassword);
   let query = User.findById(id);
-  if (includePassword) query = query.select("+passwordHash +resetPasswordHash +resetPasswordExpiresAt");
+  if (includePassword) {
+    query = query.select(
+      "+passwordHash +resetPasswordHash +resetPasswordExpiresAt +resetPasswordAttempts +resetPasswordSentAt +emailVerificationHash +emailVerificationExpiresAt +emailVerificationAttempts +emailVerificationSentAt"
+    );
+  }
   const user = await query;
   return includePassword ? normalize(user) : safeUser(user);
 }
@@ -98,6 +139,23 @@ async function updateTransaction(userId, transactionId, fields) {
   );
 }
 
+async function claimInvestmentTransaction(userId, transactionId) {
+  if (!isDatabaseConnected()) return memoryStore.claimInvestmentTransaction(userId, transactionId);
+  return normalize(
+    await Transaction.findOneAndUpdate(
+      {
+        _id: transactionId,
+        userId,
+        type: "expense",
+        category: "Investimentos",
+        investmentStatus: "pending"
+      },
+      { investmentStatus: "resolving", resolvingAt: new Date() },
+      { new: true, runValidators: true }
+    )
+  );
+}
+
 async function deleteTransaction(userId, transactionId) {
   if (!isDatabaseConnected()) return memoryStore.deleteTransaction(userId, transactionId);
   const result = await Transaction.deleteOne({ _id: transactionId, userId });
@@ -118,7 +176,7 @@ async function createGoal(payload) {
 async function updateGoal(userId, goalId, fields) {
   if (!isDatabaseConnected()) return memoryStore.updateGoal(userId, goalId, fields);
   return normalize(
-    await Goal.findOneAndUpdate({ _id: goalId, $or: [{ userId }, { participantIds: userId }] }, fields, {
+    await Goal.findOneAndUpdate({ _id: goalId, userId }, fields, {
       new: true,
       runValidators: true
     })
@@ -151,7 +209,7 @@ async function addGoalMovement(userId, goalId, movement) {
 
 async function deleteGoal(userId, goalId) {
   if (!isDatabaseConnected()) return memoryStore.deleteGoal(userId, goalId);
-  const result = await Goal.deleteOne({ _id: goalId, $or: [{ userId }, { participantIds: userId }] });
+  const result = await Goal.deleteOne({ _id: goalId, userId });
   return result.deletedCount > 0;
 }
 
@@ -169,7 +227,7 @@ async function createLimit(payload) {
 async function updateLimit(userId, limitId, fields) {
   if (!isDatabaseConnected()) return memoryStore.updateLimit(userId, limitId, fields);
   return normalize(
-    await Limit.findOneAndUpdate({ _id: limitId, $or: [{ userId }, { participantIds: userId }] }, fields, {
+    await Limit.findOneAndUpdate({ _id: limitId, userId }, fields, {
       new: true,
       runValidators: true
     })
@@ -178,28 +236,104 @@ async function updateLimit(userId, limitId, fields) {
 
 async function deleteLimit(userId, limitId) {
   if (!isDatabaseConnected()) return memoryStore.deleteLimit(userId, limitId);
-  const result = await Limit.deleteOne({ _id: limitId, $or: [{ userId }, { participantIds: userId }] });
+  const result = await Limit.deleteOne({ _id: limitId, userId });
   return result.deletedCount > 0;
 }
 
-async function listFriends(userId) {
-  if (!isDatabaseConnected()) return memoryStore.listFriends(userId);
-  const user = await User.findById(userId).populate("friendIds", "name email salary monthlyLimit hourlyRate theme");
-  return (user?.friendIds || []).map(normalize);
+async function listFriendships(userId) {
+  if (!isDatabaseConnected()) return memoryStore.listFriendships(userId);
+  const user = await User.findById(userId)
+    .populate("acceptedFriendIds", "name username avatarUrl")
+    .populate("receivedFriendRequestIds", "name username avatarUrl")
+    .populate("sentFriendRequestIds", "name username avatarUrl");
+  return {
+    friends: (user?.acceptedFriendIds || []).map(publicUser),
+    incomingRequests: (user?.receivedFriendRequestIds || []).map(publicUser),
+    outgoingRequests: (user?.sentFriendRequestIds || []).map(publicUser)
+  };
 }
 
-async function addFriend(userId, friendEmail) {
-  if (!isDatabaseConnected()) return memoryStore.addFriend(userId, friendEmail);
-  const friend = await User.findOne({ email: String(friendEmail).toLowerCase() });
+async function requestFriend(userId, friendUsername) {
+  if (!isDatabaseConnected()) return memoryStore.requestFriend(userId, friendUsername);
+  const friend = await User.findOne({ username: String(friendUsername).toLowerCase() });
   if (!friend || String(friend._id) === String(userId)) return null;
-  await User.findByIdAndUpdate(userId, { $addToSet: { friendIds: friend._id } });
-  return safeUser(friend);
+  const user = await User.findById(userId);
+  if (!user) return null;
+  const has = (values, id) => (values || []).some((value) => String(value) === String(id));
+
+  if (has(user.acceptedFriendIds, friend._id)) {
+    return { status: "existing", user: publicUser(friend) };
+  }
+
+  if (has(user.receivedFriendRequestIds, friend._id)) {
+    await Promise.all([
+      User.findByIdAndUpdate(userId, {
+        $addToSet: { acceptedFriendIds: friend._id },
+        $pull: { receivedFriendRequestIds: friend._id, sentFriendRequestIds: friend._id }
+      }),
+      User.findByIdAndUpdate(friend._id, {
+        $addToSet: { acceptedFriendIds: userId },
+        $pull: { sentFriendRequestIds: userId, receivedFriendRequestIds: userId }
+      })
+    ]);
+    return { status: "accepted", user: publicUser(friend) };
+  }
+
+  await Promise.all([
+    User.findByIdAndUpdate(userId, { $addToSet: { sentFriendRequestIds: friend._id } }),
+    User.findByIdAndUpdate(friend._id, { $addToSet: { receivedFriendRequestIds: userId } })
+  ]);
+  return { status: "pending", user: publicUser(friend) };
+}
+
+async function acceptFriend(userId, requesterId) {
+  if (!isDatabaseConnected()) return memoryStore.acceptFriend(userId, requesterId);
+  const user = await User.findOne({ _id: userId, receivedFriendRequestIds: requesterId });
+  const requester = await User.findById(requesterId);
+  if (!user || !requester) return null;
+  await Promise.all([
+    User.findByIdAndUpdate(userId, {
+      $addToSet: { acceptedFriendIds: requesterId },
+      $pull: { receivedFriendRequestIds: requesterId, sentFriendRequestIds: requesterId }
+    }),
+    User.findByIdAndUpdate(requesterId, {
+      $addToSet: { acceptedFriendIds: userId },
+      $pull: { sentFriendRequestIds: userId, receivedFriendRequestIds: userId }
+    })
+  ]);
+  return publicUser(requester);
+}
+
+async function deleteFriendRequest(userId, otherId) {
+  if (!isDatabaseConnected()) return memoryStore.deleteFriendRequest(userId, otherId);
+  await Promise.all([
+    User.findByIdAndUpdate(userId, {
+      $pull: { sentFriendRequestIds: otherId, receivedFriendRequestIds: otherId }
+    }),
+    User.findByIdAndUpdate(otherId, {
+      $pull: { sentFriendRequestIds: userId, receivedFriendRequestIds: userId }
+    })
+  ]);
+  return true;
 }
 
 async function deleteFriend(userId, friendId) {
   if (!isDatabaseConnected()) return memoryStore.deleteFriend(userId, friendId);
-  await User.findByIdAndUpdate(userId, { $pull: { friendIds: friendId } });
+  await Promise.all([
+    User.findByIdAndUpdate(userId, { $pull: { acceptedFriendIds: friendId } }),
+    User.findByIdAndUpdate(friendId, { $pull: { acceptedFriendIds: userId } }),
+    Goal.updateMany({ userId }, { $pull: { participantIds: friendId } }),
+    Goal.updateMany({ userId: friendId }, { $pull: { participantIds: userId } }),
+    Limit.updateMany({ userId }, { $pull: { participantIds: friendId } }),
+    Limit.updateMany({ userId: friendId }, { $pull: { participantIds: userId } })
+  ]);
   return true;
+}
+
+async function getAcceptedFriendIds(userId) {
+  if (!isDatabaseConnected()) return memoryStore.getAcceptedFriendIds(userId);
+  const user = await User.findById(userId).select("acceptedFriendIds");
+  return (user?.acceptedFriendIds || []).map(String);
 }
 
 async function listAssets(userId) {
@@ -229,14 +363,46 @@ async function deleteAsset(userId, assetId) {
   return result.deletedCount > 0;
 }
 
+async function listBankConnections(userId) {
+  if (!isDatabaseConnected()) return memoryStore.listBankConnections(userId);
+  const connections = await BankConnection.find({ userId }).sort({ updatedAt: -1 });
+  return connections.map(normalize);
+}
+
+async function findBankConnection(userId, connectionId) {
+  if (!isDatabaseConnected()) return memoryStore.findBankConnection(userId, connectionId);
+  return normalize(await BankConnection.findOne({ _id: connectionId, userId }));
+}
+
+async function upsertBankConnection(userId, provider, externalId, fields) {
+  if (!isDatabaseConnected()) {
+    return memoryStore.upsertBankConnection(userId, provider, externalId, fields);
+  }
+  return normalize(
+    await BankConnection.findOneAndUpdate(
+      { userId, provider, externalId },
+      { ...fields, userId, provider, externalId },
+      { new: true, runValidators: true, upsert: true, setDefaultsOnInsert: true }
+    )
+  );
+}
+
+async function deleteBankConnection(userId, connectionId) {
+  if (!isDatabaseConnected()) return memoryStore.deleteBankConnection(userId, connectionId);
+  const result = await BankConnection.deleteOne({ _id: connectionId, userId });
+  return result.deletedCount > 0;
+}
+
 module.exports = {
   findUserByEmail,
+  findUserByUsername,
   findUserById,
   createUser,
   updateUser,
   listTransactions,
   createTransaction,
   updateTransaction,
+  claimInvestmentTransaction,
   deleteTransaction,
   listGoals,
   createGoal,
@@ -247,11 +413,18 @@ module.exports = {
   createLimit,
   updateLimit,
   deleteLimit,
-  listFriends,
-  addFriend,
+  listFriendships,
+  requestFriend,
+  acceptFriend,
+  deleteFriendRequest,
   deleteFriend,
+  getAcceptedFriendIds,
   listAssets,
   createAsset,
   updateAsset,
-  deleteAsset
+  deleteAsset,
+  listBankConnections,
+  findBankConnection,
+  upsertBankConnection,
+  deleteBankConnection
 };

@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Area, AreaChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ArrowDownCircle, ArrowUpCircle, Pencil, Plus, Trash2, WalletCards, X } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, History, LayoutDashboard, Pencil, Plus, Trash2, WalletCards, X } from "lucide-react";
 import { api, getErrorMessage } from "../api/client";
 import { DatePickerField } from "../components/DatePickerField";
 import { OpportunityModal } from "../components/OpportunityModal";
 import { StatCard } from "../components/StatCard";
+import { WorkspaceHeader, WorkspaceTabs } from "../components/WorkspaceHeader";
+import { useAuth } from "../context/AuthContext";
 import { categoryLabel, categoryOptions, currency, monthInputValue, percent, shortDate } from "../utils/formatters";
+import { TimelinePage } from "./TimelinePage";
 
 const pieColors = ["#10b981", "#f59e0b", "#ef4444", "#14b8a6", "#71717a", "#84cc16", "#f97316"];
 
@@ -41,7 +44,15 @@ const emptyLimitForm = {
   amount: ""
 };
 
+const dashboardTabs = [
+  { id: "overview", label: "Resumo do mês", to: "/dashboard", icon: LayoutDashboard },
+  { id: "timeline", label: "Linha do tempo", to: "/dashboard?view=timeline", icon: History }
+];
+
 export function DashboardPage() {
+  const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const activeView = searchParams.get("view") === "timeline" ? "timeline" : "overview";
   const [month, setMonth] = useState(monthInputValue());
   const [summary, setSummary] = useState(null);
   const [transactions, setTransactions] = useState([]);
@@ -203,22 +214,35 @@ export function DashboardPage() {
   );
   const recentTransactions = useMemo(() => transactions.slice(0, 5), [transactions]);
 
-  return (
-    <div className="space-y-6">
-      <OpportunityModal opportunity={opportunity} onClose={() => setOpportunity(null)} />
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Dashboard comportamental</p>
-          <h1 className="text-3xl font-black">Saúde do dinheiro em tempo real</h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            Janela: {summary?.window?.label || "3 dias finais do mês anterior + dias 1 a 27 do mês selecionado"}
-          </p>
-        </div>
-        <label className="w-full sm:w-auto">
-          <span className="text-sm text-zinc-500 dark:text-zinc-400">Mês base da janela</span>
-          <input className="mt-1 w-full rounded-lg border border-black/10 bg-white px-3 py-2 dark:border-white/10 dark:bg-neutral-900" type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
-        </label>
+  if (activeView === "timeline") {
+    return (
+      <div className="workspace-page space-y-6">
+        <WorkspaceHeader
+          description="Consulte, compare e edite seus registros organizados mês a mês."
+          eyebrow="Visão geral"
+          title="Todo o seu histórico, sem perder o contexto"
+        />
+        <WorkspaceTabs active={activeView} tabs={dashboardTabs} />
+        <TimelinePage embedded />
       </div>
+    );
+  }
+
+  return (
+    <div className="workspace-page space-y-6">
+      <OpportunityModal opportunity={opportunity} onClose={() => setOpportunity(null)} />
+      <WorkspaceHeader
+        actions={(
+          <label className="workspace-month-control">
+            <span>Mês da análise</span>
+            <input type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
+          </label>
+        )}
+        description={`Janela ativa: ${summary?.window?.label || "3 dias finais do mês anterior e dias 1 a 27 do mês selecionado"}.`}
+        eyebrow="Seu mês em movimento"
+        title="O que merece sua atenção hoje"
+      />
+      <WorkspaceTabs active={activeView} tabs={dashboardTabs} />
 
       {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p> : null}
 
@@ -335,7 +359,7 @@ export function DashboardPage() {
               <h2 className="text-xl font-black">Linha do tempo</h2>
               <p className="text-sm text-zinc-500 dark:text-zinc-400">5 itens mais recentes por data</p>
             </div>
-            <Link className="rounded-lg bg-zinc-900 px-3 py-2 text-center text-sm font-black text-white dark:bg-white dark:text-zinc-950" to="/linha-do-tempo">
+            <Link className="rounded-lg bg-zinc-900 px-3 py-2 text-center text-sm font-black text-white dark:bg-white dark:text-zinc-950" to="/dashboard?view=timeline">
               Ver linha do tempo completa
             </Link>
           </div>
@@ -419,9 +443,11 @@ export function DashboardPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-bold">{percent(goal.progress)}</p>
-                    <button className="rounded-lg border border-black/10 p-2 text-zinc-500 dark:border-white/10" onClick={() => deleteGoal(goal.id)} type="button">
-                      <Trash2 size={15} />
-                    </button>
+                    {String(goal.userId) === String(user?.id) ? (
+                      <button aria-label={`Excluir meta ${goal.name}`} className="rounded-lg border border-black/10 p-2 text-zinc-500 dark:border-white/10" onClick={() => deleteGoal(goal.id)} type="button">
+                        <Trash2 size={15} />
+                      </button>
+                    ) : null}
                   </div>
                 </div>
                 <div className="mt-2 h-2 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
@@ -512,9 +538,11 @@ export function DashboardPage() {
                     >
                       {percent(limit.usagePercent)}
                     </span>
-                    <button className="rounded-lg border border-black/10 p-2 text-zinc-500 dark:border-white/10" onClick={() => deleteLimit(limit.id)} type="button">
-                      <Trash2 size={15} />
-                    </button>
+                    {String(limit.userId) === String(user?.id) ? (
+                      <button aria-label={`Excluir limite ${categoryLabel(limit.category)}`} className="rounded-lg border border-black/10 p-2 text-zinc-500 dark:border-white/10" onClick={() => deleteLimit(limit.id)} type="button">
+                        <Trash2 size={15} />
+                      </button>
+                    ) : null}
                   </div>
                 </div>
                 <div className="mt-2 h-2 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">

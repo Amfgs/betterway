@@ -7,10 +7,11 @@ export function StatCard({ label, value, detail, tone = "neutral", children }) {
   };
 
   return (
-    <section className={`rounded-lg border p-4 shadow-soft ${tones[tone]} ${tone === "danger" ? "danger-pulse" : ""}`}>
-      <p className="text-sm opacity-70">{label}</p>
-      <p className="mt-2 text-2xl font-black">{value}</p>
-      {detail ? <p className="mt-1 text-sm opacity-75">{detail}</p> : null}
+    <section className={`stat-card rounded-lg border p-4 shadow-soft ${tones[tone]} ${tone === "danger" ? "danger-pulse" : ""}`} data-tone={tone}>
+      <div className="stat-card-accent" />
+      <p className="stat-card-label">{label}</p>
+      <p className="stat-card-value">{value}</p>
+      {detail ? <p className="stat-card-detail">{detail}</p> : null}
       {children}
     </section>
   );

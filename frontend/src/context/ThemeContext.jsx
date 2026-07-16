@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { readStoredValue, storageKeys } from "../utils/storageKeys";
 
 const ThemeContext = createContext(null);
@@ -11,13 +11,34 @@ export function ThemeProvider({ children }) {
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
 
+  const changeTheme = useCallback((nextTheme) => {
+    const root = document.documentElement;
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const apply = () => setTheme(nextTheme);
+
+    if (!reducedMotion && document.startViewTransition) {
+      root.classList.add("theme-transitioning");
+      const transition = document.startViewTransition(apply);
+      transition.finished.finally(() => root.classList.remove("theme-transitioning"));
+      return;
+    }
+
+    root.classList.add("theme-transitioning");
+    apply();
+    window.setTimeout(() => root.classList.remove("theme-transitioning"), 460);
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    changeTheme(theme === "dark" ? "light" : "dark");
+  }, [changeTheme, theme]);
+
   const value = useMemo(
     () => ({
       theme,
-      toggleTheme: () => setTheme((current) => (current === "dark" ? "light" : "dark")),
-      setTheme
+      toggleTheme,
+      setTheme: changeTheme
     }),
-    [theme]
+    [changeTheme, theme, toggleTheme]
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

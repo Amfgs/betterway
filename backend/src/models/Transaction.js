@@ -42,8 +42,12 @@ const transactionSchema = new mongoose.Schema(
     },
     investmentStatus: {
       type: String,
-      enum: ["pending", "resolved", "not_applicable"],
+      enum: ["pending", "resolving", "resolved", "not_applicable"],
       default: "not_applicable"
+    },
+    resolvingAt: {
+      type: Date,
+      default: null
     },
     investmentSplits: [
       {

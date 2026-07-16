@@ -18,7 +18,8 @@ function getExpoHost() {
   return hostUri.split(":")[0];
 }
 
-export const apiUrlStorageKey = "valorize_mobile_api_url";
+export const apiUrlStorageKey = "betterway_mobile_api_url";
+export const legacyApiUrlStorageKey = "valorize_mobile_api_url";
 
 function resolveApiUrl() {
   if (process.env.EXPO_PUBLIC_API_URL) return process.env.EXPO_PUBLIC_API_URL.replace(/\/$/, "");
@@ -63,13 +64,18 @@ export async function apiRequest(path, { method = "GET", body, token } = {}) {
 
   if (!response.ok) {
     let message = "Erro ao consultar a API.";
+    let code = "";
     try {
       const data = await response.json();
       message = data.message || message;
+      code = data.code || "";
     } catch (error) {
       message = response.statusText || message;
     }
-    throw new Error(message);
+    const requestError = new Error(message);
+    requestError.code = code;
+    requestError.status = response.status;
+    throw requestError;
   }
 
   if (response.status === 204) return null;

@@ -1,4 +1,4 @@
-# Widgets iOS do Valorize+
+# Widgets iOS da Better Way
 
 O app já tem a base compartilhada para widgets:
 
@@ -20,8 +20,8 @@ eas build --platform ios --profile development
 
 Depois disso, crie dois widgets:
 
-- `ValorizePrimaryWidget`: mostra a meta ou limite selecionado pelo usuário.
-- `ValorizeStreakWidget`: mostra o streak diário e chama o usuário para abrir o app antes das 22:30.
+- `BetterWayPrimaryWidget`: mostra a meta ou limite selecionado pelo usuário.
+- `BetterWayStreakWidget`: mostra o streak diário e chama o usuário para abrir o app antes das 22:30.
 
 ## Sobre bloquear outros apps às 22:30
 
@@ -31,4 +31,4 @@ Um app comum não pode bloquear outros apps livremente no iOS. Para fazer isso d
 - `DeviceActivity`
 - `ManagedSettings`
 
-Esse caminho exige autorização do usuário, entitlements da Apple, App Groups, extensões nativas e revisão da App Store. O Valorize+ já salva a intenção do usuário, mas o bloqueio real precisa dessa etapa nativa.
+Esse caminho exige autorização do usuário, entitlements da Apple, App Groups, extensões nativas e revisão da App Store. A Better Way já salva a intenção do usuário, mas o bloqueio real precisa dessa etapa nativa.

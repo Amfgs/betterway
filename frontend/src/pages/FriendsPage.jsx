@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
-import { Plus, Target, Trash2, UserPlus, Users, WalletCards } from "lucide-react";
+import { Check, Clock3, Plus, Target, Trash2, UserPlus, Users, WalletCards, X } from "lucide-react";
 import { api, getErrorMessage } from "../api/client";
+import { WorkspaceHeader } from "../components/WorkspaceHeader";
 import { categoryOptions } from "../utils/formatters";
 
 const defaultGoalDate = new Date(new Date().getFullYear(), new Date().getMonth() + 4, 1).toISOString().slice(0, 10);
 
 export function FriendsPage() {
   const [friends, setFriends] = useState([]);
-  const [friendEmail, setFriendEmail] = useState("");
+  const [incomingRequests, setIncomingRequests] = useState([]);
+  const [outgoingRequests, setOutgoingRequests] = useState([]);
+  const [friendUsername, setFriendUsername] = useState("");
   const [sharedGoalForm, setSharedGoalForm] = useState({
     name: "",
     targetAmount: "",
@@ -26,6 +29,8 @@ export function FriendsPage() {
   async function loadFriends() {
     const response = await api.get("/friends");
     setFriends(response.data.friends || []);
+    setIncomingRequests(response.data.incomingRequests || []);
+    setOutgoingRequests(response.data.outgoingRequests || []);
   }
 
   useEffect(() => {
@@ -41,9 +46,31 @@ export function FriendsPage() {
     event.preventDefault();
     clearFeedback();
     try {
-      await api.post("/friends", { email: friendEmail });
-      setFriendEmail("");
-      setMessage("Amigo adicionado.");
+      const response = await api.post("/friends", { username: friendUsername });
+      setFriendUsername("");
+      setMessage(response.data.message || "Pedido de amizade enviado.");
+      await loadFriends();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  }
+
+  async function acceptFriend(id) {
+    clearFeedback();
+    try {
+      const response = await api.post(`/friends/${id}/accept`);
+      setMessage(response.data.message || "Pedido de amizade aceito.");
+      await loadFriends();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  }
+
+  async function removeRequest(id, label) {
+    clearFeedback();
+    try {
+      await api.delete(`/friends/requests/${id}`);
+      setMessage(label);
       await loadFriends();
     } catch (err) {
       setError(getErrorMessage(err));
@@ -110,20 +137,13 @@ export function FriendsPage() {
   const selectedLimitFriends = friends.filter((friend) => sharedLimitForm.participantIds.includes(friend.id));
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Amigos</p>
-          <h1 className="text-3xl font-black">Metas e limites em conjunto</h1>
-          <p className="mt-1 max-w-3xl text-sm text-zinc-500 dark:text-zinc-400">
-            Adicione usuários cadastrados para dividir metas, combinar limites e acompanhar decisões financeiras compartilhadas.
-          </p>
-        </div>
-        <div className="rounded-lg border border-black/5 bg-white px-4 py-3 shadow-soft dark:border-white/10 dark:bg-neutral-900">
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">Amigos conectados</p>
-          <p className="text-2xl font-black">{friends.length}</p>
-        </div>
-      </div>
+    <div className="workspace-page space-y-6">
+      <WorkspaceHeader
+        actions={<div className="workspace-header-metric"><span>Amigos conectados</span><strong>{friends.length}</strong></div>}
+        description="Convide pessoas próximas e transforme objetivos compartilhados em acordos claros e acompanháveis."
+        eyebrow="Construir junto"
+        title="Metas e limites que todos entendem"
+      />
 
       {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p> : null}
       {message ? <p className="rounded-lg bg-emerald-500/10 p-3 text-sm font-medium text-emerald-700 dark:text-emerald-300">{message}</p> : null}
@@ -134,16 +154,19 @@ export function FriendsPage() {
             <Users className="text-emerald-500" size={24} />
             <div>
               <h2 className="text-xl font-black">Lista de amigos</h2>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">Use o email da conta cadastrada no Valorize+.</p>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">Encontre alguém pelo nome de usuário público.</p>
             </div>
           </div>
           <form className="mt-5 flex flex-col gap-3 sm:flex-row" onSubmit={addFriend}>
             <input
               className="min-w-0 flex-1 rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10"
-              placeholder="email do amigo cadastrado"
-              type="email"
-              value={friendEmail}
-              onChange={(event) => setFriendEmail(event.target.value)}
+              autoCapitalize="none"
+              autoComplete="off"
+              maxLength={24}
+              placeholder="@nome.usuario"
+              type="text"
+              value={friendUsername}
+              onChange={(event) => setFriendUsername(event.target.value.replace(/^@+/, "").toLowerCase().replace(/[^a-z0-9._]/g, ""))}
               required
             />
             <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-3 font-black text-white" type="submit">
@@ -151,12 +174,44 @@ export function FriendsPage() {
               Adicionar
             </button>
           </form>
+          {incomingRequests.length ? (
+            <div className="mt-5 space-y-2">
+              <p className="flex items-center gap-2 text-sm font-black"><UserPlus size={16} /> Pedidos recebidos</p>
+              {incomingRequests.map((request) => (
+                <div key={request.id} className="flex items-center justify-between gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-black">{request.name}</p>
+                    <p className="truncate text-sm text-zinc-500 dark:text-zinc-400">@{request.username}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button aria-label={`Aceitar ${request.name}`} className="rounded-lg bg-emerald-500 p-2 text-white" onClick={() => acceptFriend(request.id)} title="Aceitar pedido" type="button"><Check size={16} /></button>
+                    <button aria-label={`Recusar ${request.name}`} className="rounded-lg border border-black/10 p-2 text-zinc-500 dark:border-white/10" onClick={() => removeRequest(request.id, "Pedido recusado.")} title="Recusar pedido" type="button"><X size={16} /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {outgoingRequests.length ? (
+            <div className="mt-5 space-y-2">
+              <p className="flex items-center gap-2 text-sm font-black"><Clock3 size={16} /> Aguardando aceite</p>
+              {outgoingRequests.map((request) => (
+                <div key={request.id} className="flex items-center justify-between gap-3 rounded-lg bg-stone-100 p-3 dark:bg-neutral-800">
+                  <div className="min-w-0">
+                    <p className="truncate font-black">{request.name}</p>
+                    <p className="truncate text-sm text-zinc-500 dark:text-zinc-400">@{request.username}</p>
+                  </div>
+                  <button className="rounded-lg border border-black/10 px-3 py-2 text-xs font-bold text-zinc-500 dark:border-white/10" onClick={() => removeRequest(request.id, "Pedido cancelado.")} type="button">Cancelar</button>
+                </div>
+              ))}
+            </div>
+          ) : null}
           <div className="mt-5 space-y-2">
+            <p className="text-sm font-black">Amizades aceitas</p>
             {friends.map((friend) => (
               <div key={friend.id} className="flex items-center justify-between gap-3 rounded-lg bg-stone-100 p-3 dark:bg-neutral-800">
                 <div>
                   <p className="font-black">{friend.name}</p>
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400">{friend.email}</p>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">@{friend.username}</p>
                 </div>
                 <button className="rounded-lg border border-black/10 p-2 text-zinc-500 dark:border-white/10" onClick={() => deleteFriend(friend.id)} type="button" title="Remover amigo">
                   <Trash2 size={16} />
@@ -165,7 +220,7 @@ export function FriendsPage() {
             ))}
             {!friends.length ? (
               <p className="rounded-lg bg-stone-100 p-3 text-sm text-zinc-500 dark:bg-neutral-800 dark:text-zinc-400">
-                Crie outra conta no cadastro e adicione o email aqui para testar metas e limites compartilhados.
+                Nenhuma amizade aceita ainda. Envie um pedido e aguarde a confirmação da outra pessoa.
               </p>
             ) : null}
           </div>
