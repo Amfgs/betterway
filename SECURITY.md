@@ -23,6 +23,7 @@ Nenhuma auditoria consegue prometer risco zero. Esta revisão cobre o código, d
 ## Dependências
 
 - Todos os workspaces: nenhuma vulnerabilidade conhecida pelo `npm audit --omit=dev`.
+- Frontend e backend possuem lockfiles próprios para que os projetos separados da Vercel instalem exatamente as versões auditadas.
 - As dependências transitivas `postcss` e `uuid` do ferramental Expo foram fixadas em versões corrigidas por overrides de escopo restrito, mantendo o SDK 54.
 - A compatibilidade do mobile é verificada com Expo Doctor e exportação do bundle iOS antes da publicação.
 
