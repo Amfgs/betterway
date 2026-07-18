@@ -21,7 +21,16 @@ const codeAttemptLimiter = rateLimit({
   message: { message: "Muitas tentativas de código. Solicite um novo código mais tarde." }
 });
 
+const usernameAvailabilityLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { message: "Muitas consultas de nome de usuário. Aguarde alguns minutos." }
+});
+
 router.post("/register", emailActionLimiter, authController.register);
+router.get("/username-availability", usernameAvailabilityLimiter, authController.usernameAvailability);
 router.post("/login", authController.login);
 router.post("/verify-email", codeAttemptLimiter, authController.verifyEmail);
 router.post("/resend-verification", emailActionLimiter, authController.resendVerification);

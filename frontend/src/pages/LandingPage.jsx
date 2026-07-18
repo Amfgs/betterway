@@ -1,7 +1,8 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
+  ArrowDown,
   BrainCircuit,
   CalendarRange,
   Check,
@@ -14,31 +15,10 @@ import {
 } from "lucide-react";
 import heroImage from "../assets/landing/betterway-hero.webp";
 import decisionImage from "../assets/landing/betterway-decision.webp";
+import financialAtmosphereImage from "../assets/landing/betterway-financial-atmosphere.webp";
 import { Logo } from "../components/Logo";
+import { FinancialJourney } from "../components/FinancialJourney";
 import { useAuth } from "../context/AuthContext";
-
-const HeroScene = lazy(() => import("../components/HeroScene").then((module) => ({ default: module.HeroScene })));
-
-const capabilities = [
-  {
-    icon: BrainCircuit,
-    number: "01",
-    title: "Entenda antes de gastar",
-    text: "O Raio-X traduz cada compra em horas de trabalho, metas adiadas e rendimento perdido."
-  },
-  {
-    icon: CalendarRange,
-    number: "02",
-    title: "Planeje o mês real",
-    text: "Limites e calendário se ajustam aos seus dias, reservas e prioridades sem esconder o que importa."
-  },
-  {
-    icon: Landmark,
-    number: "03",
-    title: "Faça o patrimônio crescer",
-    text: "Carteira, cotações, metas e simulações trabalham juntas em uma leitura contínua."
-  }
-];
 
 const productFeatures = [
   {
@@ -239,12 +219,9 @@ export function LandingPage() {
   return (
     <div className="landing-page">
       <LandingRail />
-      <section className="landing-hero">
+      <section aria-labelledby="landing-hero-title" className="landing-hero">
         <img alt="Pessoa organizando as finanças com tranquilidade" className="landing-hero-image" src={heroImage} />
         <div className="landing-hero-shade" />
-        <Suspense fallback={null}>
-          <HeroScene />
-        </Suspense>
         <div aria-hidden="true" className="landing-nav-backdrop" />
 
         <header className="landing-nav">
@@ -261,7 +238,7 @@ export function LandingPage() {
         </header>
 
         <div className="landing-hero-content">
-          <h1>Seu dinheiro merece mais do que um retrovisor.</h1>
+          <h1 id="landing-hero-title">Seu dinheiro merece mais do que um retrovisor.</h1>
           <p>
             A Better Way transforma hábitos, limites e investimentos em decisões claras para hoje e em possibilidades maiores para amanhã.
           </p>
@@ -274,6 +251,10 @@ export function LandingPage() {
               Conhecer a plataforma
             </a>
           </div>
+          <a className="landing-hero-scroll-cue" href="#como-funciona">
+            <span>Veja seu dinheiro ganhar direção</span>
+            <ArrowDown aria-hidden="true" size={16} />
+          </a>
         </div>
 
         <div className="landing-live-strip" aria-label="Demonstração de indicadores">
@@ -286,26 +267,7 @@ export function LandingPage() {
       </section>
 
       <main>
-        <section className="landing-intro" id="como-funciona">
-          <Reveal className="landing-container">
-            <div className="landing-section-heading">
-              <h2>Decidir melhor muda tudo o que vem depois.</h2>
-              <span>A Better Way conecta comportamento, planejamento e crescimento em uma experiência única.</span>
-            </div>
-            <div className="landing-capability-grid">
-              {capabilities.map((item) => (
-                <article className="landing-capability" key={item.title}>
-                  <div className="landing-capability-top">
-                    <item.icon size={23} />
-                    <span>{item.number}</span>
-                  </div>
-                  <h3>{item.title}</h3>
-                  <p>{item.text}</p>
-                </article>
-              ))}
-            </div>
-          </Reveal>
-        </section>
+        <FinancialJourney />
 
         <section className="landing-decision-section">
           <Reveal className="landing-container landing-decision-grid">
@@ -334,6 +296,9 @@ export function LandingPage() {
         </section>
 
         <section className="landing-product-section" id="produto">
+          <div aria-hidden="true" className="landing-product-atmosphere">
+            <img alt="" loading="lazy" src={financialAtmosphereImage} />
+          </div>
           <Reveal className="landing-container">
             <div className="landing-product-heading">
               <div>
@@ -343,8 +308,8 @@ export function LandingPage() {
             </div>
 
             <div className="landing-product-window">
-              <aside>
-                <Logo size={34} />
+              <aside aria-label="Navegação da demonstração">
+                <div className="landing-product-brand"><Logo size={25} /></div>
                 {productViews.map((view) => (
                   <button
                     aria-label={`Visualizar ${view.label}`}
@@ -356,10 +321,11 @@ export function LandingPage() {
                     type="button"
                   >
                     <view.icon size={17} />
+                    <span>{view.label}</span>
                   </button>
                 ))}
               </aside>
-              <div className="landing-product-main" key={productView.id}>
+              <div aria-live="polite" className="landing-product-main" key={productView.id}>
                 <div className="landing-product-toolbar">
                   <div><span>{productView.eyebrow}</span><strong>{productView.title}</strong></div>
                   <Link to={primaryTo}>{productView.action} <ArrowRight size={14} /></Link>

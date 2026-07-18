@@ -78,9 +78,17 @@ export function Shell() {
   return (
     <div className={`app-shell ${collapsed ? "sidebar-is-collapsed" : ""}`}>
       <aside
-        aria-label="Navegação principal"
+        aria-expanded={!collapsed}
+        aria-label={collapsed ? "Abrir navegação principal" : "Navegação principal"}
         className={`desktop-sidebar ${collapsed ? "collapsed" : ""}`}
         onClick={collapsed ? () => setCollapsed(false) : undefined}
+        onKeyDown={collapsed ? (event) => {
+          if (event.target === event.currentTarget && ["Enter", " "].includes(event.key)) {
+            event.preventDefault();
+            setCollapsed(false);
+          }
+        } : undefined}
+        tabIndex={collapsed ? 0 : undefined}
         title={collapsed ? "Clique para abrir o menu" : undefined}
       >
         <div className="desktop-sidebar-brand">
@@ -108,7 +116,7 @@ export function Shell() {
         </div>
 
         <nav aria-label="Áreas da ferramenta" className="desktop-sidebar-nav">
-          {!collapsed ? <p className="desktop-sidebar-label">Seu espaço</p> : null}
+          {!collapsed ? <p className="desktop-sidebar-label">Navegação</p> : null}
           {navItems.slice(0, 4).map((item) => <SidebarLink collapsed={collapsed} item={item} key={item.to} />)}
         </nav>
 
@@ -125,9 +133,10 @@ export function Shell() {
 
       <div className="app-stage">
         <header className="desktop-topbar">
-          <div>
-            <p>{currentMeta.title}</p>
-            <span>{currentMeta.description}</span>
+          <div className="desktop-topbar-breadcrumb" aria-label="Localização atual">
+            <span>Better Way</span>
+            <ChevronRight aria-hidden="true" size={14} />
+            <strong>{currentMeta.title}</strong>
           </div>
           <div className="desktop-topbar-actions">
             <form className="workspace-search" onSubmit={submitSearch} role="search">
@@ -155,6 +164,7 @@ export function Shell() {
           <Link aria-label="Ir para Visão Geral" to="/dashboard"><Logo size={38} /></Link>
           <div>
             <span>{currentMeta.title}</span>
+            <Link aria-label="Criar novo registro" className="mobile-quick-add" to="/dashboard#novo-registro"><Plus size={17} /></Link>
             <Link aria-label="Abrir perfil" to="/perfil"><img alt="Avatar do usuário" src={avatarSrc(user?.avatarUrl)} /></Link>
           </div>
         </header>

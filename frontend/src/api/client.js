@@ -1,5 +1,5 @@
 import axios from "axios";
-import { readStoredValue, removeStoredValue, storageKeys } from "../utils/storageKeys";
+import { clearAuthSession, readAuthToken } from "../utils/storageKeys";
 
 const productionApiUrl = "https://betterway-api.vercel.app/api";
 const localApiUrl = "http://localhost:5050/api";
@@ -9,7 +9,7 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = readStoredValue(storageKeys.authToken, storageKeys.legacyAuthToken);
+  const token = readAuthToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -19,10 +19,10 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    const hadToken = Boolean(readStoredValue(storageKeys.authToken, storageKeys.legacyAuthToken));
+    const hadToken = Boolean(readAuthToken());
     const isAuthAttempt = /\/auth\/(login|register|verify-email|forgot-password|reset-password)/.test(error?.config?.url || "");
     if (hadToken && error?.response?.status === 401 && !isAuthAttempt) {
-      removeStoredValue(storageKeys.authToken, storageKeys.legacyAuthToken);
+      clearAuthSession();
       window.dispatchEvent(new Event("betterway:session-expired"));
     }
     return Promise.reject(error);
@@ -30,5 +30,8 @@ api.interceptors.response.use(
 );
 
 export function getErrorMessage(error) {
+  if (error?.code === "ERR_NETWORK" || (!error?.response && error?.request)) {
+    return "Não foi possível conectar ao serviço da Better Way. Verifique sua conexão e tente novamente.";
+  }
   return error?.response?.data?.message || error?.message || "Algo saiu do trilho.";
 }

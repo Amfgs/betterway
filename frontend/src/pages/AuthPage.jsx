@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check, LockKeyhole, Moon, ShieldCheck, Sun } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, LoaderCircle, LockKeyhole, Moon, ShieldCheck, Sun, X } from "lucide-react";
 import heroImage from "../assets/landing/betterway-hero.webp";
 import { getErrorMessage } from "../api/client";
 import { Logo } from "../components/Logo";
@@ -11,6 +11,7 @@ export function AuthPage() {
   const {
     login,
     register,
+    checkUsernameAvailability,
     verifyEmail,
     resendVerification,
     forgotPassword,
@@ -37,6 +38,10 @@ export function AuthPage() {
   const [success, setSuccess] = useState("");
   const [showForgotHint, setShowForgotHint] = useState(false);
   const [showVerificationHint, setShowVerificationHint] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [rememberSession, setRememberSession] = useState(() => localStorage.getItem("betterway_session_persistent") !== "false");
+  const [usernameStatus, setUsernameStatus] = useState({ state: "idle", message: "" });
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -63,6 +68,50 @@ export function AuthPage() {
     }
   }, [location.search, location.state]);
 
+  useEffect(() => {
+    let cancelled = false;
+    let timer;
+
+    if (mode !== "register") {
+      setUsernameStatus({ state: "idle", message: "" });
+      return undefined;
+    }
+
+    const username = form.username.trim();
+    if (!username) {
+      setUsernameStatus({ state: "idle", message: "Seu identificador único para amizades." });
+      return undefined;
+    }
+    if (username.length < 3) {
+      setUsernameStatus({ state: "invalid", message: "Digite pelo menos 3 caracteres." });
+      return undefined;
+    }
+
+    setUsernameStatus({ state: "checking", message: "Verificando disponibilidade..." });
+    timer = window.setTimeout(async () => {
+      try {
+        const response = await checkUsernameAvailability(username);
+        if (cancelled) return;
+        setUsernameStatus({
+          state: !response.valid ? "invalid" : response.available ? "available" : "unavailable",
+          message: response.message
+        });
+      } catch {
+        if (!cancelled) {
+          setUsernameStatus({
+            state: "error",
+            message: "Não foi possível verificar agora. O cadastro fará uma nova validação."
+          });
+        }
+      }
+    }, 420);
+
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [checkUsernameAvailability, form.username, mode]);
+
   if (!loading && isAuthenticated) return <Navigate to="/dashboard" replace />;
 
   function update(key, value) {
@@ -77,15 +126,21 @@ export function AuthPage() {
     setShowVerificationHint(false);
     try {
       if (mode === "login") {
-        await login({ email: form.email, password: form.password });
+        await login({ email: form.email, password: form.password }, { persistent: rememberSession });
         navigate(location.state?.from?.pathname || "/dashboard", { replace: true });
       } else if (mode === "register") {
         if (form.password !== form.confirmPassword) {
           setError("As senhas não coincidem.");
           return;
         }
+        if (["invalid", "unavailable"].includes(usernameStatus.state)) {
+          setError(usernameStatus.message);
+          return;
+        }
         const response = await register({ ...form, hourlyRate: calculatedHourlyRate });
         setMode("verify");
+        setShowPassword(false);
+        setShowConfirmPassword(false);
         setSuccess(response.message);
         setForm((current) => ({
           ...current,
@@ -95,7 +150,7 @@ export function AuthPage() {
           verificationToken: response.devVerificationToken || ""
         }));
       } else if (mode === "verify") {
-        await verifyEmail({ email: form.email, token: form.verificationToken });
+        await verifyEmail({ email: form.email, token: form.verificationToken }, { persistent: rememberSession });
         navigate(location.state?.from?.pathname || "/dashboard", { replace: true });
       } else if (mode === "forgot") {
         const response = await forgotPassword({ email: form.email });
@@ -128,6 +183,8 @@ export function AuthPage() {
     setSuccess("");
     setShowForgotHint(false);
     setShowVerificationHint(false);
+    setShowPassword(false);
+    setShowConfirmPassword(false);
   }
 
   async function resendCode() {
@@ -208,7 +265,7 @@ export function AuthPage() {
           </button>
         </div>
 
-        <div className="auth-form-wrap">
+        <div className={`auth-form-wrap auth-form-wrap-${mode}`}>
           <p className="auth-eyebrow">{eyebrow}</p>
           <h1>{heading}</h1>
           <p className="auth-description">{description}</p>
@@ -222,13 +279,14 @@ export function AuthPage() {
             <button className="auth-return-button" onClick={() => switchMode("login")} type="button"><ArrowLeft size={16} /> Voltar ao login</button>
           )}
 
-          <form className="auth-form" onSubmit={submit}>
+          <form className={`auth-form auth-form-${mode}`} onSubmit={submit}>
             {mode === "register" ? (
               <>
                 <label><span>Nome</span><input autoComplete="name" className={inputClass} onChange={(event) => update("name", event.target.value)} required value={form.name} /></label>
                 <label>
                   <span>Nome de usuário</span>
                   <input
+                    aria-describedby="username-availability"
                     autoCapitalize="none"
                     autoComplete="username"
                     className={inputClass}
@@ -239,24 +297,81 @@ export function AuthPage() {
                     required
                     value={form.username}
                   />
-                  <small className="auth-inline-hint">Seu identificador único para amizades. Use letras, números, ponto ou sublinhado.</small>
+                  <small
+                    aria-live="polite"
+                    className={`auth-inline-hint auth-username-status ${usernameStatus.state}`}
+                    id="username-availability"
+                  >
+                    {usernameStatus.state === "checking" ? <LoaderCircle aria-hidden="true" className="auth-status-spinner" size={14} /> : null}
+                    {usernameStatus.state === "available" ? <Check aria-hidden="true" size={14} /> : null}
+                    {["invalid", "unavailable", "error"].includes(usernameStatus.state) ? <X aria-hidden="true" size={14} /> : null}
+                    <span>{usernameStatus.message || "Use letras, números, ponto ou sublinhado."}</span>
+                  </small>
                 </label>
               </>
             ) : null}
-            <label>
+            <label className={mode === "register" ? "auth-field-wide" : undefined}>
               <span>E-mail</span>
               <input autoComplete="email" className={inputClass} onChange={(event) => update("email", event.target.value)} placeholder="voce@email.com" required type="email" value={form.email} />
             </label>
             {["login", "register", "reset"].includes(mode) ? (
               <label>
                 <span>{mode === "reset" ? "Nova senha" : "Senha"}</span>
-                <input autoComplete={mode === "login" ? "current-password" : "new-password"} className={inputClass} maxLength={72} minLength={mode === "login" ? undefined : 8} onChange={(event) => update("password", event.target.value)} placeholder="••••••••" required type="password" value={form.password} />
+                <div className="auth-password-input">
+                  <input
+                    autoComplete={mode === "login" ? "current-password" : "new-password"}
+                    className={inputClass}
+                    id="auth-password"
+                    maxLength={72}
+                    minLength={mode === "login" ? undefined : 8}
+                    onChange={(event) => update("password", event.target.value)}
+                    placeholder="••••••••"
+                    required
+                    type={showPassword ? "text" : "password"}
+                    value={form.password}
+                  />
+                  <button
+                    aria-controls="auth-password"
+                    aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                    aria-pressed={showPassword}
+                    className="auth-password-toggle"
+                    onClick={() => setShowPassword((current) => !current)}
+                    title={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                    type="button"
+                  >
+                    {showPassword ? <EyeOff aria-hidden="true" size={18} /> : <Eye aria-hidden="true" size={18} />}
+                  </button>
+                </div>
               </label>
             ) : null}
             {mode === "register" ? (
               <label>
                 <span>Confirme a senha</span>
-                <input autoComplete="new-password" className={inputClass} maxLength={72} minLength={8} onChange={(event) => update("confirmPassword", event.target.value)} placeholder="••••••••" required type="password" value={form.confirmPassword} />
+                <div className="auth-password-input">
+                  <input
+                    autoComplete="new-password"
+                    className={inputClass}
+                    id="auth-confirm-password"
+                    maxLength={72}
+                    minLength={8}
+                    onChange={(event) => update("confirmPassword", event.target.value)}
+                    placeholder="••••••••"
+                    required
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={form.confirmPassword}
+                  />
+                  <button
+                    aria-controls="auth-confirm-password"
+                    aria-label={showConfirmPassword ? "Ocultar confirmação de senha" : "Mostrar confirmação de senha"}
+                    aria-pressed={showConfirmPassword}
+                    className="auth-password-toggle"
+                    onClick={() => setShowConfirmPassword((current) => !current)}
+                    title={showConfirmPassword ? "Ocultar confirmação" : "Mostrar confirmação"}
+                    type="button"
+                  >
+                    {showConfirmPassword ? <EyeOff aria-hidden="true" size={18} /> : <Eye aria-hidden="true" size={18} />}
+                  </button>
+                </div>
               </label>
             ) : null}
             {mode === "verify" ? (
@@ -276,6 +391,16 @@ export function AuthPage() {
                 <label><span>Valor por hora calculado</span><input aria-describedby="hourly-rate-help" className={`${inputClass} auth-input-calculated`} readOnly value={`R$ ${calculatedHourlyRate}`} /></label>
                 <small className="auth-field-hint" id="hourly-rate-help">Cálculo considerando 22 dias úteis por mês.</small>
               </div>
+            ) : null}
+
+            {["login", "register", "verify"].includes(mode) ? (
+              <label className="auth-session-option">
+                <input checked={rememberSession} onChange={(event) => setRememberSession(event.target.checked)} type="checkbox" />
+                <span>
+                  <strong>Manter acesso neste dispositivo</strong>
+                  <small>{rememberSession ? "A sessão expira em 15 dias." : "O acesso termina ao fechar o navegador."}</small>
+                </span>
+              </label>
             ) : null}
 
             {error ? (

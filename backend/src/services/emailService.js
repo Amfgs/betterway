@@ -3,13 +3,14 @@ const axios = require("axios");
 const { isProduction } = require("../config/security");
 
 const BRAND_NAME = "Better Way";
+const DEFAULT_EMAIL_FROM = "Better Way <no-reply@mail.betterway.com.br>";
 
 function hasSmtpConfig() {
   return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 }
 
 function hasResendConfig() {
-  return Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM);
+  return Boolean(process.env.RESEND_API_KEY);
 }
 
 function emailConfigured() {
@@ -38,7 +39,7 @@ function escapeHtml(value) {
 }
 
 async function deliverEmail({ email, subject, text, html }) {
-  const from = process.env.EMAIL_FROM || process.env.SMTP_USER;
+  const from = process.env.EMAIL_FROM || (process.env.RESEND_API_KEY ? DEFAULT_EMAIL_FROM : process.env.SMTP_USER);
 
   if (hasResendConfig()) {
     try {
@@ -55,7 +56,12 @@ async function deliverEmail({ email, subject, text, html }) {
       );
     } catch (error) {
       const providerMessage = String(error.response?.data?.message || "");
-      const providerRequiresDomain = error.response?.status === 403 && providerMessage.toLowerCase().includes("verify a domain");
+      const normalizedProviderMessage = providerMessage.toLowerCase();
+      const providerRequiresDomain = error.response?.status === 403 && (
+        normalizedProviderMessage.includes("verify a domain") ||
+        normalizedProviderMessage.includes("testing emails") ||
+        normalizedProviderMessage.includes("resend.dev")
+      );
       if (providerRequiresDomain) {
         const domainError = new Error(
           "A entrega de e-mail da Resend precisa de um domínio verificado para enviar para este destinatário."

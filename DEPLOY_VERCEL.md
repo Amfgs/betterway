@@ -31,18 +31,20 @@ CLIENT_URL=https://betterway.com.br,https://www.betterway.com.br,https://betterw
 APP_WEB_URL=https://betterway.com.br
 BRAPI_API_KEY=sua_chave_brapi
 NEWS_API_KEY=sua_chave_newsapi
+PLUGGY_CLIENT_ID=seu_client_id_pluggy
+PLUGGY_CLIENT_SECRET=seu_client_secret_pluggy
 SMTP_HOST=smtp.seu-provedor.com
 SMTP_PORT=587
 SMTP_SECURE=false
 SMTP_USER=seu_usuario
 SMTP_PASS=sua_senha
 RESEND_API_KEY=re_sua_chave
-EMAIL_FROM=Better Way <conta@mail.betterway.com.br>
+EMAIL_FROM=Better Way <no-reply@mail.betterway.com.br>
 ```
 
 Em produção, uma conexão MongoDB, `JWT_SECRET` e `CLIENT_URL` são obrigatórios e a API encerra a inicialização quando algum deles estiver ausente. O backend aceita tanto `MONGO_URI` quanto `MONGODB_URI`, nome usado pela integração oficial do MongoDB Atlas na Vercel. O modo local com `backend/data/store.json` é adequado para desenvolvimento, mas arquivos locais não são persistentes em funções serverless.
 
-`RESEND_API_KEY` e `EMAIL_FROM` são necessários para verificação e recuperação por e-mail. O domínio de `EMAIL_FROM` precisa estar verificado na Resend. Sem um provedor configurado, a produção retorna indisponibilidade em vez de expor códigos de acesso.
+`RESEND_API_KEY` é necessária para verificação e recuperação por e-mail. `EMAIL_FROM` pode ser usado para sobrescrever o remetente, mas, se ficar ausente, a API usa `Better Way <no-reply@mail.betterway.com.br>`. O domínio do remetente precisa estar verificado na Resend. Sem um provedor configurado, a produção retorna indisponibilidade em vez de expor códigos de acesso.
 
 Marque `MONGODB_URI`, `JWT_SECRET`, `RESEND_API_KEY`, `PLUGGY_CLIENT_SECRET`, `BRAPI_API_KEY`, `NEWS_API_KEY` e credenciais SMTP como **Sensitive**. Use apenas `VITE_API_URL` no frontend: toda variável iniciada por `VITE_` pode ser incorporada ao JavaScript entregue ao navegador.
 
@@ -51,7 +53,7 @@ Marque `MONGODB_URI`, `JWT_SECRET`, `RESEND_API_KEY`, `PLUGGY_CLIENT_SECRET`, `B
 Depois do deploy, rode o Expo apontando para a API publicada:
 
 ```bash
-EXPO_PUBLIC_API_URL=https://betterway-api.vercel.app/api npm run dev:mobile
+EXPO_PUBLIC_API_URL=https://api.betterway.com.br/api npm run dev:mobile
 ```
 
-Depois que `api.betterway.com.br` estiver ativo, substitua o endereço acima por `https://api.betterway.com.br/api`. A configuração completa do DNS e da Resend está em [DOMAIN_SETUP.md](./DOMAIN_SETUP.md).
+O app publicado já usa `https://api.betterway.com.br/api`, a mesma API do frontend. A configuração completa do DNS e da Resend está em [DOMAIN_SETUP.md](./DOMAIN_SETUP.md).

@@ -1,39 +1,59 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
-import { readStoredValue, removeStoredValue, storageKeys } from "../utils/storageKeys";
+import { clearAuthSession, readAuthSession, storeAuthSession } from "../utils/storageKeys";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = readStoredValue(storageKeys.authToken, storageKeys.legacyAuthToken);
-    if (!token) {
+    const storedSession = readAuthSession();
+    if (!storedSession) {
       setLoading(false);
       return;
     }
 
     api
       .get("/auth/me")
-      .then((response) => setUser(response.data.user))
-      .catch(() => removeStoredValue(storageKeys.authToken, storageKeys.legacyAuthToken))
+      .then((response) => {
+        setUser(response.data.user);
+        setSession(storedSession);
+      })
+      .catch(() => clearAuthSession())
       .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
     const expireSession = () => {
-      removeStoredValue(storageKeys.authToken, storageKeys.legacyAuthToken);
+      clearAuthSession();
       setUser(null);
+      setSession(null);
     };
     window.addEventListener("betterway:session-expired", expireSession);
     return () => window.removeEventListener("betterway:session-expired", expireSession);
   }, []);
 
-  async function login(credentials) {
+  useEffect(() => {
+    if (!session?.expiresAt) return undefined;
+    const remaining = session.expiresAt - Date.now();
+    if (remaining <= 0) {
+      window.dispatchEvent(new Event("betterway:session-expired"));
+      return undefined;
+    }
+    const timer = window.setTimeout(
+      () => window.dispatchEvent(new Event("betterway:session-expired")),
+      Math.min(remaining, 2_147_000_000)
+    );
+    return () => window.clearTimeout(timer);
+  }, [session?.expiresAt]);
+
+  async function login(credentials, { persistent = true } = {}) {
     const response = await api.post("/auth/login", credentials);
-    localStorage.setItem(storageKeys.authToken, response.data.token);
+    const nextSession = storeAuthSession(response.data.token, { persistent });
+    setSession(nextSession);
     setUser(response.data.user);
     return response.data.user;
   }
@@ -43,9 +63,15 @@ export function AuthProvider({ children }) {
     return response.data;
   }
 
-  async function verifyEmail(payload) {
+  async function checkUsernameAvailability(username) {
+    const response = await api.get("/auth/username-availability", { params: { username } });
+    return response.data;
+  }
+
+  async function verifyEmail(payload, { persistent = true } = {}) {
     const response = await api.post("/auth/verify-email", payload);
-    localStorage.setItem(storageKeys.authToken, response.data.token);
+    const nextSession = storeAuthSession(response.data.token, { persistent });
+    setSession(nextSession);
     setUser(response.data.user);
     return response.data;
   }
@@ -66,18 +92,36 @@ export function AuthProvider({ children }) {
   }
 
   function logout() {
-    removeStoredValue(storageKeys.authToken, storageKeys.legacyAuthToken);
+    clearAuthSession();
     setUser(null);
+    setSession(null);
+  }
+
+  function setSessionPersistence(persistent) {
+    const current = readAuthSession();
+    if (!current) return;
+    const nextSession = storeAuthSession(current.token, {
+      persistent,
+      startedAt: current.startedAt
+    });
+    setSession(nextSession);
   }
 
   async function updateProfile(fields) {
     const response = await api.put("/auth/me", fields);
     if (response.data.requiresEmailVerification) {
-      removeStoredValue(storageKeys.authToken, storageKeys.legacyAuthToken);
+      clearAuthSession();
       setUser(null);
+      setSession(null);
       return response.data;
     }
-    if (response.data.token) localStorage.setItem(storageKeys.authToken, response.data.token);
+    if (response.data.token) {
+      const current = readAuthSession();
+      setSession(storeAuthSession(response.data.token, {
+        persistent: current?.persistent ?? true,
+        startedAt: current?.startedAt
+      }));
+    }
     setUser(response.data.user);
     return response.data;
   }
@@ -85,18 +129,21 @@ export function AuthProvider({ children }) {
   const value = useMemo(
     () => ({
       user,
+      session,
       loading,
       isAuthenticated: Boolean(user),
       login,
       register,
+      checkUsernameAvailability,
       verifyEmail,
       resendVerification,
       forgotPassword,
       resetPassword,
       logout,
+      setSessionPersistence,
       updateProfile
     }),
-    [user, loading]
+    [user, loading, session]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

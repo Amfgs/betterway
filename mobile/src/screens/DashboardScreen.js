@@ -139,6 +139,7 @@ export function DashboardScreen() {
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {!summary ? <LoadingBlock /> : null}
       {widgets ? (
+        <>
         <View style={styles.metricGrid}>
           <View style={styles.metricCell}>
             <StatCard label="Entradas" value={currency(widgets.income)} />
@@ -160,6 +161,15 @@ export function DashboardScreen() {
             </View>
           </View>
         </View>
+        <View style={styles.metricGrid}>
+          <View style={styles.metricCell}>
+            <StatCard label="Banco" value={currency(widgets.bankBalance)} detail={widgets.bankBalanceSource === "connected" ? "Saldo sincronizado" : "Calculado pelos registros"} />
+          </View>
+          <View style={styles.metricCell}>
+            <StatCard label="Patrimônio" value={currency(widgets.netWorthEstimate)} tone="safe" />
+          </View>
+        </View>
+        </>
       ) : null}
 
       <View style={styles.card}>

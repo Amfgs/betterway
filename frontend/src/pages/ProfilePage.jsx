@@ -11,7 +11,7 @@ import { avatarOptions, avatarSrc, normalizeAvatar } from "../utils/avatars";
 import { currency, percent } from "../utils/formatters";
 
 export function ProfilePage() {
-  const { user, updateProfile, logout } = useAuth();
+  const { user, session, updateProfile, logout, setSessionPersistence } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [form, setForm] = useState({
     name: user?.name || "",
@@ -156,11 +156,11 @@ export function ProfilePage() {
   ];
 
   return (
-    <div className="workspace-page space-y-6">
+    <div className="workspace-page profile-page space-y-6">
       <WorkspaceHeader
-        description="Atualize sua identidade, preferências, segurança e os dados usados nas análises comportamentais."
-        eyebrow="Conta e preferências"
-        title="Sua Better Way, configurada para você"
+        description="Atualize identidade, tema, segurança e os dados que alimentam suas análises financeiras."
+        eyebrow="Conta"
+        title="Perfil e preferências"
       />
       {settingsOpen ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4">
@@ -239,7 +239,7 @@ export function ProfilePage() {
           </form>
         </div>
       ) : null}
-      <section className="rounded-lg border border-black/5 bg-white p-5 shadow-soft dark:border-white/10 dark:bg-neutral-900">
+      <section className="profile-identity-card rounded-lg border border-black/5 bg-white p-5 shadow-soft dark:border-white/10 dark:bg-neutral-900">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-4">
             <div className="grid h-16 w-16 place-items-center overflow-hidden rounded-lg bg-emerald-500 text-white">
@@ -275,27 +275,14 @@ export function ProfilePage() {
 
       <BankConnectionsPanel onChange={loadProfileData} />
 
-      <section className="rounded-lg border border-red-200 bg-red-50 p-5 shadow-soft dark:border-red-500/30 dark:bg-red-500/10">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-xl font-black text-red-950 dark:text-red-50">Sair da conta</h2>
-            <p className="text-sm text-red-700 dark:text-red-200">Encerra sua sessão neste dispositivo.</p>
-          </div>
-          <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-3 font-black text-white hover:bg-red-700" onClick={logout} type="button">
-            <LogOut size={18} />
-            Sair da conta
-          </button>
-        </div>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="profile-metrics grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Patrimônio estimado" value={currency(profileStats.netWorth)} detail="Banco + custo investido" tone="safe" />
         <StatCard label="Investimentos" value={currency(profileStats.invested)} detail="Valor atual da carteira" />
         <StatCard label="Sobra planejada" value={currency(profileStats.protectedIncome)} detail="Salário menos teto mensal" tone="safe" />
         <StatCard label="Metas médias" value={percent(profileStats.goalsProgress)} detail="Progresso médio cadastrado" />
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+      <section className="profile-settings-grid grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
         <form className="rounded-lg border border-black/5 bg-white p-5 shadow-soft dark:border-white/10 dark:bg-neutral-900" onSubmit={submit}>
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -378,6 +365,23 @@ export function ProfilePage() {
                 <p className="font-black">Individuais</p>
               </div>
             </div>
+            <label className="mt-4 flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-black/5 bg-stone-50 p-3 dark:border-white/10 dark:bg-neutral-800">
+              <span>
+                <strong className="block text-sm">Manter acesso neste dispositivo</strong>
+                <small className="mt-1 block text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                  {session?.persistent
+                    ? `Sem novo login até ${new Date(session.expiresAt).toLocaleDateString("pt-BR")}.`
+                    : "O acesso termina quando este navegador for fechado."}
+                </small>
+              </span>
+              <input
+                aria-label="Manter acesso por 15 dias"
+                checked={Boolean(session?.persistent)}
+                className="h-5 w-5 shrink-0 accent-emerald-600"
+                onChange={(event) => setSessionPersistence(event.target.checked)}
+                type="checkbox"
+              />
+            </label>
           </section>
         </div>
       </section>
@@ -396,6 +400,19 @@ export function ProfilePage() {
           Seu teto mensal consome {percent(profileStats.budgetUsage)} do salário e equivale a aproximadamente{" "}
           {profileStats.hoursForLimit.toFixed(1)} horas de trabalho.
         </p>
+      </section>
+
+      <section className="profile-logout rounded-lg border border-red-200 bg-red-50 p-5 dark:border-red-500/30 dark:bg-red-500/10">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-black text-red-950 dark:text-red-50">Sair da conta</h2>
+            <p className="text-sm text-red-700 dark:text-red-200">Encerra sua sessão somente neste dispositivo.</p>
+          </div>
+          <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-3 font-black text-white hover:bg-red-700" onClick={logout} type="button">
+            <LogOut size={18} />
+            Sair da conta
+          </button>
+        </div>
       </section>
     </div>
   );

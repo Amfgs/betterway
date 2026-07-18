@@ -182,6 +182,10 @@ export function CalendarPage() {
   }, [month, specs, summary, transactions]);
 
   const selectedDay = selectedDayKey ? calendar.days.find((day) => day.key === selectedDayKey) : null;
+  const selectedMonthLabel = useMemo(() => {
+    const [year, monthNumber] = month.split("-").map(Number);
+    return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(new Date(year, monthNumber - 1, 1));
+  }, [month]);
 
   function updateSpec(key, value) {
     setSpecs((current) => ({ ...current, [key]: value }));
@@ -302,7 +306,7 @@ export function CalendarPage() {
   }
 
   return (
-    <div className="workspace-page space-y-6">
+    <div className="workspace-page calendar-page space-y-6">
       {selectedDay ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4">
           <div className="w-full max-w-lg rounded-lg border border-white/10 bg-white p-5 shadow-2xl dark:bg-neutral-900">
@@ -370,14 +374,14 @@ export function CalendarPage() {
             <input type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
           </label>
         )}
-        description="Seus limites são redistribuídos pelos dias ativos, respeitando reservas, exceções e o ritmo da semana."
-        eyebrow="Planejamento diário"
-        title="Um valor possível para cada dia do mês"
+        description="Veja primeiro quanto pode usar por dia. Depois, ajuste pesos, reservas e exceções quando precisar."
+        eyebrow="Calendário"
+        title={`Planejamento de ${selectedMonthLabel}`}
       />
 
       {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p> : null}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <section className="calendar-metrics grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <Metric label="Entradas do mês" value={currency(calendar.income)} />
         <Metric label="Saídas do mês" value={currency(calendar.expenses)} tone="danger" />
         <Metric label="Limites disponíveis" value={currency(calendar.available)} tone={calendar.available >= 0 ? "safe" : "danger"} />
@@ -385,8 +389,8 @@ export function CalendarPage() {
         <Metric label="Limites cadastrados" value={calendar.limitsCount || "Teto geral"} />
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[0.75fr_1.25fr]">
-        <div className="space-y-4">
+      <section className="calendar-workspace grid gap-4 xl:grid-cols-[1.28fr_0.72fr]">
+        <div className="calendar-settings space-y-4">
           <section className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900">
             <div className="flex items-center gap-2">
               <CalendarDays className="text-emerald-500" size={20} />
@@ -506,8 +510,8 @@ export function CalendarPage() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-black/5 bg-white p-2 shadow-soft dark:border-white/10 dark:bg-neutral-900 sm:p-4">
-          <div className="grid grid-cols-7 gap-1 text-center text-xs font-black uppercase text-zinc-400">
+        <div className="calendar-board rounded-lg border border-black/5 bg-white p-2 shadow-soft dark:border-white/10 dark:bg-neutral-900 sm:p-4">
+          <div className="grid grid-cols-7 gap-1 text-center text-xs font-black uppercase text-zinc-500 dark:text-zinc-300">
             {weekdayOptions.map((day) => (
               <span key={day.value}>{day.short}</span>
             ))}
@@ -539,10 +543,10 @@ export function CalendarPage() {
                     {day.fixed ? <span className="hidden rounded-full bg-black/10 px-2 py-0.5 text-[0.65rem] font-black dark:bg-white/10 sm:inline-flex">fixo</span> : null}
                   </div>
                 </div>
-                <p className="mt-2 text-[0.56rem] opacity-70 sm:text-xs">Sugestão</p>
+                <p className="mt-2 text-[0.56rem] opacity-70 dark:text-zinc-300 dark:opacity-100 sm:text-xs">Sugestão</p>
                 <p className="font-black sm:hidden">{compactCurrency(day.suggested)}</p>
                 <p className="hidden font-black sm:block">{currency(day.suggested)}</p>
-                <p className="mt-1 text-[0.56rem] opacity-70 sm:text-xs">Gasto</p>
+                <p className="mt-1 text-[0.56rem] opacity-70 dark:text-zinc-300 dark:opacity-100 sm:text-xs">Gasto</p>
                 <p className="font-bold sm:hidden">{compactCurrency(day.spent)}</p>
                 <p className="hidden font-bold sm:block">{currency(day.spent)}</p>
                 {day.fixed ? <p className="mt-2 hidden rounded bg-white/60 p-1 text-xs font-bold dark:bg-black/20 sm:block">{day.fixed.note || "Dia reservado"}</p> : null}

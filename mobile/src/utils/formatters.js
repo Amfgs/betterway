@@ -9,6 +9,13 @@ export function percent(value) {
   return `${Number(value || 0).toFixed(1)}%`;
 }
 
+export function shortDate(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(date);
+}
+
 export const categoryLabels = {
   Alimentacao: "Alimentação",
   Transporte: "Transporte",

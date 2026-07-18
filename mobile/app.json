@@ -22,10 +22,16 @@
       }
     },
     "extra": {
-      "apiUrl": "https://betterway-api.vercel.app/api"
+      "apiUrl": "https://api.betterway.com.br/api"
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "A Better Way usa o Face ID somente para desbloquear seus dados financeiros neste aparelho."
+        }
+      ]
     ]
   }
 }

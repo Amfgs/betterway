@@ -50,6 +50,27 @@ function normalizeInvestment(investment) {
   };
 }
 
+function normalizeTransaction(transaction) {
+  return {
+    externalId: transaction.id,
+    accountExternalId: transaction.accountId,
+    description: String(transaction.description || transaction.descriptionRaw || "Movimentação bancária").slice(0, 240),
+    amount: asNumber(transaction.amountInAccountCurrency ?? transaction.amount),
+    balance: asNumber(transaction.balance),
+    date: transaction.date || new Date().toISOString(),
+    type: transaction.type || "OTHER",
+    category: transaction.category || "",
+    status: transaction.status || "POSTED",
+    currencyCode: transaction.currencyCode || "BRL"
+  };
+}
+
+function transactionWindowStart() {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() - 90);
+  return date.toISOString().slice(0, 10);
+}
+
 async function createConnectToken(userId) {
   const candidate = process.env.APP_WEB_URL || String(process.env.CLIENT_URL || "").split(",")[0] || "http://localhost:5173";
   let appUrl;
@@ -85,12 +106,21 @@ async function fetchSnapshot(itemId, expectedUserId) {
   if (accountResult.status === "rejected" && investmentResult.status === "rejected") {
     throw accountResult.reason;
   }
-  const accounts = accountResult.status === "fulfilled"
-    ? (accountResult.value.results || []).filter((account) => account.type === "BANK").map(normalizeAccount)
+  const rawAccounts = accountResult.status === "fulfilled"
+    ? (accountResult.value.results || []).filter((account) => account.type === "BANK")
     : [];
+  const accounts = rawAccounts.map(normalizeAccount);
   const investments = investmentResult.status === "fulfilled"
     ? (investmentResult.value.results || []).map(normalizeInvestment)
     : [];
+  const transactionResults = await Promise.allSettled(
+    rawAccounts.map((account) => pluggy.fetchAllTransactions(account.id, { dateFrom: transactionWindowStart() }))
+  );
+  const transactions = transactionResults
+    .flatMap((result) => result.status === "fulfilled" ? result.value : [])
+    .map(normalizeTransaction)
+    .sort((left, right) => new Date(right.date) - new Date(left.date))
+    .slice(0, 500);
 
   return {
     externalId: itemId,
@@ -98,6 +128,7 @@ async function fetchSnapshot(itemId, expectedUserId) {
     institutionName: item.connector?.name || "",
     accounts,
     investments,
+    transactions,
     lastSyncedAt: new Date().toISOString()
   };
 }

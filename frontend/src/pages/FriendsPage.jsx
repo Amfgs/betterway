@@ -137,19 +137,19 @@ export function FriendsPage() {
   const selectedLimitFriends = friends.filter((friend) => sharedLimitForm.participantIds.includes(friend.id));
 
   return (
-    <div className="workspace-page space-y-6">
+    <div className="workspace-page friends-page space-y-6">
       <WorkspaceHeader
         actions={<div className="workspace-header-metric"><span>Amigos conectados</span><strong>{friends.length}</strong></div>}
-        description="Convide pessoas próximas e transforme objetivos compartilhados em acordos claros e acompanháveis."
-        eyebrow="Construir junto"
-        title="Metas e limites que todos entendem"
+        description="Encontre pessoas pelo nome de usuário e acompanhe metas e limites criados em conjunto."
+        eyebrow="Amigos"
+        title="Amigos e planos compartilhados"
       />
 
       {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p> : null}
       {message ? <p className="rounded-lg bg-emerald-500/10 p-3 text-sm font-medium text-emerald-700 dark:text-emerald-300">{message}</p> : null}
 
-      <section className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
-        <div className="rounded-lg border border-black/5 bg-white p-5 shadow-soft dark:border-white/10 dark:bg-neutral-900">
+      <section className="friends-workspace grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+        <div className="friends-list-panel rounded-lg border border-black/5 bg-white p-5 shadow-soft dark:border-white/10 dark:bg-neutral-900">
           <div className="flex items-center gap-3">
             <Users className="text-emerald-500" size={24} />
             <div>
@@ -157,18 +157,21 @@ export function FriendsPage() {
               <p className="text-sm text-zinc-500 dark:text-zinc-400">Encontre alguém pelo nome de usuário público.</p>
             </div>
           </div>
-          <form className="mt-5 flex flex-col gap-3 sm:flex-row" onSubmit={addFriend}>
-            <input
-              className="min-w-0 flex-1 rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10"
-              autoCapitalize="none"
-              autoComplete="off"
-              maxLength={24}
-              placeholder="@nome.usuario"
-              type="text"
-              value={friendUsername}
-              onChange={(event) => setFriendUsername(event.target.value.replace(/^@+/, "").toLowerCase().replace(/[^a-z0-9._]/g, ""))}
-              required
-            />
+          <form className="friends-add-form mt-5 flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={addFriend}>
+            <label className="min-w-0 flex-1">
+              <span className="mb-1 block text-sm font-medium">Nome de usuário</span>
+              <input
+                className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10"
+                autoCapitalize="none"
+                autoComplete="off"
+                maxLength={24}
+                placeholder="@nome.usuario"
+                type="text"
+                value={friendUsername}
+                onChange={(event) => setFriendUsername(event.target.value.replace(/^@+/, "").toLowerCase().replace(/[^a-z0-9._]/g, ""))}
+                required
+              />
+            </label>
             <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-3 font-black text-white" type="submit">
               <UserPlus size={18} />
               Adicionar
@@ -240,7 +243,10 @@ export function FriendsPage() {
               <div className="grid gap-3 sm:grid-cols-3">
                 <input className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" placeholder="Valor alvo" type="number" value={sharedGoalForm.targetAmount} onChange={(event) => setSharedGoalForm((current) => ({ ...current, targetAmount: event.target.value }))} required />
                 <input className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" placeholder="Já aportado" type="number" value={sharedGoalForm.currentAmount} onChange={(event) => setSharedGoalForm((current) => ({ ...current, currentAmount: event.target.value }))} />
-                <input className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" type="date" value={sharedGoalForm.dueDate} onChange={(event) => setSharedGoalForm((current) => ({ ...current, dueDate: event.target.value }))} required />
+                <label>
+                  <span className="mb-1 block text-xs font-bold text-zinc-500 dark:text-zinc-400">Prazo</span>
+                  <input className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" type="date" value={sharedGoalForm.dueDate} onChange={(event) => setSharedGoalForm((current) => ({ ...current, dueDate: event.target.value }))} required />
+                </label>
               </div>
               <FriendPicker friends={friends} selectedIds={sharedGoalForm.participantIds} onToggle={(id) => toggleParticipant("goal", id)} selectedFriends={selectedGoalFriends} />
               <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-3 font-black text-white" type="submit">
@@ -260,11 +266,14 @@ export function FriendsPage() {
             </div>
             <div className="mt-4 grid gap-3">
               <div className="grid gap-3 sm:grid-cols-2">
-                <select className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" value={sharedLimitForm.category} onChange={(event) => setSharedLimitForm((current) => ({ ...current, category: event.target.value }))}>
-                  {categoryOptions.filter((category) => !["Renda", "Freelance"].includes(category.value)).map((category) => (
-                    <option key={category.value} value={category.value}>{category.label}</option>
-                  ))}
-                </select>
+                <label>
+                  <span className="mb-1 block text-xs font-bold text-zinc-500 dark:text-zinc-400">Categoria</span>
+                  <select className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" value={sharedLimitForm.category} onChange={(event) => setSharedLimitForm((current) => ({ ...current, category: event.target.value }))}>
+                    {categoryOptions.filter((category) => !["Renda", "Freelance"].includes(category.value)).map((category) => (
+                      <option key={category.value} value={category.value}>{category.label}</option>
+                    ))}
+                  </select>
+                </label>
                 <input className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" placeholder="Valor do limite" type="number" value={sharedLimitForm.amount} onChange={(event) => setSharedLimitForm((current) => ({ ...current, amount: event.target.value }))} required />
               </div>
               <FriendPicker friends={friends} selectedIds={sharedLimitForm.participantIds} onToggle={(id) => toggleParticipant("limit", id)} selectedFriends={selectedLimitFriends} />

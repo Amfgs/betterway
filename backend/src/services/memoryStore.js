@@ -562,6 +562,7 @@ module.exports = {
       externalId,
       accounts: [],
       investments: [],
+      transactions: [],
       ...fields,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()

@@ -22,18 +22,28 @@ const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_BYTES = 72;
 const MAX_CODE_ATTEMPTS = 5;
 const EMAIL_RESEND_COOLDOWN_MS = 60 * 1000;
+const SESSION_TTL_SECONDS = 15 * 24 * 60 * 60;
 const AVATAR_VALUES = new Set(["aurora", "verde", "solar", "indigo", "grafite"]);
 
-function signToken(user) {
+function normalizeSessionStart(value) {
+  const now = Math.floor(Date.now() / 1000);
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0 || parsed > now + 300) return now;
+  return Math.floor(parsed);
+}
+
+function signToken(user, sessionStartedAt) {
+  const sessionStart = normalizeSessionStart(sessionStartedAt);
   return jwt.sign(
     {
       sub: user.id,
-      ver: Number(user.authVersion || 0)
+      ver: Number(user.authVersion || 0),
+      sst: sessionStart,
+      exp: sessionStart + SESSION_TTL_SECONDS
     },
     getJwtSecret(),
     {
-      algorithm: "HS256",
-      expiresIn: "7d"
+      algorithm: "HS256"
     }
   );
 }
@@ -164,6 +174,36 @@ const register = asyncHandler(async (req, res) => {
   });
 });
 
+const usernameAvailability = asyncHandler(async (req, res) => {
+  const username = normalizeUsername(req.query.username);
+
+  if (!username) {
+    return res.status(400).json({
+      available: false,
+      valid: false,
+      message: "Informe um nome de usuário."
+    });
+  }
+
+  if (!isValidUsername(username)) {
+    return res.json({
+      username,
+      available: false,
+      valid: false,
+      message: "Use de 3 a 24 caracteres, começando e terminando com letra ou número, sem símbolos repetidos."
+    });
+  }
+
+  const existingUser = await repository.findUserByUsername(username);
+  const available = !existingUser;
+  return res.json({
+    username,
+    available,
+    valid: true,
+    message: available ? "Nome de usuário disponível." : "Este nome de usuário já está em uso."
+  });
+});
+
 const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
   if (!isValidEmail(email) || !validPassword(password)) {
@@ -188,6 +228,7 @@ const login = asyncHandler(async (req, res) => {
 
   return res.json({
     token: signToken(user),
+    sessionExpiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000).toISOString(),
     user: cleanUser(user)
   });
 });
@@ -235,6 +276,7 @@ const verifyEmail = asyncHandler(async (req, res) => {
   return res.json({
     message: "E-mail confirmado. Sua conta está pronta.",
     token: signToken(verifiedUser),
+    sessionExpiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000).toISOString(),
     user: cleanUser(verifiedUser)
   });
 });
@@ -437,12 +479,13 @@ const updateProfile = asyncHandler(async (req, res) => {
 
   return res.json({
     user,
-    token: sensitiveChange ? signToken(user) : undefined
+    token: sensitiveChange ? signToken(user, req.auth?.sessionStartedAt) : undefined
   });
 });
 
 module.exports = {
   register,
+  usernameAvailability,
   login,
   verifyEmail,
   resendVerification,

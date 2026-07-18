@@ -10,6 +10,7 @@ function summarizeConnections(connections = []) {
       summary.investmentBalance += (connection.investments || []).reduce((sum, investment) => sum + value(investment.balance), 0);
       summary.accountCount += (connection.accounts || []).length;
       summary.investmentCount += (connection.investments || []).length;
+      summary.transactionCount += (connection.transactions || []).length;
       return summary;
     },
     {
@@ -17,7 +18,8 @@ function summarizeConnections(connections = []) {
       investmentBalance: 0,
       netWorth: 0,
       accountCount: 0,
-      investmentCount: 0
+      investmentCount: 0,
+      transactionCount: 0
     }
   );
 }

@@ -28,6 +28,22 @@ const investmentSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const bankTransactionSchema = new mongoose.Schema(
+  {
+    externalId: String,
+    accountExternalId: String,
+    description: String,
+    amount: { type: Number, default: 0 },
+    balance: { type: Number, default: 0 },
+    date: { type: Date, required: true },
+    type: String,
+    category: String,
+    status: String,
+    currencyCode: { type: String, default: "BRL" }
+  },
+  { _id: false }
+);
+
 const bankConnectionSchema = new mongoose.Schema(
   {
     userId: {
@@ -64,6 +80,10 @@ const bankConnectionSchema = new mongoose.Schema(
     },
     investments: {
       type: [investmentSchema],
+      default: []
+    },
+    transactions: {
+      type: [bankTransactionSchema],
       default: []
     },
     lastSyncedAt: {

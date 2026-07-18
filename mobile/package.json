@@ -11,10 +11,12 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@expo/vector-icons": "^15.0.3",
     "expo": "~54.0.36",
     "expo-constants": "18.0.13",
     "expo-document-picker": "~14.0.8",
     "expo-file-system": "~19.0.23",
+    "expo-local-authentication": "~17.0.8",
     "expo-secure-store": "~15.0.8",
     "react": "19.1.0",
     "react-native": "0.81.5",

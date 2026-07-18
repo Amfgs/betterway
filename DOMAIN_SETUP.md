@@ -68,7 +68,7 @@ Use um subdomínio transacional para separar a reputação dos e-mails do site:
 5. Configure o remetente:
 
 ```env
-EMAIL_FROM=Better Way <conta@mail.betterway.com.br>
+EMAIL_FROM=Better Way <no-reply@mail.betterway.com.br>
 ```
 
 6. Faça redeploy da API e teste cadastro, reenvio de verificação e recuperação de senha.

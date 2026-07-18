@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import { apiRequest, getApiUrl } from "../api/client";
+import { apiRequest } from "../api/client";
 import { Button, StatCard, colors, styles } from "../components/ui";
 import { BankConnectionsMobile } from "../components/BankConnectionsMobile";
 import { useAuth } from "../context/AuthContext";
@@ -30,11 +30,22 @@ function widgetOptionLabel(kind, item) {
 }
 
 export function ProfileScreen() {
-  const { token, user, updateProfile, logout } = useAuth();
+  const {
+    biometric,
+    logout,
+    session,
+    setBiometricEnabled,
+    setSessionPersistence,
+    token,
+    updateProfile,
+    user
+  } = useAuth();
   const [widgetState, setWidgetState] = useState(null);
   const [widgetError, setWidgetError] = useState("");
   const [widgetSaving, setWidgetSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState("");
+  const [securityMessage, setSecurityMessage] = useState("");
+  const [securityError, setSecurityError] = useState("");
   const [username, setUsername] = useState(user?.username || "");
   const protectedIncome = Math.max(Number(user?.salary || 0) - Number(user?.monthlyLimit || 0), 0);
   const workHoursForLimit = Number(user?.hourlyRate || 1) ? Number(user?.monthlyLimit || 0) / Number(user?.hourlyRate || 1) : 0;
@@ -90,6 +101,28 @@ export function ProfileScreen() {
     }
   }
 
+  async function toggleBiometrics() {
+    setSecurityMessage("");
+    setSecurityError("");
+    try {
+      const result = await setBiometricEnabled(!biometric.enabled);
+      setSecurityMessage(result.enabled ? `${result.label} ativado para abrir o app.` : "Desbloqueio biométrico desativado.");
+    } catch (err) {
+      setSecurityError(err.message);
+    }
+  }
+
+  async function togglePersistentSession() {
+    setSecurityMessage("");
+    setSecurityError("");
+    try {
+      await setSessionPersistence(!session?.persistent);
+      setSecurityMessage(session?.persistent ? "O app pedirá login ao ser aberto novamente." : "Acesso facilitado por 15 dias ativado.");
+    } catch (err) {
+      setSecurityError(err.message);
+    }
+  }
+
   useEffect(() => {
     loadWidgets();
   }, [token]);
@@ -105,7 +138,7 @@ export function ProfileScreen() {
   return (
     <ScrollView contentContainerStyle={styles.content} style={styles.screen}>
       <View style={[styles.card, { flexDirection: "row", gap: 14, alignItems: "center" }]}>
-        <Image source={avatarSource(user?.avatarUrl)} style={{ width: 72, height: 72, borderRadius: 18 }} />
+        <Image source={avatarSource(user?.avatarUrl)} style={{ width: 72, height: 72, borderRadius: 8 }} />
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>Perfil financeiro</Text>
           <Text style={styles.title}>{user?.name || "Usuário"}</Text>
@@ -178,10 +211,28 @@ export function ProfileScreen() {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.eyebrow}>Conexão e segurança</Text>
-        <Text style={styles.label}>API conectada</Text>
-        <Text style={styles.subtitle}>{getApiUrl()}</Text>
-        <Text style={styles.muted}>Sessão protegida por JWT durante o uso do app.</Text>
+        <Text style={styles.eyebrow}>Acesso neste aparelho</Text>
+        <Text style={styles.title}>Entre sem repetir sua senha</Text>
+        <Text style={styles.subtitle}>A sessão tem validade máxima de 15 dias e pode ser protegida pela biometria do aparelho.</Text>
+        <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: Boolean(session?.persistent) }} onPress={togglePersistentSession} style={[styles.sessionChoice, { marginTop: 8 }]}>
+          <View style={[styles.checkbox, session?.persistent ? styles.checkboxActive : null]}>{session?.persistent ? <Text style={styles.checkboxMark}>✓</Text> : null}</View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sessionChoiceTitle}>Manter acesso por 15 dias</Text>
+            <Text style={styles.fieldHint}>
+              {session?.persistent
+                ? `Novo login após ${new Date(session.expiresAt).toLocaleDateString("pt-BR")}.`
+                : "O acesso termina quando o app for encerrado."}
+            </Text>
+          </View>
+        </Pressable>
+        <View style={{ marginTop: 8 }}>
+          <Button disabled={!biometric.available && !biometric.enabled} onPress={toggleBiometrics} tone={biometric.enabled ? "ghost" : "brand"}>
+            {biometric.enabled ? `Desativar ${biometric.label}` : `Ativar ${biometric.label}`}
+          </Button>
+        </View>
+        {!biometric.available ? <Text style={styles.muted}>Cadastre uma biometria no aparelho para ativar este recurso.</Text> : null}
+        {securityError ? <Text style={[styles.error, { marginTop: 10 }]}>{securityError}</Text> : null}
+        {securityMessage ? <Text style={[styles.success, { marginTop: 10 }]}>{securityMessage}</Text> : null}
       </View>
 
       <View style={styles.card}>
@@ -214,7 +265,7 @@ export function ProfileScreen() {
               <Pressable
                 key={item.id}
                 onPress={() => saveWidgetPreference({ primaryWidgetId: item.id })}
-                style={[styles.chip, active ? styles.chipActive : null, { borderRadius: 12 }]}
+                style={[styles.chip, active ? styles.chipActive : null]}
               >
                 <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>
                   {widgetOptionLabel(preferences.primaryWidgetKind, item)}
@@ -267,7 +318,7 @@ export function ProfileScreen() {
         {widgetSaving ? <Text style={styles.muted}>Salvando widgets...</Text> : null}
       </View>
 
-      <Button tone="ghost" onPress={logout}>
+      <Button tone="danger" onPress={logout}>
         Sair e voltar ao login
       </Button>
     </ScrollView>

@@ -20,6 +20,25 @@ function getExpoHost() {
 
 export const apiUrlStorageKey = "betterway_mobile_api_url";
 export const legacyApiUrlStorageKey = "valorize_mobile_api_url";
+const trustedProductionHosts = new Set(["api.betterway.com.br", "betterway-api.vercel.app"]);
+
+function normalizedApiUrl(value) {
+  try {
+    const url = new URL(String(value || "").trim().replace(/\/$/, ""));
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) return "";
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return "";
+  }
+}
+
+export function isApiUrlAllowed(value) {
+  const cleanUrl = normalizedApiUrl(value);
+  if (!cleanUrl) return false;
+  if (__DEV__) return true;
+  const url = new URL(cleanUrl);
+  return url.protocol === "https:" && trustedProductionHosts.has(url.hostname) && url.pathname.startsWith("/api");
+}
 
 function resolveApiUrl() {
   if (process.env.EXPO_PUBLIC_API_URL) return process.env.EXPO_PUBLIC_API_URL.replace(/\/$/, "");
@@ -45,7 +64,13 @@ const DEFAULT_API_URL = resolveApiUrl();
 let runtimeApiUrl = DEFAULT_API_URL;
 
 export function setApiUrlOverride(value) {
-  runtimeApiUrl = String(value || DEFAULT_API_URL).replace(/\/$/, "");
+  const nextUrl = normalizedApiUrl(value || DEFAULT_API_URL);
+  if (!isApiUrlAllowed(nextUrl)) {
+    runtimeApiUrl = DEFAULT_API_URL;
+    return false;
+  }
+  runtimeApiUrl = nextUrl;
+  return true;
 }
 
 export function getApiUrl() {

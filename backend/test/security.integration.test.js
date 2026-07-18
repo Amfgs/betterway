@@ -66,7 +66,13 @@ async function createVerifiedUser(baseUrl, suffix, overrides = {}) {
     body: { email, token: registration.data.devVerificationToken }
   });
   assert.equal(verification.status, 200);
-  return { email, username, password, token: verification.data.token, user: verification.data.user };
+  return {
+    email,
+    username: verification.data.user.username,
+    password,
+    token: verification.data.token,
+    user: verification.data.user
+  };
 }
 
 test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", async (t) => {
@@ -101,11 +107,35 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
   });
   assert.equal(oversizedPasswordResult.status, 400);
 
-  const userA = await createVerifiedUser(baseUrl, "a");
+  const availableUsername = `avail_${Date.now().toString().slice(-10)}`;
+  const availableBeforeRegistration = await api(
+    baseUrl,
+    `/auth/username-availability?username=${encodeURIComponent(availableUsername)}`
+  );
+  assert.equal(availableBeforeRegistration.status, 200);
+  assert.equal(availableBeforeRegistration.data.valid, true);
+  assert.equal(availableBeforeRegistration.data.available, true);
+
+  const invalidUsernameAvailability = await api(baseUrl, "/auth/username-availability?username=admin");
+  assert.equal(invalidUsernameAvailability.status, 200);
+  assert.equal(invalidUsernameAvailability.data.valid, false);
+  assert.equal(invalidUsernameAvailability.data.available, false);
+
+  const userA = await createVerifiedUser(baseUrl, "a", { username: availableUsername });
+  const availableAfterRegistration = await api(
+    baseUrl,
+    `/auth/username-availability?username=${encodeURIComponent(availableUsername.toUpperCase())}`
+  );
+  assert.equal(availableAfterRegistration.status, 200);
+  assert.equal(availableAfterRegistration.data.valid, true);
+  assert.equal(availableAfterRegistration.data.available, false);
+
   const userB = await createVerifiedUser(baseUrl, "b");
   const decodedToken = jwt.decode(userA.token, { complete: true });
   assert.equal(decodedToken.header.alg, "HS256");
   assert.equal(decodedToken.payload.email, undefined);
+  assert.ok(decodedToken.payload.sst);
+  assert.equal(decodedToken.payload.exp - decodedToken.payload.sst, 15 * 24 * 60 * 60);
 
   const lockedEmail = `locked-${Date.now()}@example.com`;
   const lockedRegistration = await api(baseUrl, "/auth/register", {
@@ -297,6 +327,9 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
   assert.equal(revokedOldToken.status, 401);
   const validNewToken = await api(baseUrl, "/auth/me", { token: passwordChange.data.token });
   assert.equal(validNewToken.status, 200);
+  const decodedChangedToken = jwt.decode(passwordChange.data.token);
+  assert.equal(decodedChangedToken.sst, decodedToken.payload.sst);
+  assert.equal(decodedChangedToken.exp, decodedToken.payload.exp);
 
   const emailWithoutPassword = await api(baseUrl, "/auth/me", {
     method: "PUT",
@@ -304,6 +337,29 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
     body: { email: `changed-${Date.now()}@example.com` }
   });
   assert.equal(emailWithoutPassword.status, 400);
+
+  const importedStatement = await api(baseUrl, "/bank-connections/import", {
+    method: "POST",
+    token: passwordChange.data.token,
+    body: {
+      accountName: "Conta de testes",
+      institutionName: "Banco de testes",
+      openingBalance: 1000,
+      format: "transactions",
+      fileName: "extrato.csv",
+      content: "data,descricao,valor,tipo\n01/07/2026,Salário,2000,entrada\n2026-07-02,Mercado,200,saida"
+    }
+  });
+  assert.equal(importedStatement.status, 201);
+  assert.equal(importedStatement.data.recordCount, 2);
+  const bankConnections = await api(baseUrl, "/bank-connections", { token: passwordChange.data.token });
+  assert.equal(bankConnections.status, 200);
+  assert.equal(bankConnections.data.connections[0].transactions.length, 2);
+  assert.equal(bankConnections.data.connections[0].transactions[0].description, "Mercado");
+  assert.equal(bankConnections.data.connections[0].transactions[0].date, "2026-07-02T12:00:00.000Z");
+  assert.equal(bankConnections.data.connections[0].transactions[0].externalId, undefined);
+  assert.equal(bankConnections.data.connections[0].externalId, undefined);
+  assert.equal(bankConnections.data.totals.accountBalance, 2800);
 
   const malformedJson = await api(baseUrl, "/auth/login", {
     method: "POST",

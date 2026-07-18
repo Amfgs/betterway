@@ -45,6 +45,34 @@ function signedMovement(record) {
   return rawValue;
 }
 
+function parseDate(value) {
+  const clean = String(value || "").trim();
+  if (!clean) return null;
+  const brazilian = clean.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+  if (brazilian) {
+    const [, day, month, year] = brazilian;
+    const parsed = new Date(`${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T12:00:00.000Z`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+  }
+  const isoDate = clean.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:$|[ T])/);
+  if (isoDate) {
+    const [, year, month, day] = isoDate;
+    const parsed = new Date(`${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T12:00:00.000Z`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+  }
+  const parsed = new Date(clean);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+function transactionDescription(record) {
+  return String(
+    pick(record, ["descricao", "description", "historico", "memo", "detalhes", "details"]) || "Movimentação importada"
+  )
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .trim()
+    .slice(0, 240);
+}
+
 function parseRecords(content) {
   return parse(content, {
     bom: true,
@@ -65,6 +93,29 @@ function statementSnapshot(records, options) {
   const calculatedBalance = numberFrom(options.openingBalance) + records.reduce((sum, record) => sum + signedMovement(record), 0);
   const balance = balances.length ? numberFrom(balances[balances.length - 1]) : calculatedBalance;
 
+  const transactions = records
+    .map((record, index) => {
+      const amount = signedMovement(record);
+      const date = parseDate(pick(record, ["data", "date", "data_movimento", "transaction_date", "lancamento"]));
+      if (!date || !Number.isFinite(amount)) return null;
+      const description = transactionDescription(record);
+      return {
+        externalId: `import-transaction-${crypto.createHash("sha256").update(`${date}|${description}|${amount}|${index}`).digest("hex").slice(0, 20)}`,
+        accountExternalId: `import-account-${normalizeKey(options.accountName) || "principal"}`,
+        description,
+        amount,
+        balance: numberFrom(pick(record, ["saldo", "balance", "saldo_apos_movimento"])),
+        date,
+        type: amount < 0 ? "DEBIT" : "CREDIT",
+        category: String(pick(record, ["categoria", "category"]) || "").slice(0, 100),
+        status: "POSTED",
+        currencyCode: "BRL"
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => new Date(right.date) - new Date(left.date))
+    .slice(0, 500);
+
   return {
     accounts: [{
       externalId: `import-account-${normalizeKey(options.accountName) || "principal"}`,
@@ -75,6 +126,7 @@ function statementSnapshot(records, options) {
       currencyCode: "BRL"
     }],
     investments: [],
+    transactions,
     detectedFormat: "transactions"
   };
 }
@@ -119,7 +171,7 @@ function positionsSnapshot(records) {
     });
   });
 
-  return { accounts, investments, detectedFormat: "positions" };
+  return { accounts, investments, transactions: [], detectedFormat: "positions" };
 }
 
 function parseStatement(content, options = {}) {

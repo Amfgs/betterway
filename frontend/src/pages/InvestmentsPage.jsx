@@ -384,11 +384,11 @@ export function InvestmentsPage() {
 
   if (activeView === "simulator") {
     return (
-      <div className="workspace-page space-y-6">
+      <div className="workspace-page investments-page investments-simulator-page space-y-6">
         <WorkspaceHeader
-          description="Teste aportes, frequência e prazo usando sua realidade financeira como ponto de partida."
-          eyebrow="Planeje antes de investir"
-          title="Transforme possibilidades em cenários claros"
+          description="Compare tipos de investimento, aportes e prazos usando sua realidade financeira como ponto de partida."
+          eyebrow="Investimentos"
+          title="Simulador de investimentos"
         />
         <WorkspaceTabs active={activeView} tabs={investmentTabs} />
         <SimulatorPage embedded />
@@ -398,11 +398,11 @@ export function InvestmentsPage() {
 
   if (activeView === "news") {
     return (
-      <div className="workspace-page space-y-6">
+      <div className="workspace-page investments-page investments-news-page space-y-6">
         <WorkspaceHeader
-          description="Notícias reais e recentes para entender movimentos que podem afetar sua carteira."
-          eyebrow="Contexto de mercado"
-          title="Informação útil, perto das suas decisões"
+          description="Acompanhe notícias reais e recentes que podem afetar sua carteira e seus próximos aportes."
+          eyebrow="Investimentos"
+          title="Notícias do mercado"
         />
         <WorkspaceTabs active={activeView} tabs={investmentTabs} />
         <NewsPage embedded />
@@ -411,11 +411,11 @@ export function InvestmentsPage() {
   }
 
   return (
-    <div className="workspace-page space-y-6">
+    <div className="workspace-page investments-page space-y-6">
       <WorkspaceHeader
-        description="Acompanhe posições, explique novos aportes e aprofunde a leitura de cada ativo."
-        eyebrow="Seu patrimônio em movimento"
-        title="Carteira consolidada, decisões mais conscientes"
+        description="Acompanhe posições, atualize aportes e aprofunde a leitura de cada ativo em um só lugar."
+        eyebrow="Investimentos"
+        title="Carteira e mercado"
       />
       <WorkspaceTabs active={activeView} tabs={investmentTabs} />
       {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p> : null}
@@ -451,21 +451,39 @@ export function InvestmentsPage() {
                       </button>
                     ) : null}
                   </div>
-                  <div className={`grid gap-3 ${isFixedIncomeType(row.type) ? "md:grid-cols-[1fr_1fr_1fr_0.9fr]" : "md:grid-cols-[1fr_1fr_1fr_0.9fr_0.9fr_0.9fr]"}`}>
-                    <input className="rounded-lg border border-black/10 bg-transparent px-3 py-3 uppercase dark:border-white/10" placeholder="Ticker ex: BTC" value={row.ticker} onChange={(event) => updateSplit(index, "ticker", event.target.value.toUpperCase())} required />
-                    <input className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" placeholder="Nome opcional" value={row.name} onChange={(event) => updateSplit(index, "name", event.target.value)} />
-                    <select className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" value={row.type} onChange={(event) => updateSplit(index, "type", event.target.value)}>
-                      {assetTypeOptions.map(([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                    <input className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" placeholder={isFixedIncomeType(row.type) ? "Valor aplicado" : "Valor"} type="number" step="any" value={row.amount} onChange={(event) => updateSplit(index, "amount", event.target.value)} required />
+                  <div className={`pending-investment-fields grid gap-3 md:grid-cols-2 ${isFixedIncomeType(row.type) ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
+                    <label>
+                      <span>Ticker ou identificador</span>
+                      <input className="rounded-lg border border-black/10 bg-transparent px-3 py-3 uppercase dark:border-white/10" placeholder="Ex.: BTC, CDB Banco X" value={row.ticker} onChange={(event) => updateSplit(index, "ticker", event.target.value.toUpperCase())} required />
+                    </label>
+                    <label>
+                      <span>Nome do investimento</span>
+                      <input className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" placeholder="Opcional" value={row.name} onChange={(event) => updateSplit(index, "name", event.target.value)} />
+                    </label>
+                    <label>
+                      <span>Tipo</span>
+                      <select className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" value={row.type} onChange={(event) => updateSplit(index, "type", event.target.value)}>
+                        {assetTypeOptions.map(([value, label]) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>{isFixedIncomeType(row.type) ? "Valor aplicado" : "Valor destinado"}</span>
+                      <input className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" placeholder="R$ 0,00" type="number" step="any" value={row.amount} onChange={(event) => updateSplit(index, "amount", event.target.value)} required />
+                    </label>
                     {!isFixedIncomeType(row.type) ? (
                       <>
-                        <input className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" placeholder="Quantidade" type="number" step="any" value={row.quantity} onChange={(event) => updateSplit(index, "quantity", event.target.value)} />
-                        <input className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" placeholder="Preço médio" type="number" step="any" value={row.averagePrice} onChange={(event) => updateSplit(index, "averagePrice", event.target.value)} required />
+                        <label>
+                          <span>Quantidade</span>
+                          <input className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" placeholder="0" type="number" step="any" value={row.quantity} onChange={(event) => updateSplit(index, "quantity", event.target.value)} />
+                        </label>
+                        <label>
+                          <span>Preço médio</span>
+                          <input className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" placeholder="R$ 0,00" type="number" step="any" value={row.averagePrice} onChange={(event) => updateSplit(index, "averagePrice", event.target.value)} required />
+                        </label>
                       </>
                     ) : null}
                   </div>
@@ -498,32 +516,38 @@ export function InvestmentsPage() {
         </div>
       ) : null}
       {!selectedPending && pendingInvestments.length ? (
-        <button className="rounded-lg bg-amber-500 px-4 py-3 font-black text-white" onClick={() => openPendingInvestment(pendingInvestments[0])} type="button">
+        <button className="rounded-lg bg-amber-400 px-4 py-3 font-black text-amber-950" onClick={() => openPendingInvestment(pendingInvestments[0])} type="button">
           Explicar {pendingInvestments.length} investimento(s) lançado(s) no Dashboard
         </button>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="investment-overview-stats grid gap-4 md:grid-cols-3">
         <StatCard label="Total investido" value={currency(totals.invested)} />
         <StatCard label="Valor atual" value={currency(totals.currentValue)} tone={totals.profit >= 0 ? "safe" : "danger"} />
         <StatCard label="Lucro / prejuízo" value={currency(totals.profit)} detail={percent(totals.profitPercent)} tone={totals.profit >= 0 ? "safe" : "danger"} />
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+      <section className="investment-register-grid grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
         <form className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900" onSubmit={submit}>
           <h2 className="text-xl font-black">Cadastrar ativo</h2>
           <div className="mt-4 grid gap-3">
             <div className="grid gap-3 sm:grid-cols-2">
-              <input className="rounded-lg border border-black/10 bg-transparent px-3 py-3 uppercase dark:border-white/10" placeholder="Ticker ex: PETR4" value={form.ticker} onChange={(event) => update("ticker", event.target.value)} />
-              <select className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" value={form.type} onChange={(event) => update("type", event.target.value)}>
-                {assetTypeGroups.map((group) => (
-                  <optgroup key={group.label} label={group.label}>
-                    {group.options.map(([value, label]) => (
-                      <option key={value} value={value}>{label}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
+              <label>
+                <span className="mb-1 block text-xs font-bold text-zinc-500 dark:text-zinc-400">Ticker ou identificador</span>
+                <input className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 uppercase dark:border-white/10" placeholder="Ex.: PETR4" value={form.ticker} onChange={(event) => update("ticker", event.target.value)} />
+              </label>
+              <label>
+                <span className="mb-1 block text-xs font-bold text-zinc-500 dark:text-zinc-400">Tipo de ativo</span>
+                <select className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" value={form.type} onChange={(event) => update("type", event.target.value)}>
+                  {assetTypeGroups.map((group) => (
+                    <optgroup key={group.label} label={group.label}>
+                      {group.options.map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </label>
             </div>
             <input className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" placeholder="Nome opcional" value={form.name} onChange={(event) => update("name", event.target.value)} />
             <div className="grid gap-3 sm:grid-cols-2">
@@ -545,7 +569,11 @@ export function InvestmentsPage() {
                 <PieChart>
                   <Pie data={totals.allocation} dataKey="value" nameKey="type" innerRadius={60} outerRadius={100} paddingAngle={4}>
                     {totals.allocation.map((entry, index) => (
-                      <Cell key={entry.type} fill={colors[index % colors.length]} />
+                      <Cell
+                        aria-label={`${typeLabels[entry.type] || entry.type}: ${currency(entry.value)}`}
+                        key={entry.type}
+                        fill={colors[index % colors.length]}
+                      />
                     ))}
                   </Pie>
                   <Tooltip formatter={(value) => currency(value)} />
@@ -558,7 +586,7 @@ export function InvestmentsPage() {
         </div>
       </section>
 
-      <section className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900">
+      <section className="investment-visualizer rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Visualizador</p>
@@ -667,7 +695,7 @@ export function InvestmentsPage() {
         )}
       </section>
 
-      <section className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900">
+      <section className="investment-assets-list rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900">
         <h2 className="text-xl font-black">Ativos rastreados</h2>
         <div className="mt-4 grid gap-3">
           {(portfolio?.assets || []).map((asset) => (
@@ -686,7 +714,7 @@ export function InvestmentsPage() {
                   {currency(asset.profit)} ({percent(asset.profitPercent)})
                 </span>
               </div>
-              <button className="rounded-lg border border-black/10 p-2 text-zinc-500 dark:border-white/10" onClick={() => remove(asset.id)} type="button">
+              <button aria-label={`Excluir ${asset.ticker}`} className="rounded-lg border border-black/10 p-2 text-zinc-500 dark:border-white/10" onClick={() => remove(asset.id)} type="button">
                 <Trash2 size={16} />
               </button>
             </div>

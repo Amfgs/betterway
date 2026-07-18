@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Area, AreaChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ArrowDownCircle, ArrowUpCircle, History, LayoutDashboard, Pencil, Plus, Trash2, WalletCards, X } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, BrainCircuit, History, LayoutDashboard, Pencil, Plus, Trash2, WalletCards, X } from "lucide-react";
 import { api, getErrorMessage } from "../api/client";
 import { DatePickerField } from "../components/DatePickerField";
 import { OpportunityModal } from "../components/OpportunityModal";
@@ -213,14 +213,18 @@ export function DashboardPage() {
     [summary]
   );
   const recentTransactions = useMemo(() => transactions.slice(0, 5), [transactions]);
+  const selectedMonthLabel = useMemo(() => {
+    const [year, monthNumber] = month.split("-").map(Number);
+    return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(new Date(year, monthNumber - 1, 1));
+  }, [month]);
 
   if (activeView === "timeline") {
     return (
-      <div className="workspace-page space-y-6">
+      <div className="workspace-page dashboard-page space-y-6">
         <WorkspaceHeader
           description="Consulte, compare e edite seus registros organizados mês a mês."
-          eyebrow="Visão geral"
-          title="Todo o seu histórico, sem perder o contexto"
+          eyebrow="Histórico"
+          title="Linha do tempo"
         />
         <WorkspaceTabs active={activeView} tabs={dashboardTabs} />
         <TimelinePage embedded />
@@ -229,7 +233,7 @@ export function DashboardPage() {
   }
 
   return (
-    <div className="workspace-page space-y-6">
+    <div className="workspace-page dashboard-page space-y-6">
       <OpportunityModal opportunity={opportunity} onClose={() => setOpportunity(null)} />
       <WorkspaceHeader
         actions={(
@@ -238,15 +242,15 @@ export function DashboardPage() {
             <input type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
           </label>
         )}
-        description={`Janela ativa: ${summary?.window?.label || "3 dias finais do mês anterior e dias 1 a 27 do mês selecionado"}.`}
-        eyebrow="Seu mês em movimento"
-        title="O que merece sua atenção hoje"
+        description={`Acompanhe limite, saldo, registros e planos na janela de ${summary?.window?.label || "30 dias"}.`}
+        eyebrow="Visão geral"
+        title={`Resumo de ${selectedMonthLabel}`}
       />
       <WorkspaceTabs active={activeView} tabs={dashboardTabs} />
 
       {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p> : null}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="dashboard-metrics grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Entradas da janela" value={currency(widgets.income)} detail="Salário, freelances e outras rendas" />
         <StatCard label="Saídas da janela" value={currency(widgets.expenses)} detail="Tudo que saiu do bolso" />
         <StatCard label="Saldo da janela" value={currency(widgets.balance)} detail="Entrada menos saídas" tone={widgets.balance >= 0 ? "safe" : "danger"} />
@@ -260,12 +264,16 @@ export function DashboardPage() {
         </StatCard>
       </section>
 
-      <section className={`rounded-lg border p-4 shadow-soft ${usageTone === "danger" ? "border-red-300 bg-red-50 text-red-950 danger-pulse dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-50" : usageTone === "warning" ? "border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-50" : "border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-50"}`}>
-        <p className="text-sm font-semibold">Alerta ativo</p>
-        <p className="mt-1 text-lg font-bold">{widgets.behaviorMessage || "Carregando leitura comportamental..."}</p>
+      <section className={`behavior-banner rounded-lg border p-4 ${usageTone === "danger" ? "border-red-300 bg-red-50 text-red-950 danger-pulse dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-50" : usageTone === "warning" ? "border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-50" : "border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-50"}`}>
+        <span className="behavior-banner-icon"><BrainCircuit aria-hidden="true" size={20} /></span>
+        <div>
+          <p>Leitura comportamental</p>
+          <strong>{widgets.behaviorMessage || "Carregando leitura comportamental..."}</strong>
+        </div>
+        <small>{percent(widgets.usagePercent)} do teto</small>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+      <section className="dashboard-charts grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -296,7 +304,11 @@ export function DashboardPage() {
                 <PieChart>
                   <Pie data={categoryChart} dataKey="total" nameKey="categoryLabel" innerRadius={55} outerRadius={95} paddingAngle={3}>
                     {categoryChart.map((entry, index) => (
-                      <Cell key={entry.category} fill={pieColors[index % pieColors.length]} />
+                      <Cell
+                        aria-label={`${entry.categoryLabel}: ${currency(entry.total)}`}
+                        key={entry.category}
+                        fill={pieColors[index % pieColors.length]}
+                      />
                     ))}
                   </Pie>
                   <Tooltip formatter={(value) => currency(value)} />
@@ -309,7 +321,7 @@ export function DashboardPage() {
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+      <section className="dashboard-primary-actions grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
         <form className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900" id="novo-registro" onSubmit={createTransaction}>
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-xl font-black">{editingTransactionId ? "Editar transação" : "Nova transação"}</h2>
@@ -321,13 +333,22 @@ export function DashboardPage() {
             ) : null}
           </div>
           <div className="mt-4 grid gap-3">
-            <input className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" placeholder="Título" value={form.title} onChange={(event) => updateForm("title", event.target.value)} />
+            <label>
+              <span className="mb-1 block text-xs font-bold text-zinc-500 dark:text-zinc-400">Descrição</span>
+              <input className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" placeholder="Ex.: Mercado da semana" value={form.title} onChange={(event) => updateForm("title", event.target.value)} />
+            </label>
             <div className="grid gap-3 sm:grid-cols-2">
-              <input className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" placeholder="Valor" type="number" value={form.amount} onChange={(event) => updateForm("amount", event.target.value)} />
-              <select className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" value={form.type} onChange={(event) => updateForm("type", event.target.value)}>
-                <option value="expense">Saída</option>
-                <option value="income">Entrada</option>
-              </select>
+              <label>
+                <span className="mb-1 block text-xs font-bold text-zinc-500 dark:text-zinc-400">Valor</span>
+                <input className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" placeholder="R$ 0,00" type="number" value={form.amount} onChange={(event) => updateForm("amount", event.target.value)} />
+              </label>
+              <label>
+                <span className="mb-1 block text-xs font-bold text-zinc-500 dark:text-zinc-400">Movimentação</span>
+                <select className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" value={form.type} onChange={(event) => updateForm("type", event.target.value)}>
+                  <option value="expense">Saída</option>
+                  <option value="income">Entrada</option>
+                </select>
+              </label>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <label>
@@ -373,7 +394,7 @@ export function DashboardPage() {
                       <p className="font-bold">{transaction.title}</p>
                       {transaction.isSuperfluous ? <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-bold text-amber-700 dark:text-amber-300">Raio-X</span> : null}
                     </div>
-                    <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                    <p className="text-sm text-zinc-600 dark:text-zinc-400">
                       {shortDate(transaction.date)} · {categoryLabel(transaction.category)}
                     </p>
                   </div>
@@ -385,7 +406,7 @@ export function DashboardPage() {
                     <button className="rounded-lg border border-black/10 p-2 text-zinc-500 dark:border-white/10" onClick={() => startEditTransaction(transaction)} type="button" title="Editar">
                       <Pencil size={16} />
                     </button>
-                    <button className="rounded-lg border border-black/10 p-2 text-zinc-500 dark:border-white/10" onClick={() => deleteTransaction(transaction.id)} type="button">
+                    <button aria-label={`Excluir ${transaction.title}`} className="rounded-lg border border-black/10 p-2 text-zinc-500 dark:border-white/10" onClick={() => deleteTransaction(transaction.id)} type="button">
                       <Trash2 size={16} />
                     </button>
                   </div>
@@ -396,16 +417,21 @@ export function DashboardPage() {
         </div>
       </section>
 
-      <section className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900">
+      <section className="dashboard-net-worth rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900">
         <h2 className="text-xl font-black">Patrimônio estimado</h2>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <StatCard label="Banco" value={currency(widgets.bankBalance)} />
+          <StatCard label="Banco" value={currency(widgets.bankBalance)} detail={widgets.bankBalanceSource === "connected" ? "Saldo sincronizado" : "Calculado pelos registros"} />
           <StatCard label="Investido a custo" value={currency(widgets.investedCost)} />
           <StatCard label="Líquido estimado" value={currency(widgets.netWorthEstimate)} tone="safe" />
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-2">
+      <div className="workspace-section-intro">
+        <h2>Planos e proteções</h2>
+        <p>Organize objetivos e defina limites antes que o mês escolha por você.</p>
+      </div>
+
+      <section className="dashboard-planning grid gap-4 xl:grid-cols-2">
         <div className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900">
           <div className="flex items-center gap-3">
             <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-300">
@@ -479,7 +505,7 @@ export function DashboardPage() {
                     <ArrowUpCircle size={16} />
                     Adicionar
                   </button>
-                  <button className="inline-flex items-center justify-center gap-1 rounded-lg bg-red-500 px-3 py-2 text-sm font-black text-white" onClick={() => moveGoal(goal, "withdraw")} type="button">
+                  <button className="inline-flex items-center justify-center gap-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-black text-white" onClick={() => moveGoal(goal, "withdraw")} type="button">
                     <ArrowDownCircle size={16} />
                     Retirar
                   </button>
@@ -500,16 +526,22 @@ export function DashboardPage() {
           <h2 className="text-xl font-black">Cadastro de limites</h2>
           <form className="mt-4 grid gap-3" onSubmit={createLimit}>
             <div className="grid gap-3 sm:grid-cols-[1fr_1fr]">
-              <select className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" value={limitForm.category} onChange={(event) => updateLimitForm("category", event.target.value)}>
-                {categoryOptions
-                  .filter((category) => !["Renda", "Freelance"].includes(category.value))
-                  .map((category) => (
-                    <option key={category.value} value={category.value}>
-                      {category.label}
-                    </option>
-                  ))}
-              </select>
-              <input className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" placeholder="Limite da categoria" type="number" value={limitForm.amount} onChange={(event) => updateLimitForm("amount", event.target.value)} required />
+              <label>
+                <span className="mb-1 block text-xs font-bold text-zinc-500 dark:text-zinc-400">Categoria</span>
+                <select className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" value={limitForm.category} onChange={(event) => updateLimitForm("category", event.target.value)}>
+                  {categoryOptions
+                    .filter((category) => !["Renda", "Freelance"].includes(category.value))
+                    .map((category) => (
+                      <option key={category.value} value={category.value}>
+                        {category.label}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label>
+                <span className="mb-1 block text-xs font-bold text-zinc-500 dark:text-zinc-400">Valor mensal</span>
+                <input className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" placeholder="R$ 0,00" type="number" value={limitForm.amount} onChange={(event) => updateLimitForm("amount", event.target.value)} required />
+              </label>
             </div>
             <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-3 font-black text-white" type="submit">
               <Plus size={18} />
@@ -522,7 +554,7 @@ export function DashboardPage() {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="font-bold">{categoryLabel(limit.category)}</p>
-                    <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                    <p className="text-sm text-zinc-600 dark:text-zinc-400">
                       {currency(limit.spent)} de {currency(limit.amount)}
                     </p>
                   </div>

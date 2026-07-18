@@ -5,7 +5,7 @@ import { PluggyConnect } from "react-native-pluggy-connect";
 import { Alert, Modal, Pressable, SafeAreaView, Text, View } from "react-native";
 import { apiRequest } from "../api/client";
 import { useAuth } from "../context/AuthContext";
-import { currency } from "../utils/formatters";
+import { currency, shortDate } from "../utils/formatters";
 import { Button, Field, colors, styles } from "./ui";
 
 function totalFor(items, key = "balance") {
@@ -48,6 +48,16 @@ export function BankConnectionsMobile() {
     investments: Number(data.totals?.investmentBalance || 0),
     netWorth: Number(data.totals?.netWorth || 0)
   }), [data.totals]);
+  const recentTransactions = useMemo(
+    () => data.connections
+      .flatMap((connection) => (connection.transactions || []).map((transaction) => ({
+        ...transaction,
+        institutionName: connection.institutionName || connection.label
+      })))
+      .sort((left, right) => new Date(right.date) - new Date(left.date))
+      .slice(0, 8),
+    [data.connections]
+  );
 
   async function startOpenFinance() {
     setError("");
@@ -167,7 +177,7 @@ export function BankConnectionsMobile() {
               <Text style={styles.eyebrow}>Open Finance</Text>
               <Text style={styles.label}>Conecte sua instituição com consentimento.</Text>
             </View>
-            <Pressable accessibilityLabel="Fechar conexão bancária" onPress={() => setConnectToken("")} style={[styles.chip, { borderRadius: 10 }]}>
+            <Pressable accessibilityLabel="Fechar conexão bancária" onPress={() => setConnectToken("")} style={styles.chip}>
               <Text style={styles.chipText}>Fechar</Text>
             </Pressable>
           </View>
@@ -182,7 +192,7 @@ export function BankConnectionsMobile() {
                 setConnectToken("");
               }}
               onSuccess={finishOpenFinance}
-              products={["ACCOUNTS", "INVESTMENTS"]}
+              products={["ACCOUNTS", "TRANSACTIONS", "INVESTMENTS"]}
               theme="light"
             />
           ) : null}
@@ -237,12 +247,31 @@ export function BankConnectionsMobile() {
               <Text style={styles.label}>{connection.institutionName || connection.label}</Text>
               <Text style={styles.subtitle}>{currency(accounts + investments)} · {connection.provider === "pluggy" ? "Open Finance" : "CSV"}</Text>
             </View>
-            <Pressable accessibilityLabel={`Remover ${connection.label}`} onPress={() => askToRemove(connection)} style={[styles.chip, { borderColor: colors.red, borderRadius: 10 }]}>
+            <Pressable accessibilityLabel={`Remover ${connection.label}`} onPress={() => askToRemove(connection)} style={[styles.chip, { borderColor: colors.red }]}>
               <Text style={[styles.chipText, { color: colors.red }]}>Remover</Text>
             </Pressable>
           </View>
         );
       })}
+
+      {recentTransactions.length ? (
+        <View style={{ borderTopColor: colors.border, borderTopWidth: 1, gap: 2, paddingTop: 12 }}>
+          <Text style={styles.label}>Extrato consolidado</Text>
+          <Text style={styles.muted}>Lançamentos recentes das fontes conectadas.</Text>
+          {recentTransactions.map((transaction, index) => {
+            const amount = Number(transaction.amount || 0);
+            return (
+              <View key={`${transaction.date}-${transaction.description}-${amount}-${index}`} style={[styles.listItem, styles.rowBetween]}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text numberOfLines={1} style={styles.listItemTitle}>{transaction.description}</Text>
+                  <Text style={styles.muted}>{transaction.institutionName} · {shortDate(transaction.date)}</Text>
+                </View>
+                <Text style={[styles.moneyValue, amount > 0 ? styles.moneyValuePositive : null]}>{amount > 0 ? "+" : ""}{currency(amount)}</Text>
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
     </View>
   );
 }

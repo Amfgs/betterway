@@ -10,7 +10,8 @@ function publicConnection(connection) {
   return {
     ...safe,
     accounts: (connection.accounts || []).map(({ externalId: accountExternalId, ...account }) => account),
-    investments: (connection.investments || []).map(({ externalId: investmentExternalId, ...investment }) => investment)
+    investments: (connection.investments || []).map(({ externalId: investmentExternalId, ...investment }) => investment),
+    transactions: (connection.transactions || []).map(({ externalId: transactionExternalId, accountExternalId, ...transaction }) => transaction)
   };
 }
 

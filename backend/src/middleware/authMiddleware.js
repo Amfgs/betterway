@@ -27,7 +27,13 @@ async function authMiddleware(req, res, next) {
       });
     }
 
+    const sessionStartedAt = Number(decoded.sst || decoded.iat || 0);
+    if (!sessionStartedAt || sessionStartedAt > Math.floor(Date.now() / 1000) + 300) {
+      return res.status(401).json({ message: "Sessão inválida ou expirada." });
+    }
+
     req.user = user;
+    req.auth = { sessionStartedAt };
     return next();
   } catch (error) {
     return res.status(401).json({ message: "Sessão inválida ou expirada." });

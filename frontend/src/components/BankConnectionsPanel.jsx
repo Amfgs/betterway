@@ -70,6 +70,16 @@ export function BankConnectionsPanel({ onChange }) {
     investments: Number(data.totals?.investmentBalance || 0),
     netWorth: Number(data.totals?.netWorth || 0)
   }), [data.totals]);
+  const recentTransactions = useMemo(
+    () => data.connections
+      .flatMap((connection) => (connection.transactions || []).map((transaction) => ({
+        ...transaction,
+        institutionName: connection.institutionName || connection.label
+      })))
+      .sort((left, right) => new Date(right.date) - new Date(left.date))
+      .slice(0, 12),
+    [data.connections]
+  );
 
   async function startOpenFinance() {
     setError("");
@@ -177,7 +187,7 @@ export function BankConnectionsPanel({ onChange }) {
           }}
           onLoadError={(loadError) => setError(loadError?.message || "O conector bancário não carregou.")}
           onSuccess={finishConnection}
-          products={["ACCOUNTS", "INVESTMENTS"]}
+          products={["ACCOUNTS", "TRANSACTIONS", "INVESTMENTS"]}
           theme={theme}
         />
       ) : null}
@@ -204,9 +214,9 @@ export function BankConnectionsPanel({ onChange }) {
       </div>
 
       <div className="mt-5 grid gap-px overflow-hidden rounded-lg bg-black/10 sm:grid-cols-3 dark:bg-white/10">
-        <div className="bg-stone-50 p-4 dark:bg-neutral-800"><span className="text-xs text-zinc-500">Em contas</span><strong className="mt-1 block text-xl">{currency(totals.accounts)}</strong></div>
-        <div className="bg-stone-50 p-4 dark:bg-neutral-800"><span className="text-xs text-zinc-500">Investido conectado</span><strong className="mt-1 block text-xl">{currency(totals.investments)}</strong></div>
-        <div className="bg-stone-50 p-4 dark:bg-neutral-800"><span className="text-xs text-zinc-500">Total conectado</span><strong className="mt-1 block text-xl text-emerald-700 dark:text-emerald-300">{currency(totals.netWorth)}</strong></div>
+        <div className="bg-stone-50 p-4 dark:bg-neutral-800"><span className="text-xs text-zinc-500 dark:text-zinc-300">Em contas</span><strong className="mt-1 block text-xl">{currency(totals.accounts)}</strong></div>
+        <div className="bg-stone-50 p-4 dark:bg-neutral-800"><span className="text-xs text-zinc-500 dark:text-zinc-300">Investido conectado</span><strong className="mt-1 block text-xl">{currency(totals.investments)}</strong></div>
+        <div className="bg-stone-50 p-4 dark:bg-neutral-800"><span className="text-xs text-zinc-500 dark:text-zinc-300">Total conectado</span><strong className="mt-1 block text-xl text-emerald-700 dark:text-emerald-300">{currency(totals.netWorth)}</strong></div>
       </div>
 
       <div className="mt-6 grid gap-6 border-t border-black/5 pt-6 xl:grid-cols-2 dark:border-white/10">
@@ -220,7 +230,7 @@ export function BankConnectionsPanel({ onChange }) {
                   {data.providerConfigured ? "Disponível" : "Requer configuração"}
                 </span>
               </div>
-              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Autorize uma instituição pelo widget seguro. A Better Way recebe saldos de contas e posições de investimento.</p>
+              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Autorize uma instituição pelo widget seguro. A Better Way recebe saldos, extrato recente e posições de investimento.</p>
             </div>
           </div>
           <div className="mt-4 flex items-start gap-2 rounded-lg bg-stone-100 p-3 text-xs text-zinc-600 dark:bg-neutral-800 dark:text-zinc-300">
@@ -231,7 +241,7 @@ export function BankConnectionsPanel({ onChange }) {
             <Building2 size={18} />
             {working === "connect" || working === "sync" ? "Conectando..." : "Conectar instituição"}
           </button>
-          {!data.providerConfigured ? <p className="mt-2 text-xs text-zinc-500">Configure <code>PLUGGY_CLIENT_ID</code> e <code>PLUGGY_CLIENT_SECRET</code> no backend para habilitar esta opção.</p> : null}
+          {!data.providerConfigured ? <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-300">Configure <code>PLUGGY_CLIENT_ID</code> e <code>PLUGGY_CLIENT_SECRET</code> no backend para habilitar esta opção.</p> : null}
         </div>
 
         <form className="border-t border-black/5 pt-6 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0 dark:border-white/10" onSubmit={importCsv}>
@@ -252,7 +262,7 @@ export function BankConnectionsPanel({ onChange }) {
               <input accept=".csv,text/csv" className="sr-only" onChange={(event) => setImportForm((current) => ({ ...current, file: event.target.files?.[0] || null }))} type="file" />
             </label>
           </div>
-          <p className="mt-2 text-xs text-zinc-500">Movimentações: <code>data, descrição, valor, tipo</code>. Posições: <code>tipo, nome, saldo, código, quantidade, preço</code>.</p>
+          <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-300">Movimentações: <code>data, descrição, valor, tipo</code>. Posições: <code>tipo, nome, saldo, código, quantidade, preço</code>.</p>
           <button className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-black/10 px-4 py-3 font-black dark:border-white/10" disabled={Boolean(working)} type="submit"><Upload size={18} />{working === "import" ? "Processando..." : "Importar e calcular"}</button>
         </form>
       </div>
@@ -274,9 +284,38 @@ export function BankConnectionsPanel({ onChange }) {
                     <div><strong className="block">{connection.institutionName || connection.label}</strong><span className="text-xs text-zinc-500">{connection.provider === "pluggy" ? "Open Finance" : "Extrato importado"} · atualizado em {shortDate(connection.lastSyncedAt || connection.updatedAt)}</span></div>
                   </div>
                   <div className="flex items-center justify-between gap-4 sm:justify-end">
-                    <div className="text-right"><strong className="block text-sm">{currency(connectionValue.accounts + connectionValue.investments)}</strong><span className="text-xs text-zinc-500">{connection.accounts?.length || 0} conta(s) · {connection.investments?.length || 0} investimento(s)</span></div>
+                    <div className="text-right"><strong className="block text-sm">{currency(connectionValue.accounts + connectionValue.investments)}</strong><span className="text-xs text-zinc-500">{connection.accounts?.length || 0} conta(s) · {connection.transactions?.length || 0} lançamento(s)</span></div>
                     <button aria-label={`Remover ${connection.label}`} className="rounded-lg border border-red-200 p-2 text-red-600 dark:border-red-500/30" disabled={working === connection.id} onClick={() => removeConnection(connection)} title="Remover fonte" type="button"><Trash2 size={17} /></button>
                   </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
+      {!loading && recentTransactions.length ? (
+        <div className="mt-6 border-t border-black/5 pt-5 dark:border-white/10">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h3 className="text-lg font-black">Extrato consolidado</h3>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">Últimos lançamentos recebidos das fontes conectadas ou importadas.</p>
+            </div>
+            <span className="text-xs font-semibold text-zinc-500">Até 90 dias na conexão direta</span>
+          </div>
+          <div className="mt-3 divide-y divide-black/5 overflow-hidden rounded-lg border border-black/5 dark:divide-white/10 dark:border-white/10">
+            {recentTransactions.map((transaction, index) => {
+              const amount = Number(transaction.amount || 0);
+              return (
+                <div className="grid grid-cols-[1fr_auto] gap-3 px-3 py-3 sm:grid-cols-[110px_1fr_auto] sm:items-center" key={`${transaction.date}-${transaction.description}-${amount}-${index}`}>
+                  <span className="hidden text-xs font-semibold text-zinc-500 sm:block">{shortDate(transaction.date)}</span>
+                  <div className="min-w-0">
+                    <strong className="block truncate text-sm">{transaction.description}</strong>
+                    <span className="text-xs text-zinc-500">{transaction.institutionName} · <span className="sm:hidden">{shortDate(transaction.date)} · </span>{transaction.category || "Sem categoria"}</span>
+                  </div>
+                  <strong className={`text-sm tabular-nums ${amount > 0 ? "text-emerald-700 dark:text-emerald-300" : "text-zinc-800 dark:text-zinc-100"}`}>
+                    {amount > 0 ? "+" : ""}{currency(amount)}
+                  </strong>
                 </div>
               );
             })}
