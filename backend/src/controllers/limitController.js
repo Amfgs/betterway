@@ -17,6 +17,12 @@ const list = asyncHandler(async (req, res) => {
 
 const create = asyncHandler(async (req, res) => {
   const { category, amount, active, participantIds } = req.body;
+  if (Array.isArray(participantIds) && participantIds.length) {
+    return res.status(409).json({
+      code: "SHARED_PLAN_REQUIRES_APPROVAL",
+      message: "Limites conjuntos precisam ser enviados como proposta pela página Amigos."
+    });
+  }
 
   const cleanCategory = cleanText(category, 80);
   const validAmount = numberInRange(amount, 0.01, 1e15);
@@ -38,10 +44,15 @@ const create = asyncHandler(async (req, res) => {
 });
 
 const update = asyncHandler(async (req, res) => {
-  const fields = ["category", "amount", "active", "participantIds"].reduce((acc, key) => {
+  if (req.body.participantIds !== undefined) {
+    return res.status(409).json({
+      code: "SHARED_PLAN_REQUIRES_APPROVAL",
+      message: "Participantes de um limite só podem ser definidos por uma proposta aceita."
+    });
+  }
+  const fields = ["category", "amount", "active"].reduce((acc, key) => {
     if (req.body[key] !== undefined) {
       if (key === "amount") acc[key] = asNumber(req.body[key]);
-      else if (key === "participantIds") acc[key] = Array.isArray(req.body[key]) ? req.body[key] : [];
       else acc[key] = req.body[key];
     }
     return acc;
@@ -53,11 +64,6 @@ const update = asyncHandler(async (req, res) => {
   }
   if (fields.amount !== undefined && numberInRange(fields.amount, 0.01, 1e15) === null) {
     return res.status(400).json({ message: "Informe um valor de limite válido." });
-  }
-  if (fields.participantIds !== undefined) {
-    const participants = await authorizedParticipants(req.user.id, fields.participantIds);
-    if (!participants) return res.status(403).json({ message: "Limites só podem ser compartilhados com amizades aceitas." });
-    fields.participantIds = participants;
   }
   if (fields.active !== undefined && typeof fields.active !== "boolean") {
     return res.status(400).json({ message: "O estado do limite precisa ser verdadeiro ou falso." });

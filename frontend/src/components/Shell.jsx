@@ -163,7 +163,7 @@ export function Shell() {
         </header>
 
         <header className="mobile-topbar">
-          <Link aria-label="Ir para Visão Geral" to="/dashboard"><Logo size={38} /></Link>
+          <Link aria-label="Ir para Visão Geral" to="/dashboard"><Logo size={34} withWordmark={false} /></Link>
           <div>
             <span>{currentMeta.title}</span>
             <Link aria-label="Criar novo registro" className="mobile-quick-add" to="/dashboard#novo-registro"><Plus size={17} /></Link>

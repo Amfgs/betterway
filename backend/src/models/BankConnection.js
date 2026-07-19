@@ -89,6 +89,15 @@ const bankConnectionSchema = new mongoose.Schema(
     lastSyncedAt: {
       type: Date,
       default: null
+    },
+    syncStatus: {
+      type: String,
+      enum: ["active", "error"],
+      default: "active"
+    },
+    syncError: {
+      code: { type: String, default: "" },
+      message: { type: String, default: "" }
     }
   },
   { timestamps: true }

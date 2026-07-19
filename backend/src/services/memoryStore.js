@@ -15,7 +15,9 @@ function defaultState() {
     goals: [],
     limits: [],
     assets: [],
-    bankConnections: []
+    bankConnections: [],
+    pluggyWebhookEvents: [],
+    sharedPlanProposals: []
   };
 }
 
@@ -59,7 +61,9 @@ function normalizeState(raw) {
     goals: (clean.goals || base.goals).map((goal) => ({ participantIds: [], movements: [], ...goal })),
     limits: (clean.limits || base.limits).map((limit) => ({ participantIds: [], ...limit })),
     assets: clean.assets || base.assets,
-    bankConnections: clean.bankConnections || base.bankConnections
+    bankConnections: clean.bankConnections || base.bankConnections,
+    pluggyWebhookEvents: clean.pluggyWebhookEvents || base.pluggyWebhookEvents,
+    sharedPlanProposals: clean.sharedPlanProposals || base.sharedPlanProposals
   };
 }
 
@@ -523,12 +527,127 @@ module.exports = {
       }
       return limit;
     });
+    state.sharedPlanProposals = state.sharedPlanProposals.map((proposal) => {
+      const hasBoth = (proposal.participantIds || []).some((value) => String(value) === String(userIdToFind)) &&
+        (proposal.participantIds || []).some((value) => String(value) === String(friendId));
+      return hasBoth && proposal.status === "pending"
+        ? { ...proposal, status: "rejected", resolvedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+        : proposal;
+    });
     saveState();
     return true;
   },
   async getAcceptedFriendIds(userIdToFind) {
     const user = state.users.find((item) => String(item.id) === String(userIdToFind));
     return clone(user?.acceptedFriendIds || []).map(String);
+  },
+  async listSharedPlanProposals(userIdToFind) {
+    return clone(state.sharedPlanProposals.filter((proposal) =>
+      (proposal.participantIds || []).some((value) => String(value) === String(userIdToFind))
+    )).sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+  },
+  async findSharedPlanProposal(userIdToFind, proposalId) {
+    const proposal = state.sharedPlanProposals.find((item) =>
+      String(item.id) === String(proposalId) &&
+      (item.participantIds || []).some((value) => String(value) === String(userIdToFind))
+    );
+    return proposal ? clone(proposal) : null;
+  },
+  async createSharedPlanProposal(payload) {
+    const created = {
+      id: id(),
+      _id: null,
+      status: "pending",
+      createdResourceId: "",
+      resolvedAt: null,
+      ...payload,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    created._id = created.id;
+    state.sharedPlanProposals.push(created);
+    saveState();
+    return clone(created);
+  },
+  async counterSharedPlanProposal(userIdToFind, proposalId, terms) {
+    const index = state.sharedPlanProposals.findIndex((item) =>
+      String(item.id) === String(proposalId) &&
+      String(item.currentRecipientId) === String(userIdToFind) &&
+      item.status === "pending"
+    );
+    if (index === -1) return null;
+    const current = state.sharedPlanProposals[index];
+    const revision = Number(current.revision || 1) + 1;
+    state.sharedPlanProposals[index] = {
+      ...current,
+      currentSenderId: userIdToFind,
+      currentRecipientId: current.currentSenderId,
+      terms,
+      revision,
+      revisions: [...(current.revisions || []), { revision, proposedBy: userIdToFind, terms, createdAt: new Date().toISOString() }],
+      updatedAt: new Date().toISOString()
+    };
+    saveState();
+    return clone(state.sharedPlanProposals[index]);
+  },
+  async rejectSharedPlanProposal(userIdToFind, proposalId) {
+    const index = state.sharedPlanProposals.findIndex((item) =>
+      String(item.id) === String(proposalId) &&
+      String(item.currentRecipientId) === String(userIdToFind) &&
+      item.status === "pending"
+    );
+    if (index === -1) return null;
+    state.sharedPlanProposals[index] = {
+      ...state.sharedPlanProposals[index],
+      status: "rejected",
+      resolvedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    saveState();
+    return clone(state.sharedPlanProposals[index]);
+  },
+  async acceptSharedPlanProposal(userIdToFind, proposalId) {
+    const index = state.sharedPlanProposals.findIndex((item) =>
+      String(item.id) === String(proposalId) &&
+      String(item.currentRecipientId) === String(userIdToFind) &&
+      item.status === "pending"
+    );
+    if (index === -1) return null;
+    const proposal = state.sharedPlanProposals[index];
+    const participantIds = proposal.participantIds.filter((value) => String(value) !== String(proposal.initiatorId));
+    const resource = proposal.kind === "goal"
+      ? {
+          id: id(),
+          _id: null,
+          userId: proposal.initiatorId,
+          participantIds,
+          ...proposal.terms,
+          movements: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      : {
+          id: id(),
+          _id: null,
+          userId: proposal.initiatorId,
+          participantIds,
+          ...proposal.terms,
+          active: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+    resource._id = resource.id;
+    if (proposal.kind === "goal") state.goals.push(resource);
+    else state.limits.push(resource);
+    state.sharedPlanProposals[index] = {
+      ...proposal,
+      status: "accepted",
+      createdResourceId: resource.id,
+      resolvedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    saveState();
+    return { proposal: clone(state.sharedPlanProposals[index]), resource: clone(resource) };
   },
   async listBankConnections(userIdToFind) {
     return clone(byUser("bankConnections", userIdToFind)).sort(
@@ -587,5 +706,51 @@ module.exports = {
     state.bankConnections.splice(index, 1);
     saveState();
     return true;
+  },
+  async markBankConnectionError(userIdToFind, provider, externalId, syncError) {
+    const index = state.bankConnections.findIndex(
+      (item) => String(item.userId) === String(userIdToFind) && item.provider === provider && item.externalId === externalId
+    );
+    if (index === -1) return null;
+    state.bankConnections[index] = {
+      ...state.bankConnections[index],
+      syncStatus: "error",
+      syncError,
+      updatedAt: new Date().toISOString()
+    };
+    saveState();
+    return clone(state.bankConnections[index]);
+  },
+  async enqueuePluggyWebhook(payload) {
+    if (state.pluggyWebhookEvents.some((event) => event.eventId === payload.eventId)) return null;
+    const created = {
+      id: id(),
+      _id: null,
+      status: "pending",
+      ...payload,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    created._id = created.id;
+    state.pluggyWebhookEvents.push(created);
+    saveState();
+    return clone(created);
+  },
+  async completePluggyWebhook(eventId, status) {
+    const index = state.pluggyWebhookEvents.findIndex((event) => event.eventId === eventId);
+    if (index === -1) return null;
+    state.pluggyWebhookEvents[index] = {
+      ...state.pluggyWebhookEvents[index],
+      status,
+      updatedAt: new Date().toISOString()
+    };
+    saveState();
+    return clone(state.pluggyWebhookEvents[index]);
+  },
+  async listPendingPluggyWebhooks() {
+    return clone(state.pluggyWebhookEvents
+      .filter((event) => event.status === "pending")
+      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+      .slice(0, 10));
   }
 };

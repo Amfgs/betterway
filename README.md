@@ -67,6 +67,9 @@ BRAPI_API_KEY=
 NEWS_API_KEY=
 PLUGGY_CLIENT_ID=
 PLUGGY_CLIENT_SECRET=
+PLUGGY_ENVIRONMENT=trial
+PLUGGY_WEBHOOK_URL=http://localhost:5050/api/bank-connections/pluggy/webhook
+PLUGGY_WEBHOOK_SECRET=
 GOOGLE_CLIENT_ID=
 CLIENT_URL=http://localhost:5173
 LOCAL_STORE_PATH=
@@ -84,7 +87,7 @@ Sem `MONGO_URI` ou `MONGODB_URI`, o backend usa um arquivo local em `backend/dat
 
 Notícias reais: se `NEWS_API_KEY` estiver ausente, o backend usa Google News RSS em tempo real. Cotações: cripto usa CoinGecko; ações/FIIs usam Brapi sem token quando possível, e ficam completas com `BRAPI_API_KEY`.
 
-Conexão bancária: com `PLUGGY_CLIENT_ID` e `PLUGGY_CLIENT_SECRET`, o usuário pode autorizar contas por Open Finance e sincronizar saldos, investimentos e os últimos 90 dias do extrato. Sem essas credenciais, a conexão bancária permanece indisponível e nenhum fluxo alternativo de importação de arquivos é exibido.
+Conexão bancária: com `PLUGGY_CLIENT_ID` e `PLUGGY_CLIENT_SECRET`, o usuário pode autorizar contas por Open Finance e sincronizar saldos, investimentos e os últimos 90 dias do extrato. Em Trial, `PLUGGY_ENVIRONMENT=trial` libera apenas o conector Pluggy Bank; bancos reais exigem aprovação de produção no painel da Pluggy. O webhook autenticado mantém as posições atualizadas. Sem as credenciais, a conexão permanece indisponível e nenhum fluxo alternativo de importação de arquivos é exibido.
 
 Sessões persistentes expiram 15 dias após o primeiro login, mesmo que o perfil seja alterado. No app nativo, o token fica no Secure Store e o usuário pode ativar Face ID, Touch ID ou biometria Android para desbloqueá-lo; a senha nunca é salva no aparelho.
 

@@ -14,6 +14,7 @@ const simulatorRoutes = require("./routes/simulatorRoutes");
 const newsRoutes = require("./routes/newsRoutes");
 const widgetRoutes = require("./routes/widgetRoutes");
 const bankConnectionRoutes = require("./routes/bankConnectionRoutes");
+const sharedPlanRoutes = require("./routes/sharedPlanRoutes");
 const { isMemoryMode } = require("./config/db");
 const { allowedOrigins, isProduction } = require("./config/security");
 
@@ -59,6 +60,7 @@ app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000,
     limit: 300,
+    skip: (req) => req.path === "/api/bank-connections/pluggy/webhook",
     message: { message: "Muitas solicitações. Aguarde alguns minutos e tente novamente." },
     standardHeaders: "draft-7",
     legacyHeaders: false
@@ -84,6 +86,7 @@ app.get("/api/health", (req, res) => {
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/friends", friendRoutes);
+app.use("/api/shared-plans", sharedPlanRoutes);
 app.use("/api/goals", goalRoutes);
 app.use("/api/limits", limitRoutes);
 app.use("/api/assets", assetRoutes);

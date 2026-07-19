@@ -4,6 +4,12 @@ function providerConfigured() {
   return Boolean(process.env.PLUGGY_CLIENT_ID && process.env.PLUGGY_CLIENT_SECRET);
 }
 
+function providerEnvironment() {
+  return String(process.env.PLUGGY_ENVIRONMENT || "trial").toLowerCase() === "production"
+    ? "production"
+    : "trial";
+}
+
 function client() {
   if (!providerConfigured()) {
     const error = new Error("A conexão Open Finance ainda não foi configurada no servidor.");
@@ -135,13 +141,20 @@ async function fetchSnapshot(itemId, expectedUserId) {
   };
 }
 
+async function fetchItemClientUserId(itemId) {
+  const item = await client().fetchItem(itemId);
+  return String(item.clientUserId || "").trim();
+}
+
 async function deleteItem(itemId) {
   await client().deleteItem(itemId);
 }
 
 module.exports = {
   providerConfigured,
+  providerEnvironment,
   createConnectToken,
   fetchSnapshot,
+  fetchItemClientUserId,
   deleteItem
 };

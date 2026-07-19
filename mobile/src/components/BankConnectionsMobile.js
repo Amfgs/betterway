@@ -30,7 +30,7 @@ function pluggyErrorMessage(error) {
 
 export function BankConnectionsMobile() {
   const { token } = useAuth();
-  const [data, setData] = useState({ connections: [], totals: {}, providerConfigured: false });
+  const [data, setData] = useState({ connections: [], totals: {}, providerConfigured: false, providerEnvironment: "trial" });
   const [connectToken, setConnectToken] = useState("");
   const [working, setWorking] = useState("");
   const [error, setError] = useState("");
@@ -161,10 +161,11 @@ export function BankConnectionsMobile() {
         <View style={{ flex: 1, backgroundColor: "#ffffff", overflow: "hidden" }}>
           {connectToken ? (
             <PluggyConnect
+              allowConnectInBackground={false}
               allowFullscreen
               connectToken={connectToken}
               countries={["BR"]}
-              includeSandbox={__DEV__}
+              includeSandbox={data.providerEnvironment === "trial" || __DEV__}
               language="pt"
               onClose={() => setConnectToken("")}
               onError={(connectError) => {
@@ -194,11 +195,20 @@ export function BankConnectionsMobile() {
       <View style={{ borderTopColor: colors.border, borderTopWidth: 1, paddingTop: 12, gap: 8 }}>
         <Text style={styles.label}>Conexão Open Finance</Text>
         <Text style={styles.muted}>Sua senha bancária fica no ambiente do conector. A Better Way guarda a autorização e uma cópia dos saldos, investimentos e lançamentos sincronizados para montar seu painel.</Text>
+        {data.providerConfigured && data.providerEnvironment === "trial" ? (
+          <View style={{ backgroundColor: "#fffbeb", borderColor: "#fcd34d", borderRadius: 8, borderWidth: 1, padding: 11 }}>
+            <Text style={{ color: "#78350f", fontWeight: "900" }}>Ambiente Trial</Text>
+            <Text style={{ color: "#92400e", fontSize: 12, lineHeight: 18, marginTop: 3 }}>Escolha Pluggy Bank para testar. Bancos reais dependem da liberação de produção no painel da Pluggy.</Text>
+          </View>
+        ) : null}
         <Button disabled={!data.providerConfigured || Boolean(working)} onPress={startOpenFinance}>
-          {working === "connect" || working === "sync" ? "Conectando..." : "Conectar instituição"}
+          {working === "connect" || working === "sync"
+            ? "Conectando..."
+            : data.providerConfigured && data.providerEnvironment === "trial"
+              ? "Testar com Pluggy Bank"
+              : "Conectar instituição"}
         </Button>
         {!data.providerConfigured ? <Text style={styles.muted}>A conexão direta está temporariamente indisponível. Tente novamente mais tarde.</Text> : null}
-        {__DEV__ ? <Text style={styles.muted}>Ambiente local: para testar uma aplicação Trial, escolha o conector Pluggy Bank.</Text> : null}
       </View>
 
       {data.connections.some((connection) => connection.provider === "pluggy") ? (

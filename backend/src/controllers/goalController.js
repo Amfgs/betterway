@@ -18,6 +18,12 @@ const list = asyncHandler(async (req, res) => {
 
 const create = asyncHandler(async (req, res) => {
   const { name, targetAmount, currentAmount, dueDate, participantIds } = req.body;
+  if (Array.isArray(participantIds) && participantIds.length) {
+    return res.status(409).json({
+      code: "SHARED_PLAN_REQUIRES_APPROVAL",
+      message: "Metas conjuntas precisam ser enviadas como proposta pela página Amigos."
+    });
+  }
   const cleanName = cleanText(name, 120);
   const target = numberInRange(targetAmount, 0.01, 1e15);
   const current = numberInRange(currentAmount === undefined || currentAmount === "" ? 0 : currentAmount, 0, 1e15);
@@ -41,10 +47,15 @@ const create = asyncHandler(async (req, res) => {
 });
 
 const update = asyncHandler(async (req, res) => {
-  const fields = ["name", "targetAmount", "currentAmount", "dueDate", "participantIds"].reduce((acc, key) => {
+  if (req.body.participantIds !== undefined) {
+    return res.status(409).json({
+      code: "SHARED_PLAN_REQUIRES_APPROVAL",
+      message: "Participantes de uma meta só podem ser definidos por uma proposta aceita."
+    });
+  }
+  const fields = ["name", "targetAmount", "currentAmount", "dueDate"].reduce((acc, key) => {
     if (req.body[key] !== undefined) {
       if (["targetAmount", "currentAmount"].includes(key)) acc[key] = asNumber(req.body[key]);
-      else if (key === "participantIds") acc[key] = Array.isArray(req.body[key]) ? req.body[key] : [];
       else if (key === "dueDate") acc[key] = normalizeDateForStorage(req.body[key]);
       else acc[key] = req.body[key];
     }
@@ -60,11 +71,6 @@ const update = asyncHandler(async (req, res) => {
   }
   if (fields.currentAmount !== undefined && numberInRange(fields.currentAmount, 0, 1e15) === null) {
     return res.status(400).json({ message: "Informe um valor atual válido." });
-  }
-  if (fields.participantIds !== undefined) {
-    const participants = await authorizedParticipants(req.user.id, fields.participantIds);
-    if (!participants) return res.status(403).json({ message: "Metas só podem ser compartilhadas com amizades aceitas." });
-    fields.participantIds = participants;
   }
   const existingGoal = (await repository.listGoals(req.user.id)).find((goal) => {
     return String(goal.id) === String(req.params.id) && String(goal.userId) === String(req.user.id);

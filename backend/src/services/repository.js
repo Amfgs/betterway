@@ -1,9 +1,12 @@
+const mongoose = require("mongoose");
 const User = require("../models/User");
 const Transaction = require("../models/Transaction");
 const Goal = require("../models/Goal");
 const Limit = require("../models/Limit");
 const Asset = require("../models/Asset");
 const BankConnection = require("../models/BankConnection");
+const PluggyWebhookEvent = require("../models/PluggyWebhookEvent");
+const SharedPlanProposal = require("../models/SharedPlanProposal");
 const { isDatabaseConnected } = require("../config/db");
 const { financialWindow, isInsideFinancialWindow } = require("../utils/financial");
 const { normalizeAvatarValue } = require("../utils/avatars");
@@ -331,7 +334,11 @@ async function deleteFriend(userId, friendId) {
     Goal.updateMany({ userId }, { $pull: { participantIds: friendId } }),
     Goal.updateMany({ userId: friendId }, { $pull: { participantIds: userId } }),
     Limit.updateMany({ userId }, { $pull: { participantIds: friendId } }),
-    Limit.updateMany({ userId: friendId }, { $pull: { participantIds: userId } })
+    Limit.updateMany({ userId: friendId }, { $pull: { participantIds: userId } }),
+    SharedPlanProposal.updateMany(
+      { participantIds: { $all: [userId, friendId] }, status: "pending" },
+      { status: "rejected", resolvedAt: new Date() }
+    )
   ]);
   return true;
 }
@@ -340,6 +347,107 @@ async function getAcceptedFriendIds(userId) {
   if (!isDatabaseConnected()) return memoryStore.getAcceptedFriendIds(userId);
   const user = await User.findById(userId).select("acceptedFriendIds");
   return (user?.acceptedFriendIds || []).map(String);
+}
+
+async function listSharedPlanProposals(userId) {
+  if (!isDatabaseConnected()) return memoryStore.listSharedPlanProposals(userId);
+  const proposals = await SharedPlanProposal.find({ participantIds: userId }).sort({ updatedAt: -1 });
+  return proposals.map(normalize);
+}
+
+async function findSharedPlanProposal(userId, proposalId) {
+  if (!isDatabaseConnected()) return memoryStore.findSharedPlanProposal(userId, proposalId);
+  return normalize(await SharedPlanProposal.findOne({ _id: proposalId, participantIds: userId }));
+}
+
+async function createSharedPlanProposal(payload) {
+  if (!isDatabaseConnected()) return memoryStore.createSharedPlanProposal(payload);
+  return normalize(await SharedPlanProposal.create(payload));
+}
+
+async function counterSharedPlanProposal(userId, proposalId, terms) {
+  if (!isDatabaseConnected()) return memoryStore.counterSharedPlanProposal(userId, proposalId, terms);
+  const current = await SharedPlanProposal.findOne({
+    _id: proposalId,
+    participantIds: userId,
+    currentRecipientId: userId,
+    status: "pending"
+  });
+  if (!current) return null;
+  const nextRevision = Number(current.revision || 1) + 1;
+  return normalize(
+    await SharedPlanProposal.findOneAndUpdate(
+      { _id: proposalId, currentRecipientId: userId, status: "pending", revision: current.revision },
+      {
+        $set: {
+          currentSenderId: userId,
+          currentRecipientId: current.currentSenderId,
+          terms,
+          revision: nextRevision
+        },
+        $push: { revisions: { revision: nextRevision, proposedBy: userId, terms, createdAt: new Date() } }
+      },
+      { new: true, runValidators: true }
+    )
+  );
+}
+
+async function rejectSharedPlanProposal(userId, proposalId) {
+  if (!isDatabaseConnected()) return memoryStore.rejectSharedPlanProposal(userId, proposalId);
+  return normalize(
+    await SharedPlanProposal.findOneAndUpdate(
+      { _id: proposalId, currentRecipientId: userId, status: "pending" },
+      { status: "rejected", resolvedAt: new Date() },
+      { new: true }
+    )
+  );
+}
+
+async function acceptSharedPlanProposal(userId, proposalId) {
+  if (!isDatabaseConnected()) return memoryStore.acceptSharedPlanProposal(userId, proposalId);
+  const session = await mongoose.startSession();
+  let accepted = null;
+  try {
+    await session.withTransaction(async () => {
+      const proposal = await SharedPlanProposal.findOne({
+        _id: proposalId,
+        currentRecipientId: userId,
+        status: "pending"
+      }).session(session);
+      if (!proposal) return;
+
+      const participantIds = proposal.participantIds.filter((id) => String(id) !== String(proposal.initiatorId));
+      let resource;
+      if (proposal.kind === "goal") {
+        [resource] = await Goal.create([{
+          userId: proposal.initiatorId,
+          participantIds,
+          name: proposal.terms.name,
+          targetAmount: proposal.terms.targetAmount,
+          currentAmount: proposal.terms.currentAmount,
+          movements: [],
+          dueDate: proposal.terms.dueDate
+        }], { session });
+      } else {
+        [resource] = await Limit.create([{
+          userId: proposal.initiatorId,
+          participantIds,
+          category: proposal.terms.category,
+          amount: proposal.terms.amount,
+          active: true
+        }], { session });
+      }
+
+      proposal.status = "accepted";
+      proposal.createdResourceId = String(resource._id);
+      proposal.resolvedAt = new Date();
+      await proposal.save({ session });
+      accepted = { proposal: normalize(proposal), resource: normalize(resource) };
+    });
+  } finally {
+    await session.endSession();
+  }
+  return accepted;
 }
 
 async function listAssets(userId) {
@@ -399,6 +507,48 @@ async function deleteBankConnection(userId, connectionId) {
   return result.deletedCount > 0;
 }
 
+async function markBankConnectionError(userId, provider, externalId, syncError) {
+  if (!isDatabaseConnected()) return memoryStore.markBankConnectionError(userId, provider, externalId, syncError);
+  return normalize(
+    await BankConnection.findOneAndUpdate(
+      { userId, provider, externalId },
+      { syncStatus: "error", syncError },
+      { new: true, runValidators: true }
+    )
+  );
+}
+
+async function enqueuePluggyWebhook(payload) {
+  if (!isDatabaseConnected()) return memoryStore.enqueuePluggyWebhook(payload);
+  try {
+    return normalize(await PluggyWebhookEvent.create({
+      ...payload,
+      error: payload.error
+        ? {
+            code: String(payload.error.code || "").slice(0, 100),
+            message: String(payload.error.message || "").slice(0, 240)
+          }
+        : undefined
+    }));
+  } catch (error) {
+    if (error.code === 11000) return null;
+    throw error;
+  }
+}
+
+async function completePluggyWebhook(eventId, status) {
+  if (!isDatabaseConnected()) return memoryStore.completePluggyWebhook(eventId, status);
+  return normalize(await PluggyWebhookEvent.findOneAndUpdate({ eventId }, { status }, { new: true }));
+}
+
+async function listPendingPluggyWebhooks() {
+  if (!isDatabaseConnected()) return memoryStore.listPendingPluggyWebhooks();
+  const events = await PluggyWebhookEvent.find({ status: "pending" })
+    .sort({ createdAt: 1 })
+    .limit(10);
+  return events.map(normalize);
+}
+
 module.exports = {
   findUserByEmail,
   findUserByUsername,
@@ -426,6 +576,12 @@ module.exports = {
   deleteFriendRequest,
   deleteFriend,
   getAcceptedFriendIds,
+  listSharedPlanProposals,
+  findSharedPlanProposal,
+  createSharedPlanProposal,
+  counterSharedPlanProposal,
+  rejectSharedPlanProposal,
+  acceptSharedPlanProposal,
   listAssets,
   createAsset,
   updateAsset,
@@ -433,5 +589,9 @@ module.exports = {
   listBankConnections,
   findBankConnection,
   upsertBankConnection,
-  deleteBankConnection
+  deleteBankConnection,
+  markBankConnectionError,
+  enqueuePluggyWebhook,
+  completePluggyWebhook,
+  listPendingPluggyWebhooks
 };

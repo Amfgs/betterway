@@ -42,7 +42,7 @@ function pluggyErrorMessage(error) {
 
 export function BankConnectionsPanel({ onChange }) {
   const { theme } = useTheme();
-  const [data, setData] = useState({ connections: [], totals: {}, providerConfigured: false });
+  const [data, setData] = useState({ connections: [], totals: {}, providerConfigured: false, providerEnvironment: "trial" });
   const [connectToken, setConnectToken] = useState("");
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState("");
@@ -78,21 +78,11 @@ export function BankConnectionsPanel({ onChange }) {
   useEffect(() => {
     if (!connectToken) return undefined;
     document.documentElement.classList.add("pluggy-connect-active");
-
-    const enableFrameScrolling = () => {
-      document.querySelectorAll("#PluggyConnect iframe").forEach((frame) => {
-        frame.setAttribute("scrolling", "yes");
-        frame.style.overflow = "auto";
-        frame.style.webkitOverflowScrolling = "touch";
-      });
-    };
-    const observer = new MutationObserver(enableFrameScrolling);
-    observer.observe(document.body, { childList: true, subtree: true });
-    enableFrameScrolling();
+    document.body.classList.add("pluggy-connect-active");
 
     return () => {
-      observer.disconnect();
       document.documentElement.classList.remove("pluggy-connect-active");
+      document.body.classList.remove("pluggy-connect-active");
     };
   }, [connectToken]);
 
@@ -177,11 +167,12 @@ export function BankConnectionsPanel({ onChange }) {
     <section className="bank-connections-panel rounded-lg border border-black/5 bg-white p-5 shadow-soft dark:border-white/10 dark:bg-neutral-900">
       {connectToken ? (
         <PluggyConnect
+          allowConnectInBackground={false}
           allowFullscreen
           connectToken={connectToken}
           countries={["BR"]}
           forceOauthInBrowser
-          includeSandbox={import.meta.env.DEV}
+          includeSandbox={data.providerEnvironment === "trial" || import.meta.env.DEV}
           language="pt"
           onClose={() => setConnectToken("")}
           onError={(connectError) => {
@@ -232,6 +223,9 @@ export function BankConnectionsPanel({ onChange }) {
                 <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${data.providerConfigured ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-amber-500/10 text-amber-700 dark:text-amber-300"}`}>
                   {data.providerConfigured ? "Disponível" : "Requer configuração"}
                 </span>
+                {data.providerConfigured && data.providerEnvironment === "trial" ? (
+                  <span className="rounded-full bg-amber-500/10 px-2 py-1 text-[10px] font-black uppercase text-amber-700 dark:text-amber-300">Modo de teste</span>
+                ) : null}
               </div>
               <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Autorize uma instituição pelo widget seguro. A Better Way recebe saldos, extrato recente e posições de investimento.</p>
             </div>
@@ -240,9 +234,19 @@ export function BankConnectionsPanel({ onChange }) {
             <ShieldCheck className="mt-0.5 shrink-0 text-emerald-500" size={16} />
             Sua senha bancária é informada somente no ambiente do conector. A Better Way armazena o identificador da autorização e uma cópia dos saldos, investimentos e lançamentos sincronizados para montar seu painel.
           </div>
+          {data.providerConfigured && data.providerEnvironment === "trial" ? (
+            <div className="mt-3 rounded-lg border border-amber-300/60 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+              <strong className="block">A conexão está em ambiente Trial</strong>
+              <span className="mt-1 block text-xs leading-5">Use o conector Pluggy Bank para validar o fluxo. Instituições reais serão liberadas quando a aplicação receber acesso à produção no painel da Pluggy.</span>
+            </div>
+          ) : null}
           <button className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-3 font-black text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={!data.providerConfigured || Boolean(working)} onClick={startOpenFinance} type="button">
             <Building2 size={18} />
-            {working === "connect" || working === "sync" ? "Conectando..." : "Conectar instituição"}
+            {working === "connect" || working === "sync"
+              ? "Conectando..."
+              : data.providerConfigured && data.providerEnvironment === "trial"
+                ? "Testar com Pluggy Bank"
+                : "Conectar instituição"}
           </button>
           {!data.providerConfigured ? <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-300">A conexão direta está temporariamente indisponível. Tente novamente mais tarde.</p> : null}
         </div>

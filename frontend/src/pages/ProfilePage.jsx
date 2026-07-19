@@ -1,18 +1,64 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Activity, Clock3, LockKeyhole, LogOut, Moon, Save, Settings, ShieldCheck, Sun, Target, WalletCards, X } from "lucide-react";
+import {
+  Activity,
+  ChartNoAxesCombined,
+  Clock3,
+  Landmark,
+  LockKeyhole,
+  LogOut,
+  Moon,
+  Save,
+  Settings,
+  ShieldCheck,
+  SlidersHorizontal,
+  Sun,
+  Target,
+  UserRound,
+  WalletCards,
+  X
+} from "lucide-react";
 import { api, getErrorMessage } from "../api/client";
-import { StatCard } from "../components/StatCard";
 import { BankConnectionsPanel } from "../components/BankConnectionsPanel";
-import { MobileSectionNav, WorkspaceHeader } from "../components/WorkspaceHeader";
+import { StatCard } from "../components/StatCard";
+import { WorkspaceHeader } from "../components/WorkspaceHeader";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { avatarOptions, avatarSrc, normalizeAvatar } from "../utils/avatars";
 import { currency, percent } from "../utils/formatters";
 
+const profileTabs = [
+  { id: "resumo", label: "Resumo", description: "Sua leitura financeira", icon: ChartNoAxesCombined },
+  { id: "financeiro", label: "Dados financeiros", description: "Renda, teto e valor-hora", icon: WalletCards },
+  { id: "conexoes", label: "Conexões", description: "Bancos e corretoras", icon: Landmark },
+  { id: "conta", label: "Conta e segurança", description: "Identidade e acesso", icon: SlidersHorizontal }
+];
+
+function ProfileTabs({ active, onChange }) {
+  return (
+    <nav aria-label="Áreas do perfil" className="profile-tabs" role="tablist">
+      {profileTabs.map((tab) => (
+        <button
+          aria-controls={`profile-panel-${tab.id}`}
+          aria-selected={active === tab.id}
+          className={active === tab.id ? "active" : ""}
+          key={tab.id}
+          onClick={() => onChange(tab.id)}
+          role="tab"
+          type="button"
+        >
+          <span className="profile-tab-icon"><tab.icon size={18} /></span>
+          <span><strong>{tab.label}</strong><small>{tab.description}</small></span>
+        </button>
+      ))}
+    </nav>
+  );
+}
+
 export function ProfilePage() {
   const { user, session, updateProfile, logout, setSessionPersistence } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const [activeTab, setActiveTab] = useState(() => sessionStorage.getItem("betterway_profile_tab") || "resumo");
   const [form, setForm] = useState({
     name: user?.name || "",
     salary: user?.salary || 0,
@@ -45,8 +91,7 @@ export function ProfilePage() {
   }
 
   useEffect(() => {
-    loadProfileData()
-      .catch((err) => setError(getErrorMessage(err)));
+    loadProfileData().catch((err) => setError(getErrorMessage(err)));
   }, []);
 
   useEffect(() => {
@@ -57,7 +102,13 @@ export function ProfilePage() {
       username: user?.username || "",
       email: user?.email || ""
     }));
+    setForm((current) => ({ ...current, name: user?.name || current.name }));
   }, [user]);
+
+  function changeTab(tab) {
+    setActiveTab(tab);
+    sessionStorage.setItem("betterway_profile_tab", tab);
+  }
 
   function update(key, value) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -73,7 +124,7 @@ export function ProfilePage() {
     setMessage("");
     try {
       await updateProfile(form);
-      setMessage("Perfil financeiro salvo.");
+      setMessage("Dados financeiros atualizados.");
     } catch (err) {
       setError(getErrorMessage(err));
     }
@@ -91,9 +142,7 @@ export function ProfilePage() {
         email: settingsForm.email
       };
       if (settingsForm.currentPassword) payload.currentPassword = settingsForm.currentPassword;
-      if (settingsForm.newPassword) {
-        payload.newPassword = settingsForm.newPassword;
-      }
+      if (settingsForm.newPassword) payload.newPassword = settingsForm.newPassword;
       const result = await updateProfile(payload);
       if (result.requiresEmailVerification) {
         navigate("/login", {
@@ -109,7 +158,7 @@ export function ProfilePage() {
       }
       setForm((current) => ({ ...current, name: payload.name }));
       setSettingsForm((current) => ({ ...current, currentPassword: "", newPassword: "" }));
-      setSettingsMessage("Configurações salvas.");
+      setSettingsMessage("Perfil atualizado com segurança.");
     } catch (err) {
       setError(getErrorMessage(err));
     }
@@ -119,310 +168,140 @@ export function ProfilePage() {
     const salary = Number(form.salary || 0);
     const monthlyLimit = Number(form.monthlyLimit || 0);
     const hourlyRate = Number(form.hourlyRate || 1);
-    const protectedIncome = Math.max(salary - monthlyLimit, 0);
-    const budgetUsage = salary ? (monthlyLimit / salary) * 100 : 0;
-    const hoursForLimit = hourlyRate ? monthlyLimit / hourlyRate : 0;
     const goals = summary?.goals || [];
-    const goalsProgress = goals.length ? goals.reduce((sum, goal) => sum + Number(goal.progress || 0), 0) / goals.length : 0;
-
     return {
-      protectedIncome,
-      budgetUsage,
-      hoursForLimit,
-      goalsProgress,
+      protectedIncome: Math.max(salary - monthlyLimit, 0),
+      budgetUsage: salary ? (monthlyLimit / salary) * 100 : 0,
+      hoursForLimit: hourlyRate ? monthlyLimit / hourlyRate : 0,
+      goalsProgress: goals.length ? goals.reduce((sum, goal) => sum + Number(goal.progress || 0), 0) / goals.length : 0,
       netWorth: summary?.widgets?.netWorthEstimate || 0,
       invested: summary?.widgets?.investedCost || portfolio?.totals?.currentValue || 0
     };
   }, [form, portfolio, summary]);
 
   const behaviorItems = [
-    {
-      icon: Clock3,
-      title: "Valor-hora ativo",
-      text: `Cada R$ ${Number(form.hourlyRate || 0).toFixed(2)} representa uma hora de trabalho usada no Raio-X da Compra.`
-    },
-    {
-      icon: Target,
-      title: "Metas protegidas",
-      text: `${currency(profileStats.protectedIncome)} ficam fora do teto mensal para metas, reserva ou investimentos.`
-    },
-    {
-      icon: Activity,
-      title: "Janela financeira",
-      text: summary?.window?.label
-        ? `Análise atual: ${summary.window.label}.`
-        : "A análise usa os 3 últimos dias do mês anterior e os próximos 27 dias."
-    }
+    { icon: Clock3, title: "Valor-hora ativo", text: `R$ ${Number(form.hourlyRate || 0).toFixed(2)} representam uma hora de trabalho no Raio-X da Compra.` },
+    { icon: Target, title: "Renda protegida", text: `${currency(profileStats.protectedIncome)} ficam fora do teto para metas, reserva ou investimentos.` },
+    { icon: Activity, title: "Janela financeira", text: summary?.window?.label ? `Análise atual: ${summary.window.label}.` : "A análise considera sua janela financeira atual." }
   ];
 
   return (
-    <div className="workspace-page profile-page space-y-6">
+    <div className="workspace-page profile-page space-y-5">
       <WorkspaceHeader
-        description="Atualize identidade, tema, segurança e os dados que alimentam suas análises financeiras."
+        description="Centralize identidade, planejamento, conexões e segurança sem perder o contexto."
         eyebrow="Conta"
-        title="Perfil e preferências"
+        title="Seu perfil Better Way"
       />
-      <MobileSectionNav sections={[
-        { id: "conta", label: "Conta" },
-        { id: "bancos", label: "Bancos" },
-        { id: "indicadores", label: "Indicadores" },
-        { id: "preferencias", label: "Preferências" },
-        { id: "seguranca", label: "Segurança" }
-      ]} />
-      {settingsOpen ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4">
-          <form className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-white/10 bg-white p-5 shadow-2xl dark:bg-neutral-900" onSubmit={saveSettings}>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Configurações</p>
-                <h2 className="text-2xl font-black">Editar perfil do usuário</h2>
-              </div>
-              <button className="rounded-lg border border-black/10 p-2 dark:border-white/10" onClick={() => setSettingsOpen(false)} type="button">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="mt-5 grid gap-4">
-              <div>
-                <span className="text-sm font-medium">Escolha um avatar gerado</span>
-                <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-5">
-                  {avatarOptions.map((avatar) => {
-                    const active = settingsForm.avatarUrl === avatar.value;
-                    return (
-                      <button
-                        className={`rounded-lg border p-2 transition ${
-                          active
-                            ? "border-emerald-500 bg-emerald-500/10"
-                            : "border-black/10 hover:border-emerald-400 dark:border-white/10"
-                        }`}
-                        key={avatar.label}
-                        onClick={() => updateSettings("avatarUrl", avatar.value)}
-                        type="button"
-                      >
-                        <img alt={avatar.label} className="mx-auto h-16 w-16 rounded-lg object-cover" src={avatar.src} />
-                        <span className="mt-2 block text-xs font-black">{avatar.label}</span>
-                      </button>
-                    );
-                  })}
+
+      <section className="profile-shell">
+        <ProfileTabs active={activeTab} onChange={changeTab} />
+        <div className="profile-panel-wrap">
+          {error ? <p className="mb-4 rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-700 dark:text-red-300" role="alert">{error}</p> : null}
+          {message ? <p className="mb-4 rounded-lg bg-emerald-500/10 p-3 text-sm font-medium text-emerald-700 dark:text-emerald-300" role="status">{message}</p> : null}
+
+          {activeTab === "resumo" ? (
+            <div className="profile-tab-panel space-y-5" id="profile-panel-resumo" role="tabpanel">
+              <section className="profile-identity-card">
+                <div className="flex min-w-0 items-center gap-4">
+                  <img alt={user?.name || "Avatar"} className="h-20 w-20 shrink-0 rounded-lg object-cover" src={avatarSrc(user?.avatarUrl)} />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Perfil comportamental</p>
+                    <h2 className="truncate text-2xl font-black sm:text-3xl">{user?.name}</h2>
+                    <p className="truncate text-sm font-bold text-emerald-700 dark:text-emerald-300">@{user?.username}</p>
+                    <p className="truncate text-sm text-zinc-500 dark:text-zinc-400">{user?.email}</p>
+                  </div>
                 </div>
+                <button className="profile-secondary-button" onClick={() => { changeTab("conta"); setSettingsOpen(true); }} type="button"><Settings size={17} /> Editar perfil</button>
+              </section>
+
+              <section className="profile-metrics grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <StatCard label="Patrimônio estimado" value={currency(profileStats.netWorth)} detail="Conta + investimentos" tone="safe" />
+                <StatCard label="Investimentos" value={currency(profileStats.invested)} detail="Carteira atual" />
+                <StatCard label="Renda protegida" value={currency(profileStats.protectedIncome)} detail="Fora do teto mensal" tone="safe" />
+                <StatCard label="Progresso das metas" value={percent(profileStats.goalsProgress)} detail="Média cadastrada" />
+              </section>
+
+              <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+                <section className="profile-content-card">
+                  <div className="flex items-center gap-3"><ShieldCheck className="text-emerald-500" size={22} /><div><h2 className="text-lg font-black">Sua leitura financeira</h2><p className="text-sm text-zinc-500 dark:text-zinc-400">Como seus dados orientam o produto.</p></div></div>
+                  <div className="mt-4 grid gap-2">
+                    {behaviorItems.map((item) => (
+                      <div className="profile-insight" key={item.title}><span><item.icon size={17} /></span><div><strong>{item.title}</strong><p>{item.text}</p></div></div>
+                    ))}
+                  </div>
+                </section>
+                <section className="profile-content-card">
+                  <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Peso do teto na renda</p>
+                  <strong className="mt-2 block text-4xl font-black tabular-nums">{percent(profileStats.budgetUsage)}</strong>
+                  <div className="mt-5 h-2.5 overflow-hidden rounded-full bg-stone-100 dark:bg-neutral-800"><div className={`h-full rounded-full ${profileStats.budgetUsage >= 100 ? "bg-red-500" : profileStats.budgetUsage >= 80 ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${Math.min(profileStats.budgetUsage, 100)}%` }} /></div>
+                  <p className="mt-4 text-sm leading-6 text-zinc-600 dark:text-zinc-300">Seu teto equivale a aproximadamente <strong>{profileStats.hoursForLimit.toFixed(1)} horas</strong> de trabalho.</p>
+                </section>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block">
-                  <span className="text-sm font-medium">Nome</span>
-                  <input className="mt-1 w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" value={settingsForm.name} onChange={(event) => updateSettings("name", event.target.value)} />
-                </label>
-                <label className="block">
-                  <span className="text-sm font-medium">Nome de usuário</span>
-                  <input
-                    autoCapitalize="none"
-                    autoComplete="username"
-                    className="mt-1 w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10"
-                    maxLength={24}
-                    minLength={3}
-                    onChange={(event) => updateSettings("username", event.target.value.replace(/^@+/, "").toLowerCase().replace(/[^a-z0-9._]/g, ""))}
-                    value={settingsForm.username}
-                  />
-                </label>
-                <label className="block sm:col-span-2">
-                  <span className="text-sm font-medium">E-mail</span>
-                  <input className="mt-1 w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" type="email" value={settingsForm.email} onChange={(event) => updateSettings("email", event.target.value)} />
-                </label>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block">
-                  <span className="text-sm font-medium">Senha atual</span>
-                  <input className="mt-1 w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" maxLength={72} type="password" value={settingsForm.currentPassword} onChange={(event) => updateSettings("currentPassword", event.target.value)} />
-                </label>
-                <label className="block">
-                  <span className="text-sm font-medium">Nova senha</span>
-                  <input className="mt-1 w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" maxLength={72} type="password" value={settingsForm.newPassword} onChange={(event) => updateSettings("newPassword", event.target.value)} />
-                </label>
-              </div>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">A senha atual é obrigatória para trocar a senha ou o e-mail. Um novo e-mail precisará ser confirmado por código.</p>
-              {settingsMessage ? <p className="rounded-lg bg-emerald-500/10 p-3 text-sm font-medium text-emerald-700 dark:text-emerald-300">{settingsMessage}</p> : null}
-              <button className="rounded-lg bg-emerald-500 px-4 py-3 font-black text-white" type="submit">
-                Salvar configurações
-              </button>
             </div>
+          ) : null}
+
+          {activeTab === "financeiro" ? (
+            <form className="profile-tab-panel profile-content-card" id="profile-panel-financeiro" onSubmit={submit} role="tabpanel">
+              <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Base dos cálculos</p><h2 className="text-2xl font-black">Dados financeiros</h2><p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Esses valores alimentam teto, alertas e custo de oportunidade.</p></div><WalletCards className="text-emerald-500" size={26} /></div>
+              <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                <label className="profile-field sm:col-span-2"><span>Nome de exibição</span><input value={form.name} onChange={(event) => update("name", event.target.value)} /></label>
+                <label className="profile-field"><span>Salário líquido mensal</span><input min="0" step="0.01" type="number" value={form.salary} onChange={(event) => update("salary", event.target.value)} /><small>Renda usada como referência do mês.</small></label>
+                <label className="profile-field"><span>Teto mensal de gastos</span><input min="0" step="0.01" type="number" value={form.monthlyLimit} onChange={(event) => update("monthlyLimit", event.target.value)} /><small>Investimentos não consomem esse teto.</small></label>
+                <label className="profile-field sm:col-span-2"><span>Valor da sua hora de trabalho</span><input min="0" step="0.01" type="number" value={form.hourlyRate} onChange={(event) => update("hourlyRate", event.target.value)} /><small>Usado para traduzir compras em tempo de trabalho.</small></label>
+              </div>
+              <button className="profile-primary-button mt-6" type="submit"><Save size={18} /> Salvar dados financeiros</button>
+            </form>
+          ) : null}
+
+          {activeTab === "conexoes" ? (
+            <div className="profile-tab-panel" id="profile-panel-conexoes" role="tabpanel"><BankConnectionsPanel onChange={loadProfileData} /></div>
+          ) : null}
+
+          {activeTab === "conta" ? (
+            <div className="profile-tab-panel grid gap-4 xl:grid-cols-2" id="profile-panel-conta" role="tabpanel">
+              <section className="profile-content-card">
+                <div className="flex items-center gap-3"><UserRound className="text-emerald-500" size={22} /><div><h2 className="text-lg font-black">Identidade</h2><p className="text-sm text-zinc-500 dark:text-zinc-400">Informações usadas no perfil e em Amigos.</p></div></div>
+                <div className="mt-5 flex items-center gap-3"><img alt={user?.name || "Avatar"} className="h-14 w-14 rounded-lg object-cover" src={avatarSrc(user?.avatarUrl)} /><div className="min-w-0"><strong className="block truncate">{user?.name}</strong><span className="block truncate text-sm text-zinc-500">@{user?.username}</span></div></div>
+                <button className="profile-primary-button mt-5" onClick={() => setSettingsOpen(true)} type="button"><Settings size={17} /> Editar identidade e senha</button>
+              </section>
+
+              <section className="profile-content-card">
+                <div className="flex items-center gap-3"><Moon className="text-emerald-500" size={22} /><div><h2 className="text-lg font-black">Aparência</h2><p className="text-sm text-zinc-500 dark:text-zinc-400">O tema é salvo neste navegador.</p></div></div>
+                <button aria-pressed={theme === "dark"} className="profile-theme-control mt-5" onClick={toggleTheme} type="button"><span>{theme === "dark" ? <Moon size={18} /> : <Sun size={18} />}</span><div><strong>{theme === "dark" ? "Modo escuro" : "Modo claro"}</strong><small>Toque para alternar suavemente</small></div><i aria-hidden="true" /></button>
+              </section>
+
+              <section className="profile-content-card xl:col-span-2">
+                <div className="flex items-center gap-3"><LockKeyhole className="text-emerald-500" size={22} /><div><h2 className="text-lg font-black">Acesso neste dispositivo</h2><p className="text-sm text-zinc-500 dark:text-zinc-400">Controle por quanto tempo o login permanece válido.</p></div></div>
+                <label className="profile-session-control mt-5"><span><strong>Manter acesso por 15 dias</strong><small>{session?.persistent ? `Novo login após ${new Date(session.expiresAt).toLocaleDateString("pt-BR")}.` : "A sessão termina ao fechar este navegador."}</small></span><input aria-label="Manter acesso por 15 dias" checked={Boolean(session?.persistent)} onChange={(event) => setSessionPersistence(event.target.checked)} type="checkbox" /></label>
+              </section>
+
+              <section className="profile-danger-zone xl:col-span-2">
+                <div><h2 className="text-lg font-black">Sair da conta</h2><p>Encerra sua sessão somente neste dispositivo.</p></div>
+                <button onClick={logout} type="button"><LogOut size={18} /> Sair da conta</button>
+              </section>
+            </div>
+          ) : null}
+        </div>
+      </section>
+
+      {settingsOpen ? (
+        <div aria-modal="true" className="profile-dialog-backdrop" role="dialog" onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}>
+          <form className="profile-dialog" onSubmit={saveSettings}>
+            <div className="flex items-start justify-between gap-4"><div><p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Identidade e segurança</p><h2 className="text-2xl font-black">Editar perfil</h2></div><button aria-label="Fechar" className="profile-icon-button" onClick={() => setSettingsOpen(false)} type="button"><X size={18} /></button></div>
+            <div className="mt-5"><span className="text-sm font-bold">Escolha seu avatar</span><div className="profile-avatar-grid mt-2">{avatarOptions.map((avatar) => { const active = settingsForm.avatarUrl === avatar.value; return <button aria-pressed={active} className={active ? "active" : ""} key={avatar.value} onClick={() => updateSettings("avatarUrl", avatar.value)} type="button"><img alt={avatar.label} src={avatar.src} /><span>{avatar.label}</span></button>; })}</div></div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <label className="profile-field"><span>Nome</span><input value={settingsForm.name} onChange={(event) => updateSettings("name", event.target.value)} /></label>
+              <label className="profile-field"><span>Nome de usuário</span><input autoCapitalize="none" maxLength={24} minLength={3} value={settingsForm.username} onChange={(event) => updateSettings("username", event.target.value.replace(/^@+/, "").toLowerCase().replace(/[^a-z0-9._]/g, ""))} /></label>
+              <label className="profile-field sm:col-span-2"><span>E-mail</span><input type="email" value={settingsForm.email} onChange={(event) => updateSettings("email", event.target.value)} /></label>
+              <label className="profile-field"><span>Senha atual</span><input maxLength={72} type="password" value={settingsForm.currentPassword} onChange={(event) => updateSettings("currentPassword", event.target.value)} /></label>
+              <label className="profile-field"><span>Nova senha</span><input maxLength={72} type="password" value={settingsForm.newPassword} onChange={(event) => updateSettings("newPassword", event.target.value)} /></label>
+            </div>
+            <p className="mt-3 text-xs leading-5 text-zinc-500 dark:text-zinc-400">A senha atual é obrigatória para trocar a senha ou o e-mail. O novo e-mail precisará ser confirmado por código.</p>
+            {settingsMessage ? <p className="mt-3 rounded-lg bg-emerald-500/10 p-3 text-sm font-medium text-emerald-700 dark:text-emerald-300">{settingsMessage}</p> : null}
+            <button className="profile-primary-button mt-5 w-full" type="submit"><Save size={18} /> Salvar alterações</button>
           </form>
         </div>
       ) : null}
-      <section className="profile-identity-card rounded-lg border border-black/5 bg-white p-5 shadow-soft dark:border-white/10 dark:bg-neutral-900" id="conta">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-4">
-            <div className="grid h-16 w-16 place-items-center overflow-hidden rounded-lg bg-emerald-500 text-white">
-              <img alt={user?.name || "Avatar"} className="h-full w-full object-cover" src={avatarSrc(user?.avatarUrl)} />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Perfil e segurança</p>
-              <h2 className="text-3xl font-black">{user?.name}</h2>
-              <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">@{user?.username}</p>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">{user?.email}</p>
-            </div>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <div className="rounded-lg bg-stone-100 p-3 dark:bg-neutral-800">
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">Tema</p>
-              <button className="mt-1 inline-flex items-center gap-2 rounded-lg bg-zinc-900 px-3 py-2 text-sm font-black text-white dark:bg-white dark:text-zinc-950" onClick={toggleTheme} type="button">
-                {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-                {theme === "dark" ? "Ativar light" : "Ativar dark"}
-              </button>
-            </div>
-            <div className="rounded-lg bg-stone-100 p-3 dark:bg-neutral-800">
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">Perfil</p>
-              <div className="mt-1 flex items-center justify-between gap-3">
-                <p className="font-black">Comportamental</p>
-                <button className="rounded-lg border border-black/10 p-2 dark:border-white/10" onClick={() => setSettingsOpen(true)} type="button" title="Configurações">
-                  <Settings size={16} />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <div id="bancos">
-        <BankConnectionsPanel onChange={loadProfileData} />
-      </div>
-
-      <section className="profile-metrics grid gap-4 md:grid-cols-2 xl:grid-cols-4" id="indicadores">
-        <StatCard label="Patrimônio estimado" value={currency(profileStats.netWorth)} detail="Banco + custo investido" tone="safe" />
-        <StatCard label="Investimentos" value={currency(profileStats.invested)} detail="Valor atual da carteira" />
-        <StatCard label="Sobra planejada" value={currency(profileStats.protectedIncome)} detail="Salário menos teto mensal" tone="safe" />
-        <StatCard label="Metas médias" value={percent(profileStats.goalsProgress)} detail="Progresso médio cadastrado" />
-      </section>
-
-      <section className="profile-settings-grid grid gap-4 xl:grid-cols-[0.85fr_1.15fr]" id="preferencias">
-        <form className="rounded-lg border border-black/5 bg-white p-5 shadow-soft dark:border-white/10 dark:bg-neutral-900" onSubmit={submit}>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-black">Dados financeiros</h2>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">Esses valores alimentam alertas, teto e Raio-X.</p>
-            </div>
-            <WalletCards className="text-emerald-500" size={24} />
-          </div>
-          <div className="mt-5 grid gap-4">
-            <label className="block">
-              <span className="text-sm font-medium">Nome</span>
-              <input className="mt-1 w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" value={form.name} onChange={(event) => update("name", event.target.value)} />
-            </label>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <label className="block">
-                <span className="text-sm font-medium">Salário líquido</span>
-                <input className="mt-1 w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" value={form.salary} onChange={(event) => update("salary", event.target.value)} type="number" />
-              </label>
-              <label className="block">
-                <span className="text-sm font-medium">Teto mensal</span>
-                <input className="mt-1 w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" value={form.monthlyLimit} onChange={(event) => update("monthlyLimit", event.target.value)} type="number" />
-              </label>
-              <label className="block">
-                <span className="text-sm font-medium">Valor-hora</span>
-                <input className="mt-1 w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" value={form.hourlyRate} onChange={(event) => update("hourlyRate", event.target.value)} type="number" />
-              </label>
-            </div>
-            {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p> : null}
-            {message ? <p className="rounded-lg bg-emerald-500/10 p-3 text-sm font-medium text-emerald-700 dark:text-emerald-300">{message}</p> : null}
-            <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-3 font-black text-white" type="submit">
-              <Save size={18} />
-              Salvar perfil
-            </button>
-          </div>
-        </form>
-
-        <div className="grid gap-4">
-          <section className="rounded-lg border border-black/5 bg-white p-5 shadow-soft dark:border-white/10 dark:bg-neutral-900">
-            <div className="flex items-center gap-3">
-              <ShieldCheck className="text-emerald-500" size={24} />
-              <div>
-                <h2 className="text-xl font-black">Mapa comportamental</h2>
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">Como o app interpreta suas escolhas.</p>
-              </div>
-            </div>
-            <div className="mt-5 space-y-3">
-              {behaviorItems.map((item) => (
-                <div key={item.title} className="flex gap-3 rounded-lg bg-stone-100 p-3 dark:bg-neutral-800">
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-emerald-500 text-white">
-                    <item.icon size={18} />
-                  </div>
-                  <div>
-                    <p className="font-black">{item.title}</p>
-                    <p className="text-sm leading-6 text-zinc-600 dark:text-zinc-300">{item.text}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="rounded-lg border border-black/5 bg-white p-5 shadow-soft dark:border-white/10 dark:bg-neutral-900">
-            <div className="flex items-center gap-3">
-              <LockKeyhole className="text-emerald-500" size={24} />
-              <div>
-                <h2 className="text-xl font-black">Segurança da conta</h2>
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">Dados financeiros protegidos no fluxo autenticado.</p>
-              </div>
-            </div>
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-lg bg-stone-100 p-3 dark:bg-neutral-800">
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">Login</p>
-                <p className="font-black">Protegido</p>
-              </div>
-              <div className="rounded-lg bg-stone-100 p-3 dark:bg-neutral-800">
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">Senha</p>
-                <p className="font-black">Criptografada</p>
-              </div>
-              <div className="rounded-lg bg-stone-100 p-3 dark:bg-neutral-800">
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">Dados</p>
-                <p className="font-black">Individuais</p>
-              </div>
-            </div>
-            <label className="mt-4 flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-black/5 bg-stone-50 p-3 dark:border-white/10 dark:bg-neutral-800">
-              <span>
-                <strong className="block text-sm">Manter acesso neste dispositivo</strong>
-                <small className="mt-1 block text-xs leading-5 text-zinc-500 dark:text-zinc-400">
-                  {session?.persistent
-                    ? `Sem novo login até ${new Date(session.expiresAt).toLocaleDateString("pt-BR")}.`
-                    : "O acesso termina quando este navegador for fechado."}
-                </small>
-              </span>
-              <input
-                aria-label="Manter acesso por 15 dias"
-                checked={Boolean(session?.persistent)}
-                className="h-5 w-5 shrink-0 accent-emerald-600"
-                onChange={(event) => setSessionPersistence(event.target.checked)}
-                type="checkbox"
-              />
-            </label>
-          </section>
-        </div>
-      </section>
-
-      <section className="rounded-lg border border-black/5 bg-white p-5 shadow-soft dark:border-white/10 dark:bg-neutral-900">
-        <h2 className="text-xl font-black">Indicadores do teto</h2>
-        <div className="mt-4 h-3 overflow-hidden rounded-full bg-stone-100 dark:bg-neutral-800">
-          <div
-            className={`h-full rounded-full ${
-              profileStats.budgetUsage >= 100 ? "bg-red-500" : profileStats.budgetUsage >= 80 ? "bg-amber-500" : "bg-emerald-500"
-            }`}
-            style={{ width: `${Math.min(profileStats.budgetUsage, 100)}%` }}
-          />
-        </div>
-        <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
-          Seu teto mensal consome {percent(profileStats.budgetUsage)} do salário e equivale a aproximadamente{" "}
-          {profileStats.hoursForLimit.toFixed(1)} horas de trabalho.
-        </p>
-      </section>
-
-      <section className="profile-logout rounded-lg border border-red-200 bg-red-50 p-5 dark:border-red-500/30 dark:bg-red-500/10" id="seguranca">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-xl font-black text-red-950 dark:text-red-50">Sair da conta</h2>
-            <p className="text-sm text-red-700 dark:text-red-200">Encerra sua sessão somente neste dispositivo.</p>
-          </div>
-          <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-3 font-black text-white hover:bg-red-700" onClick={logout} type="button">
-            <LogOut size={18} />
-            Sair da conta
-          </button>
-        </div>
-      </section>
     </div>
   );
 }

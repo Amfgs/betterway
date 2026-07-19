@@ -2,6 +2,7 @@ const asyncHandler = require("../utils/asyncHandler");
 const repository = require("../services/repository");
 const pluggy = require("../services/pluggyService");
 const { summarizeConnections } = require("../services/bankSummaryService");
+const { processEvent } = require("./pluggyWebhookController");
 
 function publicConnection(connection) {
   if (!connection) return null;
@@ -28,9 +29,21 @@ async function syncPluggyItem(userId, itemId) {
 }
 
 const list = asyncHandler(async (req, res) => {
+  if (pluggy.providerConfigured()) {
+    const pendingEvents = await repository.listPendingPluggyWebhooks();
+    for (const event of pendingEvents) {
+      try {
+        await processEvent(event);
+        await repository.completePluggyWebhook(event.eventId, "processed");
+      } catch {
+        break;
+      }
+    }
+  }
   const connections = directConnections(await repository.listBankConnections(req.user.id));
   return res.json({
     providerConfigured: pluggy.providerConfigured(),
+    providerEnvironment: pluggy.providerEnvironment(),
     connections: publicConnections(connections),
     totals: summarizeConnections(connections),
     methods: [{ id: "open_finance", available: pluggy.providerConfigured() }]
@@ -39,7 +52,11 @@ const list = asyncHandler(async (req, res) => {
 
 const createConnectToken = asyncHandler(async (req, res) => {
   const connectToken = await pluggy.createConnectToken(req.user.id);
-  return res.json({ connectToken, accessToken: connectToken });
+  return res.json({
+    connectToken,
+    accessToken: connectToken,
+    providerEnvironment: pluggy.providerEnvironment()
+  });
 });
 
 const syncPluggy = asyncHandler(async (req, res) => {

@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, LoaderCircle, LockKeyhole, Moon, ShieldCheck, Sun, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, LoaderCircle, LockKeyhole, ShieldCheck, X } from "lucide-react";
 import heroImage from "../assets/landing/betterway-hero.webp";
 import { getErrorMessage } from "../api/client";
 import { GoogleSignInButton } from "../components/GoogleSignInButton";
 import { Logo } from "../components/Logo";
 import { useAuth } from "../context/AuthContext";
-import { useTheme } from "../context/ThemeContext";
 
 export function AuthPage() {
   const {
@@ -23,7 +22,6 @@ export function AuthPage() {
     restoreError,
     session
   } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const [mode, setMode] = useState("login");
   const [form, setForm] = useState({
     name: "",
@@ -320,9 +318,6 @@ export function AuthPage() {
       <main className="auth-panel">
         <div className="auth-panel-top">
           <Link aria-label="Better Way início" className="auth-mobile-logo" to="/"><Logo size={36} /></Link>
-          <button aria-label="Alternar tema" className="auth-theme-button" onClick={toggleTheme} title="Alternar tema" type="button">
-            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
         </div>
 
         <div className={`auth-form-wrap auth-form-wrap-${mode}`}>

@@ -19,6 +19,7 @@ delete process.env.SMTP_PASS;
 delete process.env.RESEND_API_KEY;
 delete process.env.PLUGGY_CLIENT_ID;
 delete process.env.PLUGGY_CLIENT_SECRET;
+process.env.PLUGGY_WEBHOOK_SECRET = "pluggy-test-webhook-secret";
 delete process.env.GOOGLE_CLIENT_ID;
 
 const app = require("../src/app");
@@ -218,14 +219,13 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
   assert.equal(pendingForB.data.incomingRequests[0].username, userA.username);
   assert.equal(pendingForB.data.incomingRequests[0].email, undefined);
 
-  const forbiddenShare = await api(baseUrl, "/goals", {
+  const forbiddenShare = await api(baseUrl, "/shared-plans", {
     method: "POST",
     token: userA.token,
     body: {
-      name: "Ainda sem consentimento",
-      targetAmount: 5000,
-      dueDate: "2027-01-10",
-      participantIds: [userB.user.id]
+      friendId: userB.user.id,
+      kind: "goal",
+      terms: { name: "Ainda sem amizade", targetAmount: 5000, dueDate: "2027-01-10" }
     }
   });
   assert.equal(forbiddenShare.status, 403);
@@ -236,7 +236,7 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
   });
   assert.equal(accepted.status, 200);
 
-  const goalResult = await api(baseUrl, "/goals", {
+  const directSharedGoal = await api(baseUrl, "/goals", {
     method: "POST",
     token: userA.token,
     body: {
@@ -247,8 +247,56 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
       participantIds: [userB.user.id]
     }
   });
-  assert.equal(goalResult.status, 201);
-  const goal = goalResult.data.goal;
+  assert.equal(directSharedGoal.status, 409);
+  assert.equal(directSharedGoal.data.code, "SHARED_PLAN_REQUIRES_APPROVAL");
+
+  const goalProposal = await api(baseUrl, "/shared-plans", {
+    method: "POST",
+    token: userA.token,
+    body: {
+      friendId: userB.user.id,
+      kind: "goal",
+      terms: { name: "Reserva compartilhada", targetAmount: 5000, currentAmount: 100, dueDate: "2027-01-10" }
+    }
+  });
+  assert.equal(goalProposal.status, 201);
+  assert.equal(goalProposal.data.proposal.status, "pending");
+
+  const senderCannotAccept = await api(baseUrl, `/shared-plans/${goalProposal.data.proposal.id}/accept`, {
+    method: "POST",
+    token: userA.token
+  });
+  assert.equal(senderCannotAccept.status, 404);
+
+  const counterProposal = await api(baseUrl, `/shared-plans/${goalProposal.data.proposal.id}/counter`, {
+    method: "POST",
+    token: userB.token,
+    body: { terms: { name: "Reserva compartilhada", targetAmount: 5500, currentAmount: 125, dueDate: "2027-02-10" } }
+  });
+  assert.equal(counterProposal.status, 200);
+  assert.equal(counterProposal.data.proposal.revision, 2);
+  assert.equal(String(counterProposal.data.proposal.currentRecipientId), String(userA.user.id));
+
+  const goalResult = await api(baseUrl, `/shared-plans/${goalProposal.data.proposal.id}/accept`, {
+    method: "POST",
+    token: userA.token
+  });
+  assert.equal(goalResult.status, 200);
+  assert.equal(goalResult.data.proposal.status, "accepted");
+  const goal = goalResult.data.resource;
+
+  const limitProposal = await api(baseUrl, "/shared-plans", {
+    method: "POST",
+    token: userA.token,
+    body: { friendId: userB.user.id, kind: "limit", terms: { category: "Lazer", amount: 350 } }
+  });
+  assert.equal(limitProposal.status, 201);
+  const rejectedLimit = await api(baseUrl, `/shared-plans/${limitProposal.data.proposal.id}/reject`, {
+    method: "POST",
+    token: userB.token
+  });
+  assert.equal(rejectedLimit.status, 200);
+  assert.equal(rejectedLimit.data.proposal.status, "rejected");
 
   const participantEdit = await api(baseUrl, `/goals/${goal.id}`, {
     method: "PUT",
@@ -267,7 +315,7 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
     body: { type: "deposit", amount: 50, notes: "Aporte conjunto" }
   });
   assert.equal(participantMovement.status, 201);
-  assert.equal(participantMovement.data.goal.currentAmount, 150);
+  assert.equal(participantMovement.data.goal.currentAmount, 175);
 
   const removeFriend = await api(baseUrl, `/friends/${userB.user.id}`, {
     method: "DELETE",
@@ -378,6 +426,7 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
   const bankConnections = await api(baseUrl, "/bank-connections", { token: passwordChange.data.token });
   assert.equal(bankConnections.status, 200);
   assert.equal(bankConnections.data.providerConfigured, false);
+  assert.equal(bankConnections.data.providerEnvironment, "trial");
   assert.equal(bankConnections.data.connections.length, 0);
   assert.deepEqual(bankConnections.data.methods, [{ id: "open_finance", available: false }]);
   assert.equal(bankConnections.data.totals.accountBalance, 0);
@@ -394,6 +443,19 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
   assert.equal(connectTokenWithoutProvider.status, 503);
   assert.equal(connectTokenWithoutProvider.data.accessToken, undefined);
   assert.match(connectTokenWithoutProvider.data.message, /Open Finance ainda não foi configurada/);
+
+  const unauthorizedWebhook = await api(baseUrl, "/bank-connections/pluggy/webhook", {
+    method: "POST",
+    body: { event: "item/updated", eventId: "event-unauthorized" }
+  });
+  assert.equal(unauthorizedWebhook.status, 401);
+  const acceptedWebhook = await api(baseUrl, "/bank-connections/pluggy/webhook", {
+    method: "POST",
+    headers: { Authorization: "Bearer pluggy-test-webhook-secret" },
+    body: { event: "item/updated", eventId: "event-accepted" }
+  });
+  assert.equal(acceptedWebhook.status, 202);
+  assert.deepEqual(acceptedWebhook.data, { received: true });
 
   const malformedJson = await api(baseUrl, "/auth/login", {
     method: "POST",
