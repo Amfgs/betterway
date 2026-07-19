@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 export function WorkspaceHeader({ eyebrow, title, description, actions }) {
@@ -26,6 +27,56 @@ export function WorkspaceTabs({ tabs, active }) {
           </Link>
         );
       })}
+    </nav>
+  );
+}
+
+export function MobileSectionNav({ sections }) {
+  const [activeSection, setActiveSection] = useState(sections[0]?.id || "");
+  const sectionIds = sections.map((section) => section.id).join("|");
+
+  useEffect(() => {
+    const elements = sectionIds
+      .split("|")
+      .map((sectionId) => document.getElementById(sectionId))
+      .filter(Boolean);
+    if (!elements.length || typeof IntersectionObserver === "undefined") return undefined;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((left, right) => right.intersectionRatio - left.intersectionRatio)[0];
+        if (visible?.target?.id) setActiveSection(visible.target.id);
+      },
+      { rootMargin: "-126px 0px -58% 0px", threshold: [0.08, 0.3, 0.65] }
+    );
+
+    elements.forEach((element) => observer.observe(element));
+    return () => observer.disconnect();
+  }, [sectionIds]);
+
+  function jumpTo(sectionId) {
+    const target = document.getElementById(sectionId);
+    if (!target) return;
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    target.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#${sectionId}`);
+    setActiveSection(sectionId);
+  }
+
+  return (
+    <nav aria-label="Atalhos desta página" className="mobile-section-nav">
+      {sections.map((section) => (
+        <button
+          aria-current={activeSection === section.id ? "location" : undefined}
+          key={section.id}
+          onClick={() => jumpTo(section.id)}
+          type="button"
+        >
+          {section.label}
+        </button>
+      ))}
     </nav>
   );
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, Plus, Trash2, X } from "lucide-react";
 import { api, getErrorMessage } from "../api/client";
-import { WorkspaceHeader } from "../components/WorkspaceHeader";
+import { MobileSectionNav, WorkspaceHeader } from "../components/WorkspaceHeader";
 import { useAuth } from "../context/AuthContext";
 import { currency, shortDate } from "../utils/formatters";
 import { readScopedStoredValue, removeStoredValue, scopedStorageKey, storageKeys } from "../utils/storageKeys";
@@ -378,10 +378,15 @@ export function CalendarPage() {
         eyebrow="Calendário"
         title={`Planejamento de ${selectedMonthLabel}`}
       />
+      <MobileSectionNav sections={[
+        { id: "resumo-calendario", label: "Resumo" },
+        { id: "calendario-mensal", label: "Calendário" },
+        { id: "ajustes-calendario", label: "Ajustes" }
+      ]} />
 
       {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p> : null}
 
-      <section className="calendar-metrics grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <section className="calendar-metrics grid gap-4 md:grid-cols-2 xl:grid-cols-5" id="resumo-calendario">
         <Metric label="Entradas do mês" value={currency(calendar.income)} />
         <Metric label="Saídas do mês" value={currency(calendar.expenses)} tone="danger" />
         <Metric label="Limites disponíveis" value={currency(calendar.available)} tone={calendar.available >= 0 ? "safe" : "danger"} />
@@ -390,7 +395,7 @@ export function CalendarPage() {
       </section>
 
       <section className="calendar-workspace grid gap-4 xl:grid-cols-[1.28fr_0.72fr]">
-        <div className="calendar-settings space-y-4">
+        <div className="calendar-settings space-y-4" id="ajustes-calendario">
           <section className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900">
             <div className="flex items-center gap-2">
               <CalendarDays className="text-emerald-500" size={20} />
@@ -510,7 +515,7 @@ export function CalendarPage() {
           </div>
         </div>
 
-        <div className="calendar-board rounded-lg border border-black/5 bg-white p-2 shadow-soft dark:border-white/10 dark:bg-neutral-900 sm:p-4">
+        <div className="calendar-board rounded-lg border border-black/5 bg-white p-2 shadow-soft dark:border-white/10 dark:bg-neutral-900 sm:p-4" id="calendario-mensal">
           <div className="grid grid-cols-7 gap-1 text-center text-xs font-black uppercase text-zinc-500 dark:text-zinc-300">
             {weekdayOptions.map((day) => (
               <span key={day.value}>{day.short}</span>

@@ -2,7 +2,7 @@
 
 Sim, o deploy na Vercel é possível. O caminho mais estável para este monorepo é criar dois projetos na Vercel.
 
-Projetos atuais: `betterway` para o frontend e `betterway-api` para a API. Até a ativação de `betterway.com.br`, o frontend está em `https://betterway.vercel.app`.
+Projetos atuais: `betterway` para o frontend e `betterway-api` para a API. O endereço principal é `https://betterway.com.br`.
 
 ## 1. Frontend Web
 
@@ -14,6 +14,7 @@ Projetos atuais: `betterway` para o frontend e `betterway-api` para a API. Até 
 
 ```env
 VITE_API_URL=https://betterway-api.vercel.app/api
+VITE_GOOGLE_CLIENT_ID=seu_oauth_web_client_id.apps.googleusercontent.com
 ```
 
 O arquivo `frontend/vercel.json` já mantém o fallback de rotas para o React Router.
@@ -33,6 +34,7 @@ BRAPI_API_KEY=sua_chave_brapi
 NEWS_API_KEY=sua_chave_newsapi
 PLUGGY_CLIENT_ID=seu_client_id_pluggy
 PLUGGY_CLIENT_SECRET=seu_client_secret_pluggy
+GOOGLE_CLIENT_ID=seu_oauth_web_client_id.apps.googleusercontent.com
 SMTP_HOST=smtp.seu-provedor.com
 SMTP_PORT=587
 SMTP_SECURE=false
@@ -47,6 +49,10 @@ Em produção, uma conexão MongoDB, `JWT_SECRET` e `CLIENT_URL` são obrigatór
 `RESEND_API_KEY` é necessária para verificação e recuperação por e-mail. `EMAIL_FROM` pode ser usado para sobrescrever o remetente, mas, se ficar ausente, a API usa `Better Way <no-reply@mail.betterway.com.br>`. O domínio do remetente precisa estar verificado na Resend. Sem um provedor configurado, a produção retorna indisponibilidade em vez de expor códigos de acesso.
 
 Marque `MONGODB_URI`, `JWT_SECRET`, `RESEND_API_KEY`, `PLUGGY_CLIENT_SECRET`, `BRAPI_API_KEY`, `NEWS_API_KEY` e credenciais SMTP como **Sensitive**. Use apenas `VITE_API_URL` no frontend: toda variável iniciada por `VITE_` pode ser incorporada ao JavaScript entregue ao navegador.
+
+Para o login Google, use o mesmo OAuth Web Client ID em `VITE_GOOGLE_CLIENT_ID` no projeto web e `GOOGLE_CLIENT_ID` na API. O Client ID identifica o aplicativo e não é segredo; não marque-o como Sensitive. Cadastre `https://betterway.com.br` e `https://www.betterway.com.br` como origens JavaScript autorizadas no Google Cloud. A API valida assinatura, emissor, audiência, expiração e e-mail verificado antes de criar uma sessão Better Way.
+
+Para a Pluggy, use os nomes `PLUGGY_CLIENT_ID` e `PLUGGY_CLIENT_SECRET`. Não crie variáveis genéricas como `CLIENT_ID` e `CLIENT_SECRET`, porque o projeto também usa `CLIENT_URL` para CORS e URLs públicas. A `API Key` da Pluggy é temporária; ela não deve ser salva na Vercel nem enviada ao frontend.
 
 ## 3. Mobile
 

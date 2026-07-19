@@ -33,6 +33,12 @@ const userSchema = new mongoose.Schema(
       required: true,
       select: false
     },
+    googleSubject: {
+      type: String,
+      unique: true,
+      sparse: true,
+      select: false
+    },
     authVersion: {
       type: Number,
       min: 0,

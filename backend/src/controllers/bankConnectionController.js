@@ -1,7 +1,6 @@
 const asyncHandler = require("../utils/asyncHandler");
 const repository = require("../services/repository");
 const pluggy = require("../services/pluggyService");
-const { parseStatement } = require("../services/statementImportService");
 const { summarizeConnections } = require("../services/bankSummaryService");
 
 function publicConnection(connection) {
@@ -19,44 +18,45 @@ function publicConnections(connections) {
   return connections.map(publicConnection);
 }
 
+function directConnections(connections) {
+  return connections.filter((connection) => connection.provider === "pluggy");
+}
+
 async function syncPluggyItem(userId, itemId) {
   const snapshot = await pluggy.fetchSnapshot(itemId, userId);
   return repository.upsertBankConnection(userId, "pluggy", itemId, snapshot);
 }
 
 const list = asyncHandler(async (req, res) => {
-  const connections = await repository.listBankConnections(req.user.id);
+  const connections = directConnections(await repository.listBankConnections(req.user.id));
   return res.json({
     providerConfigured: pluggy.providerConfigured(),
     connections: publicConnections(connections),
     totals: summarizeConnections(connections),
-    methods: [
-      { id: "open_finance", available: pluggy.providerConfigured() },
-      { id: "statement_import", available: true }
-    ]
+    methods: [{ id: "open_finance", available: pluggy.providerConfigured() }]
   });
 });
 
 const createConnectToken = asyncHandler(async (req, res) => {
   const connectToken = await pluggy.createConnectToken(req.user.id);
-  return res.json({ connectToken });
+  return res.json({ connectToken, accessToken: connectToken });
 });
 
 const syncPluggy = asyncHandler(async (req, res) => {
   const itemId = String(req.body.itemId || "").trim();
   if (!itemId || itemId.length > 200) return res.status(400).json({ message: "A conexão bancária não informou um item válido." });
   const connection = await syncPluggyItem(req.user.id, itemId);
-  const connections = await repository.listBankConnections(req.user.id);
+  const connections = directConnections(await repository.listBankConnections(req.user.id));
   return res.status(201).json({ connection: publicConnection(connection), totals: summarizeConnections(connections) });
 });
 
 const refresh = asyncHandler(async (req, res) => {
   const connections = await repository.listBankConnections(req.user.id);
-  const directConnections = connections.filter((connection) => connection.provider === "pluggy");
+  const connectedProviders = directConnections(connections);
   let refreshed = 0;
   let failed = 0;
 
-  for (const connection of directConnections) {
+  for (const connection of connectedProviders) {
     try {
       await syncPluggyItem(req.user.id, connection.externalId);
       refreshed += 1;
@@ -66,35 +66,12 @@ const refresh = asyncHandler(async (req, res) => {
     }
   }
 
-  const updated = await repository.listBankConnections(req.user.id);
+  const updated = directConnections(await repository.listBankConnections(req.user.id));
   return res.json({
     connections: publicConnections(updated),
     totals: summarizeConnections(updated),
     refreshed,
     failed
-  });
-});
-
-const importStatement = asyncHandler(async (req, res) => {
-  const snapshot = parseStatement(req.body.content, {
-    accountName: req.body.accountName,
-    institutionName: req.body.institutionName,
-    openingBalance: req.body.openingBalance,
-    fileName: req.body.fileName,
-    format: req.body.format
-  });
-  const connection = await repository.upsertBankConnection(
-    req.user.id,
-    "statement_import",
-    snapshot.externalId,
-    snapshot
-  );
-  const connections = await repository.listBankConnections(req.user.id);
-  return res.status(201).json({
-    connection: publicConnection(connection),
-    totals: summarizeConnections(connections),
-    recordCount: snapshot.recordCount,
-    detectedFormat: snapshot.detectedFormat
   });
 });
 
@@ -111,6 +88,5 @@ module.exports = {
   createConnectToken,
   syncPluggy,
   refresh,
-  importStatement,
   remove
 };

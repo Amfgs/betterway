@@ -6,6 +6,7 @@ const Asset = require("../models/Asset");
 const BankConnection = require("../models/BankConnection");
 const { isDatabaseConnected } = require("../config/db");
 const { financialWindow, isInsideFinancialWindow } = require("../utils/financial");
+const { normalizeAvatarValue } = require("../utils/avatars");
 const memoryStore = require("./memoryStore");
 
 function normalize(doc) {
@@ -31,8 +32,13 @@ function safeUser(doc) {
   delete user.emailVerificationExpiresAt;
   delete user.emailVerificationAttempts;
   delete user.emailVerificationSentAt;
+  delete user.googleSubject;
+  user.avatarUrl = normalizeAvatarValue(user.avatarUrl);
   return user;
 }
+
+const privateUserSelection =
+  "+passwordHash +googleSubject +resetPasswordHash +resetPasswordExpiresAt +resetPasswordAttempts +resetPasswordSentAt +emailVerificationHash +emailVerificationExpiresAt +emailVerificationAttempts +emailVerificationSentAt";
 
 function publicUser(doc) {
   const user = normalize(doc);
@@ -42,7 +48,7 @@ function publicUser(doc) {
     _id: user.id,
     name: user.name,
     username: user.username || "",
-    avatarUrl: user.avatarUrl || ""
+    avatarUrl: normalizeAvatarValue(user.avatarUrl)
   };
 }
 
@@ -56,9 +62,7 @@ async function findUserByEmail(email, includePassword = false) {
   if (!isDatabaseConnected()) return memoryStore.findUserByEmail(email, includePassword);
   let query = User.findOne({ email: String(email).toLowerCase() });
   if (includePassword) {
-    query = query.select(
-      "+passwordHash +resetPasswordHash +resetPasswordExpiresAt +resetPasswordAttempts +resetPasswordSentAt +emailVerificationHash +emailVerificationExpiresAt +emailVerificationAttempts +emailVerificationSentAt"
-    );
+    query = query.select(privateUserSelection);
   }
   const user = await query;
   return includePassword ? normalize(user) : safeUser(user);
@@ -68,9 +72,7 @@ async function findUserByUsername(username, includePassword = false) {
   if (!isDatabaseConnected()) return memoryStore.findUserByUsername(username, includePassword);
   let query = User.findOne({ username: String(username).toLowerCase() });
   if (includePassword) {
-    query = query.select(
-      "+passwordHash +resetPasswordHash +resetPasswordExpiresAt +resetPasswordAttempts +resetPasswordSentAt +emailVerificationHash +emailVerificationExpiresAt +emailVerificationAttempts +emailVerificationSentAt"
-    );
+    query = query.select(privateUserSelection);
   }
   const user = await query;
   return includePassword ? normalize(user) : safeUser(user);
@@ -80,12 +82,16 @@ async function findUserById(id, includePassword = false) {
   if (!isDatabaseConnected()) return memoryStore.findUserById(id, includePassword);
   let query = User.findById(id);
   if (includePassword) {
-    query = query.select(
-      "+passwordHash +resetPasswordHash +resetPasswordExpiresAt +resetPasswordAttempts +resetPasswordSentAt +emailVerificationHash +emailVerificationExpiresAt +emailVerificationAttempts +emailVerificationSentAt"
-    );
+    query = query.select(privateUserSelection);
   }
   const user = await query;
   return includePassword ? normalize(user) : safeUser(user);
+}
+
+async function findUserByGoogleSubject(subject) {
+  if (!isDatabaseConnected()) return memoryStore.findUserByGoogleSubject(subject);
+  const user = await User.findOne({ googleSubject: String(subject) }).select("+googleSubject");
+  return normalize(user);
 }
 
 async function createUser(payload) {
@@ -397,6 +403,7 @@ module.exports = {
   findUserByEmail,
   findUserByUsername,
   findUserById,
+  findUserByGoogleSubject,
   createUser,
   updateUser,
   listTransactions,

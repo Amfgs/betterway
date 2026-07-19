@@ -17,8 +17,12 @@ delete process.env.SMTP_HOST;
 delete process.env.SMTP_USER;
 delete process.env.SMTP_PASS;
 delete process.env.RESEND_API_KEY;
+delete process.env.PLUGGY_CLIENT_ID;
+delete process.env.PLUGGY_CLIENT_SECRET;
+delete process.env.GOOGLE_CLIENT_ID;
 
 const app = require("../src/app");
+const repository = require("../src/services/repository");
 
 async function startServer() {
   const server = app.listen(0);
@@ -121,6 +125,16 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
   assert.equal(invalidUsernameAvailability.data.valid, false);
   assert.equal(invalidUsernameAvailability.data.available, false);
 
+  const authProviders = await api(baseUrl, "/auth/providers");
+  assert.equal(authProviders.status, 200);
+  assert.deepEqual(authProviders.data, { google: false });
+  const googleWithoutProvider = await api(baseUrl, "/auth/google", {
+    method: "POST",
+    body: { credential: "untrusted-token" }
+  });
+  assert.equal(googleWithoutProvider.status, 503);
+  assert.equal(googleWithoutProvider.data.credential, undefined);
+
   const userA = await createVerifiedUser(baseUrl, "a", { username: availableUsername });
   const availableAfterRegistration = await api(
     baseUrl,
@@ -182,6 +196,14 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
   });
   assert.equal(duplicateProfileUsername.status, 409);
 
+  const generatedAvatar = await api(baseUrl, "/auth/me", {
+    method: "PUT",
+    token: userB.token,
+    body: { avatarUrl: "julia" }
+  });
+  assert.equal(generatedAvatar.status, 200);
+  assert.equal(generatedAvatar.data.user.avatarUrl, "julia");
+
   const request = await api(baseUrl, "/friends", {
     method: "POST",
     token: userA.token,
@@ -189,6 +211,7 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
   });
   assert.equal(request.status, 202);
   assert.deepEqual(Object.keys(request.data.user).sort(), ["_id", "avatarUrl", "id", "name", "username"]);
+  assert.equal(request.data.user.avatarUrl, "julia");
 
   const pendingForB = await api(baseUrl, "/friends", { token: userB.token });
   assert.equal(pendingForB.data.friends.length, 0);
@@ -338,28 +361,39 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
   });
   assert.equal(emailWithoutPassword.status, 400);
 
-  const importedStatement = await api(baseUrl, "/bank-connections/import", {
+  const removedStatementImport = await api(baseUrl, "/bank-connections/import", {
     method: "POST",
     token: passwordChange.data.token,
-    body: {
-      accountName: "Conta de testes",
-      institutionName: "Banco de testes",
-      openingBalance: 1000,
-      format: "transactions",
-      fileName: "extrato.csv",
-      content: "data,descricao,valor,tipo\n01/07/2026,Salário,2000,entrada\n2026-07-02,Mercado,200,saida"
-    }
+    body: { content: "recurso removido" }
   });
-  assert.equal(importedStatement.status, 201);
-  assert.equal(importedStatement.data.recordCount, 2);
+  assert.equal(removedStatementImport.status, 404);
+
+  await repository.upsertBankConnection(userA.user.id, "statement_import", "legacy-hidden", {
+    label: "Importação antiga",
+    accounts: [{ balance: 999 }],
+    investments: [],
+    transactions: []
+  });
+
   const bankConnections = await api(baseUrl, "/bank-connections", { token: passwordChange.data.token });
   assert.equal(bankConnections.status, 200);
-  assert.equal(bankConnections.data.connections[0].transactions.length, 2);
-  assert.equal(bankConnections.data.connections[0].transactions[0].description, "Mercado");
-  assert.equal(bankConnections.data.connections[0].transactions[0].date, "2026-07-02T12:00:00.000Z");
-  assert.equal(bankConnections.data.connections[0].transactions[0].externalId, undefined);
-  assert.equal(bankConnections.data.connections[0].externalId, undefined);
-  assert.equal(bankConnections.data.totals.accountBalance, 2800);
+  assert.equal(bankConnections.data.providerConfigured, false);
+  assert.equal(bankConnections.data.connections.length, 0);
+  assert.deepEqual(bankConnections.data.methods, [{ id: "open_finance", available: false }]);
+  assert.equal(bankConnections.data.totals.accountBalance, 0);
+
+  const isolatedBankConnections = await api(baseUrl, "/bank-connections", { token: userB.token });
+  assert.equal(isolatedBankConnections.status, 200);
+  assert.equal(isolatedBankConnections.data.connections.length, 0);
+  assert.equal(isolatedBankConnections.data.totals.netWorth, 0);
+
+  const connectTokenWithoutProvider = await api(baseUrl, "/bank-connections/pluggy/token", {
+    method: "POST",
+    token: passwordChange.data.token
+  });
+  assert.equal(connectTokenWithoutProvider.status, 503);
+  assert.equal(connectTokenWithoutProvider.data.accessToken, undefined);
+  assert.match(connectTokenWithoutProvider.data.message, /Open Finance ainda não foi configurada/);
 
   const malformedJson = await api(baseUrl, "/auth/login", {
     method: "POST",

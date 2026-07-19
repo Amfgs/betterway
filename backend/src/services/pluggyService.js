@@ -8,6 +8,7 @@ function client() {
   if (!providerConfigured()) {
     const error = new Error("A conexão Open Finance ainda não foi configurada no servidor.");
     error.status = 503;
+    error.expose = true;
     throw error;
   }
   return new PluggyClient({
@@ -81,6 +82,7 @@ async function createConnectToken(userId) {
   } catch {
     const error = new Error("A URL pública do aplicativo está configurada incorretamente.");
     error.status = 503;
+    error.expose = true;
     throw error;
   }
   const result = await client().createConnectToken(undefined, {

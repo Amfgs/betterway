@@ -1,6 +1,7 @@
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
+const { OAuth2Client } = require("google-auth-library");
 const { getJwtSecret, isProduction } = require("../config/security");
 const asyncHandler = require("../utils/asyncHandler");
 const repository = require("../services/repository");
@@ -11,11 +12,13 @@ const {
 } = require("../services/emailService");
 const {
   cleanText,
+  availableUsername,
   isValidEmail,
   isValidUsername,
   normalizeUsername,
   numberInRange
 } = require("../utils/validation");
+const { AVATAR_VALUES } = require("../utils/avatars");
 
 const STANDARD_WORKDAYS_PER_MONTH = 22;
 const MIN_PASSWORD_LENGTH = 8;
@@ -23,8 +26,6 @@ const MAX_PASSWORD_BYTES = 72;
 const MAX_CODE_ATTEMPTS = 5;
 const EMAIL_RESEND_COOLDOWN_MS = 60 * 1000;
 const SESSION_TTL_SECONDS = 15 * 24 * 60 * 60;
-const AVATAR_VALUES = new Set(["aurora", "verde", "solar", "indigo", "grafite"]);
-
 function normalizeSessionStart(value) {
   const now = Math.floor(Date.now() / 1000);
   const parsed = Number(value);
@@ -59,6 +60,7 @@ function cleanUser(user) {
   delete copy.emailVerificationExpiresAt;
   delete copy.emailVerificationAttempts;
   delete copy.emailVerificationSentAt;
+  delete copy.googleSubject;
   return copy;
 }
 
@@ -88,6 +90,23 @@ function passwordRequirementMessage(prefix = "A senha") {
 
 function sentRecently(value) {
   return value && Date.now() - new Date(value).getTime() < EMAIL_RESEND_COOLDOWN_MS;
+}
+
+function googleClientId() {
+  return String(process.env.GOOGLE_CLIENT_ID || "").trim();
+}
+
+async function createGoogleUsername(name, email) {
+  const seed = String(email || "").split("@")[0] || name || "usuario";
+  const attempted = new Set();
+
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const candidate = availableUsername(seed, attempted);
+    if (!(await repository.findUserByUsername(candidate))) return candidate;
+    attempted.add(candidate);
+  }
+
+  throw new Error("Não foi possível gerar um nome de usuário disponível.");
 }
 
 async function issueVerificationCode(user) {
@@ -223,6 +242,97 @@ const login = asyncHandler(async (req, res) => {
     return res.status(403).json({
       code: "EMAIL_NOT_VERIFIED",
       message: "Confirme seu e-mail antes de entrar."
+    });
+  }
+
+  return res.json({
+    token: signToken(user),
+    sessionExpiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000).toISOString(),
+    user: cleanUser(user)
+  });
+});
+
+const authProviders = asyncHandler(async (req, res) => {
+  return res.json({ google: Boolean(googleClientId()) });
+});
+
+const googleLogin = asyncHandler(async (req, res) => {
+  const clientId = googleClientId();
+  const credential = String(req.body?.credential || "");
+
+  if (!clientId) {
+    return res.status(503).json({ message: "O acesso com Google ainda não foi configurado." });
+  }
+  if (!credential || credential.length > 12_000) {
+    return res.status(400).json({ message: "A credencial do Google é inválida." });
+  }
+
+  let payload;
+  try {
+    const ticket = await new OAuth2Client(clientId).verifyIdToken({
+      idToken: credential,
+      audience: clientId
+    });
+    payload = ticket.getPayload();
+  } catch {
+    return res.status(401).json({ message: "Não foi possível validar o acesso com Google." });
+  }
+
+  if (!payload?.sub || !payload?.email || payload.email_verified !== true) {
+    return res.status(401).json({ message: "Use uma conta Google com e-mail verificado." });
+  }
+
+  const subject = String(payload.sub);
+  const email = normalizeEmail(payload.email);
+  const name = cleanText(payload.name || email.split("@")[0], 120);
+  let user = await repository.findUserByGoogleSubject(subject);
+
+  if (user && normalizeEmail(user.email) !== email) {
+    return res.status(409).json({
+      message: "Esta conta Google está vinculada a outro e-mail na Better Way. Entre com e-mail e senha."
+    });
+  }
+
+  if (!user) {
+    const existing = await repository.findUserByEmail(email, true);
+    if (existing?.googleSubject && existing.googleSubject !== subject) {
+      return res.status(409).json({ message: "Este e-mail já está vinculado a outra conta Google." });
+    }
+
+    if (existing) {
+      user = await repository.updateUser(existing.id, {
+        googleSubject: subject,
+        emailVerified: true,
+        emailVerifiedAt: existing.emailVerifiedAt || new Date().toISOString(),
+        emailVerificationHash: "",
+        emailVerificationExpiresAt: null,
+        emailVerificationAttempts: 0,
+        emailVerificationSentAt: null
+      });
+    } else {
+      const passwordHash = await bcrypt.hash(crypto.randomBytes(48).toString("base64url"), 10);
+      user = await repository.createUser({
+        name,
+        username: await createGoogleUsername(name, email),
+        email,
+        passwordHash,
+        googleSubject: subject,
+        emailVerified: true,
+        emailVerifiedAt: new Date().toISOString(),
+        salary: 0,
+        monthlyLimit: 0,
+        hourlyRate: 0,
+        workHoursPerDay: 8
+      });
+    }
+  } else if (user.emailVerified === false) {
+    user = await repository.updateUser(user.id, {
+      emailVerified: true,
+      emailVerifiedAt: new Date().toISOString(),
+      emailVerificationHash: "",
+      emailVerificationExpiresAt: null,
+      emailVerificationAttempts: 0,
+      emailVerificationSentAt: null
     });
   }
 
@@ -487,6 +597,8 @@ module.exports = {
   register,
   usernameAvailability,
   login,
+  authProviders,
+  googleLogin,
   verifyEmail,
   resendVerification,
   forgotPassword,

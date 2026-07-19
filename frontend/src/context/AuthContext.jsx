@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import { clearAuthSession, readAuthSession, storeAuthSession } from "../utils/storageKeys";
 
@@ -8,29 +8,59 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [restoreError, setRestoreError] = useState("");
 
-  useEffect(() => {
+  const restoreSession = useCallback(async ({ showLoading = true } = {}) => {
     const storedSession = readAuthSession();
     if (!storedSession) {
-      setLoading(false);
-      return;
+      setUser(null);
+      setSession(null);
+      setRestoreError("");
+      if (showLoading) setLoading(false);
+      return false;
     }
 
-    api
-      .get("/auth/me")
-      .then((response) => {
-        setUser(response.data.user);
-        setSession(storedSession);
-      })
-      .catch(() => clearAuthSession())
-      .finally(() => setLoading(false));
+    setSession(storedSession);
+    setRestoreError("");
+    if (showLoading) setLoading(true);
+
+    try {
+      const response = await api.get("/auth/me");
+      setUser(response.data.user);
+      return true;
+    } catch (error) {
+      const status = Number(error?.response?.status || 0);
+      if (status === 401 || status === 403) {
+        clearAuthSession();
+        setUser(null);
+        setSession(null);
+      } else {
+        setRestoreError("Sua sessão continua salva, mas não conseguimos confirmá-la agora.");
+      }
+      return false;
+    } finally {
+      if (showLoading) setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    restoreSession();
+  }, [restoreSession]);
+
+  useEffect(() => {
+    const reconnect = () => {
+      if (readAuthSession()) restoreSession({ showLoading: false });
+    };
+    window.addEventListener("online", reconnect);
+    return () => window.removeEventListener("online", reconnect);
+  }, [restoreSession]);
 
   useEffect(() => {
     const expireSession = () => {
       clearAuthSession();
       setUser(null);
       setSession(null);
+      setRestoreError("");
     };
     window.addEventListener("betterway:session-expired", expireSession);
     return () => window.removeEventListener("betterway:session-expired", expireSession);
@@ -55,6 +85,16 @@ export function AuthProvider({ children }) {
     const nextSession = storeAuthSession(response.data.token, { persistent });
     setSession(nextSession);
     setUser(response.data.user);
+    setRestoreError("");
+    return response.data.user;
+  }
+
+  async function loginWithGoogle(credential, { persistent = true } = {}) {
+    const response = await api.post("/auth/google", { credential });
+    const nextSession = storeAuthSession(response.data.token, { persistent });
+    setSession(nextSession);
+    setUser(response.data.user);
+    setRestoreError("");
     return response.data.user;
   }
 
@@ -73,6 +113,7 @@ export function AuthProvider({ children }) {
     const nextSession = storeAuthSession(response.data.token, { persistent });
     setSession(nextSession);
     setUser(response.data.user);
+    setRestoreError("");
     return response.data;
   }
 
@@ -95,6 +136,7 @@ export function AuthProvider({ children }) {
     clearAuthSession();
     setUser(null);
     setSession(null);
+    setRestoreError("");
   }
 
   function setSessionPersistence(persistent) {
@@ -131,8 +173,10 @@ export function AuthProvider({ children }) {
       user,
       session,
       loading,
+      restoreError,
       isAuthenticated: Boolean(user),
       login,
+      loginWithGoogle,
       register,
       checkUsernameAvailability,
       verifyEmail,
@@ -140,10 +184,11 @@ export function AuthProvider({ children }) {
       forgotPassword,
       resetPassword,
       logout,
+      retrySession: restoreSession,
       setSessionPersistence,
       updateProfile
     }),
-    [user, loading, session]
+    [user, loading, restoreError, restoreSession, session]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

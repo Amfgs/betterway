@@ -2,25 +2,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { PluggyConnect } from "react-pluggy-connect";
 import {
   Building2,
-  FileSpreadsheet,
+  ChevronDown,
   Landmark,
   Link2,
   RefreshCw,
   ShieldCheck,
-  Trash2,
-  Upload
+  Trash2
 } from "lucide-react";
 import { api, getErrorMessage } from "../api/client";
 import { useTheme } from "../context/ThemeContext";
 import { currency, shortDate } from "../utils/formatters";
-
-const emptyImport = {
-  accountName: "Minha conta principal",
-  institutionName: "",
-  openingBalance: "0",
-  format: "auto",
-  file: null
-};
 
 function connectionTotals(connection) {
   return {
@@ -29,11 +20,30 @@ function connectionTotals(connection) {
   };
 }
 
+function pluggyErrorMessage(error) {
+  const raw = [
+    error?.code,
+    error?.message,
+    error?.data?.code,
+    error?.data?.message,
+    error?.data?.item?.error?.code,
+    error?.data?.item?.error?.message
+  ]
+    .filter(Boolean)
+    .join(" ");
+  if (/TRIAL_CLIENT_ITEM_CREATE_NOT_ALLOWED/i.test(raw)) {
+    return "Sua aplicação Pluggy ainda está em modo Trial. Nesse modo, apenas o banco de testes pode ser conectado. Para usar uma conta real, conclua o checklist e solicite acesso à produção no painel da Pluggy.";
+  }
+  if (/ITEM_CREATION_LIMIT_EXCEEDED/i.test(raw)) {
+    return "O limite de conexões do plano Pluggy foi atingido. Revise os itens ativos ou o plano da aplicação no painel da Pluggy.";
+  }
+  return error?.message || "Não foi possível concluir a conexão bancária.";
+}
+
 export function BankConnectionsPanel({ onChange }) {
   const { theme } = useTheme();
   const [data, setData] = useState({ connections: [], totals: {}, providerConfigured: false });
   const [connectToken, setConnectToken] = useState("");
-  const [importForm, setImportForm] = useState(emptyImport);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState("");
   const [error, setError] = useState("");
@@ -65,6 +75,27 @@ export function BankConnectionsPanel({ onChange }) {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (!connectToken) return undefined;
+    document.documentElement.classList.add("pluggy-connect-active");
+
+    const enableFrameScrolling = () => {
+      document.querySelectorAll("#PluggyConnect iframe").forEach((frame) => {
+        frame.setAttribute("scrolling", "yes");
+        frame.style.overflow = "auto";
+        frame.style.webkitOverflowScrolling = "touch";
+      });
+    };
+    const observer = new MutationObserver(enableFrameScrolling);
+    observer.observe(document.body, { childList: true, subtree: true });
+    enableFrameScrolling();
+
+    return () => {
+      observer.disconnect();
+      document.documentElement.classList.remove("pluggy-connect-active");
+    };
+  }, [connectToken]);
+
   const totals = useMemo(() => ({
     accounts: Number(data.totals?.accountBalance || 0),
     investments: Number(data.totals?.investmentBalance || 0),
@@ -87,7 +118,7 @@ export function BankConnectionsPanel({ onChange }) {
     setWorking("connect");
     try {
       const response = await api.post("/bank-connections/pluggy/token");
-      setConnectToken(response.data.connectToken);
+      setConnectToken(response.data.accessToken || response.data.connectToken);
     } catch (requestError) {
       setError(getErrorMessage(requestError));
     } finally {
@@ -127,36 +158,6 @@ export function BankConnectionsPanel({ onChange }) {
     }
   }
 
-  async function importCsv(event) {
-    event.preventDefault();
-    if (!importForm.file) {
-      setError("Selecione um arquivo CSV para importar.");
-      return;
-    }
-    setWorking("import");
-    setError("");
-    setMessage("");
-    try {
-      const content = await importForm.file.text();
-      const response = await api.post("/bank-connections/import", {
-        accountName: importForm.accountName,
-        institutionName: importForm.institutionName,
-        openingBalance: importForm.openingBalance,
-        format: importForm.format,
-        fileName: importForm.file.name,
-        content
-      });
-      await load();
-      setMessage(`${response.data.recordCount} linhas processadas. Saldo e investimentos recalculados.`);
-      setImportForm(emptyImport);
-      onChange?.();
-    } catch (importError) {
-      setError(getErrorMessage(importError));
-    } finally {
-      setWorking("");
-    }
-  }
-
   async function removeConnection(connection) {
     setWorking(connection.id);
     setError("");
@@ -173,19 +174,21 @@ export function BankConnectionsPanel({ onChange }) {
   }
 
   return (
-    <section className="rounded-lg border border-black/5 bg-white p-5 shadow-soft dark:border-white/10 dark:bg-neutral-900">
+    <section className="bank-connections-panel rounded-lg border border-black/5 bg-white p-5 shadow-soft dark:border-white/10 dark:bg-neutral-900">
       {connectToken ? (
         <PluggyConnect
+          allowFullscreen
           connectToken={connectToken}
           countries={["BR"]}
           forceOauthInBrowser
+          includeSandbox={import.meta.env.DEV}
           language="pt"
           onClose={() => setConnectToken("")}
           onError={(connectError) => {
-            setError(connectError?.message || "Não foi possível concluir a conexão bancária.");
+            setError(pluggyErrorMessage(connectError));
             setConnectToken("");
           }}
-          onLoadError={(loadError) => setError(loadError?.message || "O conector bancário não carregou.")}
+          onLoadError={(loadError) => setError(pluggyErrorMessage(loadError))}
           onSuccess={finishConnection}
           products={["ACCOUNTS", "TRANSACTIONS", "INVESTMENTS"]}
           theme={theme}
@@ -201,7 +204,7 @@ export function BankConnectionsPanel({ onChange }) {
             <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Bancos e corretoras</p>
             <h2 className="text-2xl font-black">Seu patrimônio, sem digitação repetida</h2>
             <p className="mt-1 max-w-3xl text-sm text-zinc-500 dark:text-zinc-400">
-              Escolha a conexão por Open Finance ou calcule os valores a partir de um extrato exportado pelo banco.
+              Autorize seus bancos e corretoras pelo Open Finance para manter saldos, investimentos e lançamentos reunidos.
             </p>
           </div>
         </div>
@@ -219,7 +222,7 @@ export function BankConnectionsPanel({ onChange }) {
         <div className="bg-stone-50 p-4 dark:bg-neutral-800"><span className="text-xs text-zinc-500 dark:text-zinc-300">Total conectado</span><strong className="mt-1 block text-xl text-emerald-700 dark:text-emerald-300">{currency(totals.netWorth)}</strong></div>
       </div>
 
-      <div className="mt-6 grid gap-6 border-t border-black/5 pt-6 xl:grid-cols-2 dark:border-white/10">
+      <div className="bank-open-finance mt-6 border-t border-black/5 pt-6 dark:border-white/10">
         <div className="flex flex-col">
           <div className="flex items-start gap-3">
             <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-emerald-500 text-white"><Link2 size={19} /></div>
@@ -235,36 +238,14 @@ export function BankConnectionsPanel({ onChange }) {
           </div>
           <div className="mt-4 flex items-start gap-2 rounded-lg bg-stone-100 p-3 text-xs text-zinc-600 dark:bg-neutral-800 dark:text-zinc-300">
             <ShieldCheck className="mt-0.5 shrink-0 text-emerald-500" size={16} />
-            Suas credenciais são informadas no ambiente do conector. A Better Way armazena apenas o identificador da autorização e os saldos sincronizados.
+            Sua senha bancária é informada somente no ambiente do conector. A Better Way armazena o identificador da autorização e uma cópia dos saldos, investimentos e lançamentos sincronizados para montar seu painel.
           </div>
           <button className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-3 font-black text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={!data.providerConfigured || Boolean(working)} onClick={startOpenFinance} type="button">
             <Building2 size={18} />
             {working === "connect" || working === "sync" ? "Conectando..." : "Conectar instituição"}
           </button>
-          {!data.providerConfigured ? <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-300">Configure <code>PLUGGY_CLIENT_ID</code> e <code>PLUGGY_CLIENT_SECRET</code> no backend para habilitar esta opção.</p> : null}
+          {!data.providerConfigured ? <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-300">A conexão direta está temporariamente indisponível. Tente novamente mais tarde.</p> : null}
         </div>
-
-        <form className="border-t border-black/5 pt-6 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0 dark:border-white/10" onSubmit={importCsv}>
-          <div className="flex items-start gap-3">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"><FileSpreadsheet size={19} /></div>
-            <div>
-              <h3 className="text-lg font-black">Importar extrato CSV</h3>
-              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Alternativa indireta para calcular o saldo ou importar uma posição consolidada.</p>
-            </div>
-          </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <label className="block sm:col-span-2"><span className="text-xs font-bold">Nome da conta</span><input className="mt-1 w-full rounded-lg border border-black/10 bg-transparent px-3 py-2.5 dark:border-white/10" onChange={(event) => setImportForm((current) => ({ ...current, accountName: event.target.value }))} required value={importForm.accountName} /></label>
-            <label className="block"><span className="text-xs font-bold">Conteúdo</span><select className="mt-1 w-full rounded-lg border border-black/10 bg-transparent px-3 py-2.5 dark:border-white/10" onChange={(event) => setImportForm((current) => ({ ...current, format: event.target.value }))} value={importForm.format}><option value="auto">Detectar automaticamente</option><option value="transactions">Movimentações</option><option value="positions">Saldos e investimentos</option></select></label>
-            <label className="block"><span className="text-xs font-bold">Saldo antes do extrato</span><input className="mt-1 w-full rounded-lg border border-black/10 bg-transparent px-3 py-2.5 dark:border-white/10" onChange={(event) => setImportForm((current) => ({ ...current, openingBalance: event.target.value }))} step="0.01" type="number" value={importForm.openingBalance} /></label>
-            <label className="block sm:col-span-2">
-              <span className="text-xs font-bold">Arquivo CSV</span>
-              <span className="mt-1 flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-dashed border-emerald-500/50 px-3 py-2.5 text-sm font-semibold text-emerald-700 dark:text-emerald-300"><Upload size={17} />{importForm.file?.name || "Selecionar arquivo do banco"}</span>
-              <input accept=".csv,text/csv" className="sr-only" onChange={(event) => setImportForm((current) => ({ ...current, file: event.target.files?.[0] || null }))} type="file" />
-            </label>
-          </div>
-          <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-300">Movimentações: <code>data, descrição, valor, tipo</code>. Posições: <code>tipo, nome, saldo, código, quantidade, preço</code>.</p>
-          <button className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-black/10 px-4 py-3 font-black dark:border-white/10" disabled={Boolean(working)} type="submit"><Upload size={18} />{working === "import" ? "Processando..." : "Importar e calcular"}</button>
-        </form>
       </div>
 
       {error ? <p className="mt-4 rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-700 dark:text-red-300" role="alert">{error}</p> : null}
@@ -280,8 +261,8 @@ export function BankConnectionsPanel({ onChange }) {
               return (
                 <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between" key={connection.id}>
                   <div className="flex items-center gap-3">
-                    <div className="grid h-10 w-10 place-items-center rounded-lg bg-stone-100 dark:bg-neutral-800">{connection.provider === "pluggy" ? <Building2 size={18} /> : <FileSpreadsheet size={18} />}</div>
-                    <div><strong className="block">{connection.institutionName || connection.label}</strong><span className="text-xs text-zinc-500">{connection.provider === "pluggy" ? "Open Finance" : "Extrato importado"} · atualizado em {shortDate(connection.lastSyncedAt || connection.updatedAt)}</span></div>
+                    <div className="grid h-10 w-10 place-items-center rounded-lg bg-stone-100 dark:bg-neutral-800"><Building2 size={18} /></div>
+                    <div><strong className="block">{connection.institutionName || connection.label}</strong><span className="text-xs text-zinc-500">Open Finance · atualizado em {shortDate(connection.lastSyncedAt || connection.updatedAt)}</span></div>
                   </div>
                   <div className="flex items-center justify-between gap-4 sm:justify-end">
                     <div className="text-right"><strong className="block text-sm">{currency(connectionValue.accounts + connectionValue.investments)}</strong><span className="text-xs text-zinc-500">{connection.accounts?.length || 0} conta(s) · {connection.transactions?.length || 0} lançamento(s)</span></div>
@@ -295,14 +276,14 @@ export function BankConnectionsPanel({ onChange }) {
       ) : null}
 
       {!loading && recentTransactions.length ? (
-        <div className="mt-6 border-t border-black/5 pt-5 dark:border-white/10">
-          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <details className="bank-activity-details mt-6 border-t border-black/5 pt-5 dark:border-white/10">
+          <summary>
             <div>
               <h3 className="text-lg font-black">Extrato consolidado</h3>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">Últimos lançamentos recebidos das fontes conectadas ou importadas.</p>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">Últimos lançamentos recebidos das instituições conectadas.</p>
             </div>
-            <span className="text-xs font-semibold text-zinc-500">Até 90 dias na conexão direta</span>
-          </div>
+            <span><span className="text-xs font-semibold text-zinc-500">Até 90 dias</span><ChevronDown aria-hidden="true" size={18} /></span>
+          </summary>
           <div className="mt-3 divide-y divide-black/5 overflow-hidden rounded-lg border border-black/5 dark:divide-white/10 dark:border-white/10">
             {recentTransactions.map((transaction, index) => {
               const amount = Number(transaction.amount || 0);
@@ -320,7 +301,7 @@ export function BankConnectionsPanel({ onChange }) {
               );
             })}
           </div>
-        </div>
+        </details>
       ) : null}
     </section>
   );

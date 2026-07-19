@@ -31,7 +31,9 @@ const usernameAvailabilityLimiter = rateLimit({
 
 router.post("/register", emailActionLimiter, authController.register);
 router.get("/username-availability", usernameAvailabilityLimiter, authController.usernameAvailability);
+router.get("/providers", authController.authProviders);
 router.post("/login", authController.login);
+router.post("/google", authController.googleLogin);
 router.post("/verify-email", codeAttemptLimiter, authController.verifyEmail);
 router.post("/resend-verification", emailActionLimiter, authController.resendVerification);
 router.post("/forgot-password", emailActionLimiter, authController.forgotPassword);

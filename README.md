@@ -2,7 +2,7 @@
 
 App financeiro comportamental com API Node/Express, web desktop em React/Vite e mobile em Expo.
 
-Produção atual: [betterway.vercel.app](https://betterway.vercel.app) · API: [betterway-api.vercel.app](https://betterway-api.vercel.app/api/health)
+Produção atual: [betterway.com.br](https://betterway.com.br) · API: [api.betterway.com.br](https://api.betterway.com.br/api/health)
 
 O domínio `betterway.com.br` já está associado aos projetos da Vercel e aguarda os registros no Registro.br. Consulte [DOMAIN_SETUP.md](./DOMAIN_SETUP.md). A arquitetura e o checklist de segurança estão em [SECURITY.md](./SECURITY.md).
 
@@ -67,6 +67,7 @@ BRAPI_API_KEY=
 NEWS_API_KEY=
 PLUGGY_CLIENT_ID=
 PLUGGY_CLIENT_SECRET=
+GOOGLE_CLIENT_ID=
 CLIENT_URL=http://localhost:5173
 LOCAL_STORE_PATH=
 APP_WEB_URL=http://localhost:5173
@@ -83,9 +84,11 @@ Sem `MONGO_URI` ou `MONGODB_URI`, o backend usa um arquivo local em `backend/dat
 
 Notícias reais: se `NEWS_API_KEY` estiver ausente, o backend usa Google News RSS em tempo real. Cotações: cripto usa CoinGecko; ações/FIIs usam Brapi sem token quando possível, e ficam completas com `BRAPI_API_KEY`.
 
-Conexão bancária: com `PLUGGY_CLIENT_ID` e `PLUGGY_CLIENT_SECRET`, o usuário pode autorizar contas por Open Finance e sincronizar saldos, investimentos e os últimos 90 dias do extrato. Sem essas credenciais, a importação de CSV continua disponível e calcula saldo, posições e movimentações sem armazenar o arquivo bruto.
+Conexão bancária: com `PLUGGY_CLIENT_ID` e `PLUGGY_CLIENT_SECRET`, o usuário pode autorizar contas por Open Finance e sincronizar saldos, investimentos e os últimos 90 dias do extrato. Sem essas credenciais, a conexão bancária permanece indisponível e nenhum fluxo alternativo de importação de arquivos é exibido.
 
 Sessões persistentes expiram 15 dias após o primeiro login, mesmo que o perfil seja alterado. No app nativo, o token fica no Secure Store e o usuário pode ativar Face ID, Touch ID ou biometria Android para desbloqueá-lo; a senha nunca é salva no aparelho.
+
+O login Google usa Google Identity Services. Configure o mesmo OAuth Web Client ID como `GOOGLE_CLIENT_ID` na API e `VITE_GOOGLE_CLIENT_ID` no frontend. O token recebido no navegador só vira uma sessão após validação criptográfica no backend.
 
 O desbloqueio por Face ID no iOS precisa de um development build ou do aplicativo instalado, pois o Expo Go não oferece esse recurso. Durante testes no Expo Go, a sessão persistente de 15 dias continua funcionando normalmente.
 

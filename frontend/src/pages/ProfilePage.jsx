@@ -4,7 +4,7 @@ import { Activity, Clock3, LockKeyhole, LogOut, Moon, Save, Settings, ShieldChec
 import { api, getErrorMessage } from "../api/client";
 import { StatCard } from "../components/StatCard";
 import { BankConnectionsPanel } from "../components/BankConnectionsPanel";
-import { WorkspaceHeader } from "../components/WorkspaceHeader";
+import { MobileSectionNav, WorkspaceHeader } from "../components/WorkspaceHeader";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { avatarOptions, avatarSrc, normalizeAvatar } from "../utils/avatars";
@@ -162,6 +162,13 @@ export function ProfilePage() {
         eyebrow="Conta"
         title="Perfil e preferências"
       />
+      <MobileSectionNav sections={[
+        { id: "conta", label: "Conta" },
+        { id: "bancos", label: "Bancos" },
+        { id: "indicadores", label: "Indicadores" },
+        { id: "preferencias", label: "Preferências" },
+        { id: "seguranca", label: "Segurança" }
+      ]} />
       {settingsOpen ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4">
           <form className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-white/10 bg-white p-5 shadow-2xl dark:bg-neutral-900" onSubmit={saveSettings}>
@@ -239,7 +246,7 @@ export function ProfilePage() {
           </form>
         </div>
       ) : null}
-      <section className="profile-identity-card rounded-lg border border-black/5 bg-white p-5 shadow-soft dark:border-white/10 dark:bg-neutral-900">
+      <section className="profile-identity-card rounded-lg border border-black/5 bg-white p-5 shadow-soft dark:border-white/10 dark:bg-neutral-900" id="conta">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-4">
             <div className="grid h-16 w-16 place-items-center overflow-hidden rounded-lg bg-emerald-500 text-white">
@@ -273,16 +280,18 @@ export function ProfilePage() {
         </div>
       </section>
 
-      <BankConnectionsPanel onChange={loadProfileData} />
+      <div id="bancos">
+        <BankConnectionsPanel onChange={loadProfileData} />
+      </div>
 
-      <section className="profile-metrics grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="profile-metrics grid gap-4 md:grid-cols-2 xl:grid-cols-4" id="indicadores">
         <StatCard label="Patrimônio estimado" value={currency(profileStats.netWorth)} detail="Banco + custo investido" tone="safe" />
         <StatCard label="Investimentos" value={currency(profileStats.invested)} detail="Valor atual da carteira" />
         <StatCard label="Sobra planejada" value={currency(profileStats.protectedIncome)} detail="Salário menos teto mensal" tone="safe" />
         <StatCard label="Metas médias" value={percent(profileStats.goalsProgress)} detail="Progresso médio cadastrado" />
       </section>
 
-      <section className="profile-settings-grid grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+      <section className="profile-settings-grid grid gap-4 xl:grid-cols-[0.85fr_1.15fr]" id="preferencias">
         <form className="rounded-lg border border-black/5 bg-white p-5 shadow-soft dark:border-white/10 dark:bg-neutral-900" onSubmit={submit}>
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -402,7 +411,7 @@ export function ProfilePage() {
         </p>
       </section>
 
-      <section className="profile-logout rounded-lg border border-red-200 bg-red-50 p-5 dark:border-red-500/30 dark:bg-red-500/10">
+      <section className="profile-logout rounded-lg border border-red-200 bg-red-50 p-5 dark:border-red-500/30 dark:bg-red-500/10" id="seguranca">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-xl font-black text-red-950 dark:text-red-50">Sair da conta</h2>

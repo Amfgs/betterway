@@ -4,23 +4,8 @@ import { apiRequest } from "../api/client";
 import { Button, StatCard, colors, styles } from "../components/ui";
 import { BankConnectionsMobile } from "../components/BankConnectionsMobile";
 import { useAuth } from "../context/AuthContext";
+import { avatarOptions, avatarSource, normalizeAvatar } from "../utils/avatars";
 import { categoryLabel, currency, percent } from "../utils/formatters";
-
-const avatarOptions = [
-  { label: "Aurora", value: "aurora", source: require("../assets/avatars/avatar-aurora.webp") },
-  { label: "Pulso", value: "verde", source: require("../assets/avatars/avatar-verde.webp") },
-  { label: "Faísca", value: "solar", source: require("../assets/avatars/avatar-solar.webp") },
-  { label: "Horizonte", value: "indigo", source: require("../assets/avatars/avatar-indigo.webp") },
-  { label: "Brisa", value: "grafite", source: require("../assets/avatars/avatar-grafite.webp") }
-];
-
-function normalizeAvatar(value) {
-  return avatarOptions.some((avatar) => avatar.value === value) ? value : avatarOptions[0].value;
-}
-
-function avatarSource(value) {
-  return avatarOptions.find((avatar) => avatar.value === normalizeAvatar(value))?.source || avatarOptions[0].source;
-}
 
 function widgetOptionLabel(kind, item) {
   if (kind === "limit") {

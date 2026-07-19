@@ -1,23 +1,37 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system/legacy";
 import { PluggyConnect } from "react-native-pluggy-connect";
-import { Alert, Modal, Pressable, SafeAreaView, Text, View } from "react-native";
+import { Alert, Modal, Pressable, Text, View } from "react-native";
 import { apiRequest } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { currency, shortDate } from "../utils/formatters";
-import { Button, Field, colors, styles } from "./ui";
+import { Button, colors, styles } from "./ui";
 
 function totalFor(items, key = "balance") {
   return (items || []).reduce((sum, item) => sum + Number(item[key] || 0), 0);
+}
+
+function pluggyErrorMessage(error) {
+  const raw = [
+    error?.code,
+    error?.message,
+    error?.data?.code,
+    error?.data?.message,
+    error?.data?.item?.error?.code,
+    error?.data?.item?.error?.message
+  ].filter(Boolean).join(" ");
+  if (/TRIAL_CLIENT_ITEM_CREATE_NOT_ALLOWED/i.test(raw)) {
+    return "Sua aplicação Pluggy ainda está em modo Trial. Use o Pluggy Bank para testes ou solicite acesso à produção no painel da Pluggy antes de conectar um banco real.";
+  }
+  if (/ITEM_CREATION_LIMIT_EXCEEDED/i.test(raw)) {
+    return "O limite de conexões do plano Pluggy foi atingido. Revise os itens ativos ou o plano da aplicação.";
+  }
+  return error?.message || "Não foi possível concluir a conexão bancária.";
 }
 
 export function BankConnectionsMobile() {
   const { token } = useAuth();
   const [data, setData] = useState({ connections: [], totals: {}, providerConfigured: false });
   const [connectToken, setConnectToken] = useState("");
-  const [accountName, setAccountName] = useState("Minha conta principal");
-  const [openingBalance, setOpeningBalance] = useState("0");
   const [working, setWorking] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -65,7 +79,7 @@ export function BankConnectionsMobile() {
     setWorking("connect");
     try {
       const response = await apiRequest("/bank-connections/pluggy/token", { method: "POST", token });
-      setConnectToken(response.connectToken);
+      setConnectToken(response.accessToken || response.connectToken);
     } catch (connectError) {
       setError(connectError.message);
     } finally {
@@ -96,39 +110,6 @@ export function BankConnectionsMobile() {
     }
   }
 
-  async function pickAndImportCsv() {
-    setError("");
-    setMessage("");
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ["text/csv", "text/comma-separated-values", "application/vnd.ms-excel"],
-        copyToCacheDirectory: true,
-        multiple: false
-      });
-      if (result.canceled) return;
-      const file = result.assets[0];
-      setWorking("import");
-      const content = await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.UTF8 });
-      const response = await apiRequest("/bank-connections/import", {
-        method: "POST",
-        token,
-        body: {
-          accountName,
-          openingBalance,
-          format: "auto",
-          fileName: file.name,
-          content
-        }
-      });
-      await load();
-      setMessage(`${response.recordCount} linhas processadas pela Better Way.`);
-    } catch (importError) {
-      setError(importError.message || "Não foi possível importar o arquivo.");
-    } finally {
-      setWorking("");
-    }
-  }
-
   async function refreshConnections() {
     setWorking("refresh");
     setError("");
@@ -147,9 +128,7 @@ export function BankConnectionsMobile() {
   function askToRemove(connection) {
     Alert.alert(
       "Remover fonte financeira?",
-      connection.provider === "pluggy"
-        ? "A autorização será revogada no conector e os saldos deixarão de compor o patrimônio."
-        : "O saldo calculado por este arquivo deixará de compor o patrimônio.",
+      "A autorização será revogada no conector e os saldos deixarão de compor o patrimônio.",
       [
         { text: "Cancelar", style: "cancel" },
         {
@@ -170,25 +149,26 @@ export function BankConnectionsMobile() {
 
   return (
     <View style={[styles.card, { gap: 12 }]}>
-      <Modal animationType="slide" onRequestClose={() => setConnectToken("")} visible={Boolean(connectToken)}>
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#ffffff" }}>
-          <View style={[styles.rowBetween, { paddingHorizontal: 16, paddingVertical: 12, borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
-            <View>
-              <Text style={styles.eyebrow}>Open Finance</Text>
-              <Text style={styles.label}>Conecte sua instituição com consentimento.</Text>
-            </View>
-            <Pressable accessibilityLabel="Fechar conexão bancária" onPress={() => setConnectToken("")} style={styles.chip}>
-              <Text style={styles.chipText}>Fechar</Text>
-            </Pressable>
-          </View>
+      <Modal
+        animationType="slide"
+        hardwareAccelerated
+        navigationBarTranslucent
+        onRequestClose={() => setConnectToken("")}
+        presentationStyle="fullScreen"
+        statusBarTranslucent
+        visible={Boolean(connectToken)}
+      >
+        <View style={{ flex: 1, backgroundColor: "#ffffff", overflow: "hidden" }}>
           {connectToken ? (
             <PluggyConnect
+              allowFullscreen
               connectToken={connectToken}
               countries={["BR"]}
+              includeSandbox={__DEV__}
               language="pt"
               onClose={() => setConnectToken("")}
               onError={(connectError) => {
-                setError(connectError?.message || "Não foi possível concluir a conexão.");
+                setError(pluggyErrorMessage(connectError));
                 setConnectToken("");
               }}
               onSuccess={finishOpenFinance}
@@ -196,13 +176,13 @@ export function BankConnectionsMobile() {
               theme="light"
             />
           ) : null}
-        </SafeAreaView>
+        </View>
       </Modal>
 
       <View>
         <Text style={styles.eyebrow}>Bancos e corretoras</Text>
         <Text style={styles.title}>Patrimônio conectado</Text>
-        <Text style={styles.subtitle}>Atualize contas e investimentos pelo Open Finance ou calcule o saldo com um CSV do banco.</Text>
+        <Text style={styles.subtitle}>Atualize contas e investimentos diretamente pelo Open Finance.</Text>
       </View>
 
       <View style={styles.metricGrid}>
@@ -212,22 +192,13 @@ export function BankConnectionsMobile() {
       <Text style={[styles.success, { marginTop: 0 }]}>Total conectado: {currency(totals.netWorth)}</Text>
 
       <View style={{ borderTopColor: colors.border, borderTopWidth: 1, paddingTop: 12, gap: 8 }}>
-        <Text style={styles.label}>1. Conexão direta</Text>
-        <Text style={styles.muted}>O widget do provedor recebe suas credenciais. A Better Way guarda somente a autorização e os saldos sincronizados.</Text>
+        <Text style={styles.label}>Conexão Open Finance</Text>
+        <Text style={styles.muted}>Sua senha bancária fica no ambiente do conector. A Better Way guarda a autorização e uma cópia dos saldos, investimentos e lançamentos sincronizados para montar seu painel.</Text>
         <Button disabled={!data.providerConfigured || Boolean(working)} onPress={startOpenFinance}>
           {working === "connect" || working === "sync" ? "Conectando..." : "Conectar instituição"}
         </Button>
-        {!data.providerConfigured ? <Text style={styles.muted}>O backend precisa das chaves PLUGGY_CLIENT_ID e PLUGGY_CLIENT_SECRET.</Text> : null}
-      </View>
-
-      <View style={{ borderTopColor: colors.border, borderTopWidth: 1, paddingTop: 12, gap: 8 }}>
-        <Text style={styles.label}>2. Extrato pelo app Arquivos</Text>
-        <Field label="Nome da conta" onChangeText={setAccountName} value={accountName} />
-        <Field label="Saldo antes do extrato" keyboardType="numeric" onChangeText={setOpeningBalance} value={openingBalance} />
-        <Text style={styles.muted}>O CSV pode ter movimentações ou uma posição com saldos e investimentos. A detecção é automática.</Text>
-        <Button disabled={Boolean(working)} onPress={pickAndImportCsv} tone="ghost">
-          {working === "import" ? "Calculando..." : "Selecionar CSV e calcular"}
-        </Button>
+        {!data.providerConfigured ? <Text style={styles.muted}>A conexão direta está temporariamente indisponível. Tente novamente mais tarde.</Text> : null}
+        {__DEV__ ? <Text style={styles.muted}>Ambiente local: para testar uma aplicação Trial, escolha o conector Pluggy Bank.</Text> : null}
       </View>
 
       {data.connections.some((connection) => connection.provider === "pluggy") ? (
@@ -245,7 +216,7 @@ export function BankConnectionsMobile() {
           <View key={connection.id} style={[styles.listItem, styles.rowBetween]}>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>{connection.institutionName || connection.label}</Text>
-              <Text style={styles.subtitle}>{currency(accounts + investments)} · {connection.provider === "pluggy" ? "Open Finance" : "CSV"}</Text>
+              <Text style={styles.subtitle}>{currency(accounts + investments)} · Open Finance</Text>
             </View>
             <Pressable accessibilityLabel={`Remover ${connection.label}`} onPress={() => askToRemove(connection)} style={[styles.chip, { borderColor: colors.red }]}>
               <Text style={[styles.chipText, { color: colors.red }]}>Remover</Text>

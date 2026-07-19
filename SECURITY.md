@@ -1,19 +1,20 @@
 # Segurança da Better Way
 
-Última revisão: 16 de julho de 2026.
+Última revisão: 19 de julho de 2026.
 
 Nenhuma auditoria consegue prometer risco zero. Esta revisão cobre o código, dependências, configuração versionada e metadados visíveis da Vercel; não substitui pentest independente nem a configuração das contas do Registro.br, Resend e MongoDB Atlas.
 
 ## Controles implementados
 
 - Todas as rotas financeiras exigem JWT e consultam documentos pelo `userId` autenticado.
-- O JWT usa apenas `sub` e versão da sessão, algoritmo `HS256`, expiração de sete dias e não carrega e-mail ou dados financeiros.
+- O JWT usa apenas `sub` e versão da sessão, algoritmo `HS256`, expiração máxima de 15 dias e não carrega e-mail ou dados financeiros.
 - Senhas são armazenadas apenas como hash bcrypt. O backend limita o tamanho ao intervalo seguro do bcrypt e invalida sessões após troca de senha ou e-mail.
 - Verificação de e-mail e recuperação usam códigos aleatórios de oito dígitos armazenados apenas como SHA-256, com expiração, cooldown e bloqueio persistente após cinco erros.
 - Login e ações de e-mail têm rate limiting; respostas de recuperação e amizade evitam revelar e-mails cadastrados.
+- O login Google valida o ID token no backend com audiência restrita ao OAuth Client ID da Better Way. O identificador interno do Google não é incluído nas respostas públicas.
 - Amigos recebem somente nome, nome de usuário e avatar. E-mail, salário e demais dados privados não entram na resposta pública.
-- Conexões bancárias removem `userId`, IDs do provedor e nome do arquivo antes de responder ao cliente. A sincronização Pluggy confirma o proprietário do item.
-- O importador bancário aceita apenas CSV de até 900 KB e no máximo 10 mil linhas; o corpo global da API é limitado a 1 MB.
+- Conexões bancárias removem `userId` e identificadores internos do provedor antes de responder ao cliente. A sincronização Pluggy confirma o proprietário do item.
+- A conexão bancária aceita apenas autorizações Open Finance vinculadas ao usuário autenticado; o corpo global da API é limitado a 1 MB.
 - Produção não inicia sem MongoDB, `JWT_SECRET` forte e origens CORS explícitas. O modo local não é usado como persistência serverless.
 - Headers web incluem CSP, HSTS, bloqueio de iframe, `nosniff`, política de referência e restrições de permissões.
 - O repositório ignora `.env`, `.vercel`, dados locais e artefatos. A varredura do código e do histórico não encontrou chave real versionada.
@@ -30,12 +31,13 @@ Nenhuma auditoria consegue prometer risco zero. Esta revisão cobre o código, d
 ## Ações obrigatórias antes do lançamento
 
 1. Rotacione a chave da Resend que foi compartilhada durante a configuração. Primeiro publique a nova chave na Vercel e faça redeploy; depois revogue a antiga.
-2. Marque todos os segredos de produção como **Sensitive** na Vercel. Em especial: `MONGODB_URI`, `JWT_SECRET`, `RESEND_API_KEY` e `PLUGGY_CLIENT_SECRET`.
-3. No Atlas, use um usuário exclusivo do aplicativo com acesso somente ao banco da Better Way, senha aleatória forte e autenticação SCRAM-SHA-256.
-4. Revise a lista de IPs do Atlas. A Vercel usa saída dinâmica por padrão; para remover `0.0.0.0/0`, use Static IPs na Vercel e permita somente esses endereços, ou adote uma rede privada compatível.
-5. Ative autenticação em dois fatores nas contas GitHub, Vercel, MongoDB Atlas, Resend e Registro.br. Remova colaboradores que não precisem de acesso.
-6. Ative **Standard Protection** nos previews da Vercel para que URLs de branches e deployments antigos não fiquem públicas.
-7. Mantenha backups do Atlas, alertas de acesso e rotação periódica de `JWT_SECRET`, credencial do banco, Resend e Pluggy.
+2. Rotacione também o `PLUGGY_CLIENT_SECRET` compartilhado durante a configuração e revogue qualquer API Key temporária copiada fora do painel da Pluggy.
+3. Marque todos os segredos de produção como **Sensitive** na Vercel. Em especial: `MONGODB_URI`, `JWT_SECRET`, `RESEND_API_KEY` e `PLUGGY_CLIENT_SECRET`.
+4. No Atlas, use um usuário exclusivo do aplicativo com acesso somente ao banco da Better Way, senha aleatória forte e autenticação SCRAM-SHA-256.
+5. Revise a lista de IPs do Atlas. A Vercel usa saída dinâmica por padrão; para remover `0.0.0.0/0`, use Static IPs na Vercel e permita somente esses endereços, ou adote uma rede privada compatível.
+6. Ative autenticação em dois fatores nas contas GitHub, Vercel, MongoDB Atlas, Resend, Pluggy e Registro.br. Remova colaboradores que não precisem de acesso.
+7. Ative **Standard Protection** nos previews da Vercel para que URLs de branches e deployments antigos não fiquem públicas.
+8. Mantenha backups do Atlas, alertas de acesso e rotação periódica de `JWT_SECRET`, credencial do banco, Resend e Pluggy.
 
 ## Risco residual conhecido
 

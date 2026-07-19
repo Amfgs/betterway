@@ -17,7 +17,7 @@ import {
 import { BriefcaseBusiness, Calculator, Eye, Newspaper, Plus, Trash2, TrendingUp } from "lucide-react";
 import { api, getErrorMessage } from "../api/client";
 import { StatCard } from "../components/StatCard";
-import { WorkspaceHeader, WorkspaceTabs } from "../components/WorkspaceHeader";
+import { MobileSectionNav, WorkspaceHeader, WorkspaceTabs } from "../components/WorkspaceHeader";
 import { useAuth } from "../context/AuthContext";
 import { currency, percent } from "../utils/formatters";
 import { readScopedStoredValue, removeStoredValue, scopedStorageKey, storageKeys } from "../utils/storageKeys";
@@ -418,6 +418,12 @@ export function InvestmentsPage() {
         title="Carteira e mercado"
       />
       <WorkspaceTabs active={activeView} tabs={investmentTabs} />
+      <MobileSectionNav sections={[
+        { id: "resumo-investimentos", label: "Resumo" },
+        { id: "carteira", label: "Carteira" },
+        { id: "visualizador", label: "Visualizador" },
+        { id: "ativos", label: "Ativos" }
+      ]} />
       {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p> : null}
       {selectedPending ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4">
@@ -521,13 +527,13 @@ export function InvestmentsPage() {
         </button>
       ) : null}
 
-      <section className="investment-overview-stats grid gap-4 md:grid-cols-3">
+      <section className="investment-overview-stats grid gap-4 md:grid-cols-3" id="resumo-investimentos">
         <StatCard label="Total investido" value={currency(totals.invested)} />
         <StatCard label="Valor atual" value={currency(totals.currentValue)} tone={totals.profit >= 0 ? "safe" : "danger"} />
         <StatCard label="Lucro / prejuízo" value={currency(totals.profit)} detail={percent(totals.profitPercent)} tone={totals.profit >= 0 ? "safe" : "danger"} />
       </section>
 
-      <section className="investment-register-grid grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+      <section className="investment-register-grid grid gap-4 xl:grid-cols-[0.8fr_1.2fr]" id="carteira">
         <form className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900" onSubmit={submit}>
           <h2 className="text-xl font-black">Cadastrar ativo</h2>
           <div className="mt-4 grid gap-3">
@@ -586,7 +592,7 @@ export function InvestmentsPage() {
         </div>
       </section>
 
-      <section className="investment-visualizer rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900">
+      <section className="investment-visualizer rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900" id="visualizador">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Visualizador</p>
@@ -652,7 +658,7 @@ export function InvestmentsPage() {
             </div>
 
             <div className="grid gap-4">
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="investment-live-metrics grid gap-3 sm:grid-cols-2">
                 <StatCard label="Preço atual" value={currency(selectedAsset.currentPrice)} detail={`Fonte: ${selectedAsset.quoteSource}`} />
                 <StatCard label="Variação atual" value={percent(selectedAsset.changePercent)} detail={selectedAsset.marketTime ? new Date(selectedAsset.marketTime).toLocaleString("pt-BR") : "Tempo real"} tone={selectedAsset.changePercent >= 0 ? "safe" : "danger"} />
                 <StatCard label="Resultado" value={selectedAsset.isCatalogOnly ? "Fora da carteira" : currency(selectedAsset.profit)} detail={selectedAsset.isCatalogOnly ? "Ativo para acompanhar" : percent(selectedAsset.profitPercent)} tone={selectedAsset.profit >= 0 ? "safe" : "danger"} />
@@ -695,7 +701,7 @@ export function InvestmentsPage() {
         )}
       </section>
 
-      <section className="investment-assets-list rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900">
+      <section className="investment-assets-list rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900" id="ativos">
         <h2 className="text-xl font-black">Ativos rastreados</h2>
         <div className="mt-4 grid gap-3">
           {(portfolio?.assets || []).map((asset) => (

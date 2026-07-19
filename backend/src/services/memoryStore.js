@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const { normalizeDateForStorage } = require("../utils/financial");
 const { availableUsername, isValidUsername, normalizeUsername } = require("../utils/validation");
+const { normalizeAvatarValue } = require("../utils/avatars");
 
 const dataDir = path.resolve(__dirname, "../../data");
 const dataFile = process.env.LOCAL_STORE_PATH || path.join(dataDir, "store.json");
@@ -93,6 +94,8 @@ function withoutPassword(user) {
   delete clean.emailVerificationExpiresAt;
   delete clean.emailVerificationAttempts;
   delete clean.emailVerificationSentAt;
+  delete clean.googleSubject;
+  clean.avatarUrl = normalizeAvatarValue(clean.avatarUrl);
   return clean;
 }
 
@@ -103,7 +106,7 @@ function publicUser(user) {
     _id: user.id,
     name: user.name,
     username: user.username || "",
-    avatarUrl: user.avatarUrl || ""
+    avatarUrl: normalizeAvatarValue(user.avatarUrl)
   };
 }
 
@@ -136,6 +139,10 @@ function saveState() {
 }
 
 module.exports = {
+  async findUserByGoogleSubject(subject) {
+    const user = state.users.find((item) => item.googleSubject === String(subject));
+    return user ? clone(user) : null;
+  },
   async findUserByEmail(email, includePassword = false) {
     const user = state.users.find((item) => item.email === String(email).toLowerCase());
     if (!user) return null;

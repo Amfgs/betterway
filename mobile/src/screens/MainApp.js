@@ -8,6 +8,7 @@ import { NewsScreen } from "./NewsScreen";
 import { ProfileScreen } from "./ProfileScreen";
 import { SimulatorScreen } from "./SimulatorScreen";
 import { styles } from "../components/ui";
+import { AvatarOnboardingModal } from "../components/AvatarOnboardingModal";
 
 const tabs = [
   { key: "dashboard", icon: "home", label: "Início" },
@@ -83,6 +84,7 @@ export function MainApp() {
 
   return (
     <SafeAreaView style={styles.screen}>
+      <AvatarOnboardingModal />
       <View style={[styles.appFrame, useRail ? styles.appFrameWide : null]}>
         {useRail ? <Navigation activeTab={tab} onSelect={setTab} rail /> : null}
         <View style={styles.appBody}><Screen /></View>

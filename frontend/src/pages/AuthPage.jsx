@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, LoaderCircle, LockKeyhole, Moon, ShieldCheck, Sun, X } from "lucide-react";
 import heroImage from "../assets/landing/betterway-hero.webp";
 import { getErrorMessage } from "../api/client";
+import { GoogleSignInButton } from "../components/GoogleSignInButton";
 import { Logo } from "../components/Logo";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
@@ -10,6 +11,7 @@ import { useTheme } from "../context/ThemeContext";
 export function AuthPage() {
   const {
     login,
+    loginWithGoogle,
     register,
     checkUsernameAvailability,
     verifyEmail,
@@ -17,7 +19,9 @@ export function AuthPage() {
     forgotPassword,
     resetPassword,
     isAuthenticated,
-    loading
+    loading,
+    restoreError,
+    session
   } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [mode, setMode] = useState("login");
@@ -42,6 +46,8 @@ export function AuthPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [rememberSession, setRememberSession] = useState(() => localStorage.getItem("betterway_session_persistent") !== "false");
   const [usernameStatus, setUsernameStatus] = useState({ state: "idle", message: "" });
+  const [registerStep, setRegisterStep] = useState(1);
+  const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -113,6 +119,16 @@ export function AuthPage() {
   }, [checkUsernameAvailability, form.username, mode]);
 
   if (!loading && isAuthenticated) return <Navigate to="/dashboard" replace />;
+  if (!loading && session && restoreError) return <Navigate to="/dashboard" replace />;
+  if (loading) {
+    return (
+      <main className="auth-loading-screen">
+        <Logo size={40} />
+        <LoaderCircle aria-hidden="true" size={22} />
+        <span>Retomando seu acesso...</span>
+      </main>
+    );
+  }
 
   function update(key, value) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -124,17 +140,40 @@ export function AuthPage() {
     setSuccess("");
     setShowForgotHint(false);
     setShowVerificationHint(false);
+    setSubmitting(true);
     try {
       if (mode === "login") {
         await login({ email: form.email, password: form.password }, { persistent: rememberSession });
         navigate(location.state?.from?.pathname || "/dashboard", { replace: true });
       } else if (mode === "register") {
-        if (form.password !== form.confirmPassword) {
-          setError("As senhas não coincidem.");
+        if (registerStep === 1) {
+          if (["invalid", "unavailable"].includes(usernameStatus.state)) {
+            setError(usernameStatus.message);
+            return;
+          }
+          const availability = await checkUsernameAvailability(form.username);
+          if (!availability.valid || !availability.available) {
+            setUsernameStatus({
+              state: availability.valid ? "unavailable" : "invalid",
+              message: availability.message
+            });
+            setError(availability.message);
+            return;
+          }
+          setUsernameStatus({ state: "available", message: availability.message });
+          setRegisterStep(2);
           return;
         }
-        if (["invalid", "unavailable"].includes(usernameStatus.state)) {
-          setError(usernameStatus.message);
+        if (registerStep === 2) {
+          if (form.password.length < 8) {
+            setError("A senha precisa ter pelo menos 8 caracteres.");
+            return;
+          }
+          if (form.password !== form.confirmPassword) {
+            setError("As senhas não coincidem.");
+            return;
+          }
+          setRegisterStep(3);
           return;
         }
         const response = await register({ ...form, hourlyRate: calculatedHourlyRate });
@@ -174,6 +213,8 @@ export function AuthPage() {
           message.toLowerCase().includes("email já está cadastrado") ||
           message.toLowerCase().includes("email ja esta cadastrado")
       );
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -185,6 +226,21 @@ export function AuthPage() {
     setShowVerificationHint(false);
     setShowPassword(false);
     setShowConfirmPassword(false);
+    setRegisterStep(1);
+  }
+
+  async function continueWithGoogle(credential) {
+    setError("");
+    setSuccess("");
+    setSubmitting(true);
+    try {
+      await loginWithGoogle(credential, { persistent: rememberSession });
+      navigate(location.state?.from?.pathname || "/dashboard", { replace: true });
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function resendCode() {
@@ -207,10 +263,14 @@ export function AuthPage() {
       cta: "Entrar no painel"
     },
     register: {
-      eyebrow: "Comece em poucos passos",
-      heading: "Crie sua conta",
-      description: "Conte um pouco sobre sua realidade para receber uma experiência mais útil desde o início.",
-      cta: "Criar minha conta"
+      eyebrow: `Cadastro · etapa ${registerStep} de 3`,
+      heading: registerStep === 1 ? "Crie sua conta" : registerStep === 2 ? "Proteja seu acesso" : "Personalize seu começo",
+      description: registerStep === 1
+        ? "Comece com seus dados de identificação ou use sua conta Google."
+        : registerStep === 2
+          ? "Escolha uma senha segura e confirme antes de continuar."
+          : "Use valores aproximados agora. Você poderá atualizar tudo no perfil depois.",
+      cta: registerStep < 3 ? "Continuar" : "Criar minha conta"
     },
     verify: {
       eyebrow: "Só falta confirmar",
@@ -279,8 +339,25 @@ export function AuthPage() {
             <button className="auth-return-button" onClick={() => switchMode("login")} type="button"><ArrowLeft size={16} /> Voltar ao login</button>
           )}
 
-          <form className={`auth-form auth-form-${mode}`} onSubmit={submit}>
-            {mode === "register" ? (
+          {mode === "register" ? (
+            <div aria-label={`Etapa ${registerStep} de 3`} className="auth-registration-progress">
+              <span className="active"><i>1</i> Acesso</span>
+              <b aria-hidden="true" className={registerStep >= 2 ? "complete" : ""} />
+              <span className={registerStep >= 2 ? "active" : ""}><i>2</i> Senha</span>
+              <b aria-hidden="true" className={registerStep === 3 ? "complete" : ""} />
+              <span className={registerStep === 3 ? "active" : ""}><i>3</i> Perfil</span>
+            </div>
+          ) : null}
+
+          {(mode === "login" || (mode === "register" && registerStep === 1)) ? (
+            <div className="auth-social-block">
+              <GoogleSignInButton disabled={submitting} mode={mode} onCredential={continueWithGoogle} />
+              <div className="auth-divider"><span>ou continue com e-mail</span></div>
+            </div>
+          ) : null}
+
+          <form className={`auth-form auth-form-${mode} ${mode === "register" ? `auth-register-step-${registerStep}` : ""}`} onSubmit={submit}>
+            {mode === "register" && registerStep === 1 ? (
               <>
                 <label><span>Nome</span><input autoComplete="name" className={inputClass} onChange={(event) => update("name", event.target.value)} required value={form.name} /></label>
                 <label>
@@ -310,11 +387,13 @@ export function AuthPage() {
                 </label>
               </>
             ) : null}
-            <label className={mode === "register" ? "auth-field-wide" : undefined}>
-              <span>E-mail</span>
-              <input autoComplete="email" className={inputClass} onChange={(event) => update("email", event.target.value)} placeholder="voce@email.com" required type="email" value={form.email} />
-            </label>
-            {["login", "register", "reset"].includes(mode) ? (
+            {mode !== "register" || registerStep === 1 ? (
+              <label className={mode === "register" ? "auth-field-wide" : undefined}>
+                <span>E-mail</span>
+                <input autoComplete="email" className={inputClass} onChange={(event) => update("email", event.target.value)} placeholder="voce@email.com" required type="email" value={form.email} />
+              </label>
+            ) : null}
+            {(["login", "reset"].includes(mode) || (mode === "register" && registerStep === 2)) ? (
               <label>
                 <span>{mode === "reset" ? "Nova senha" : "Senha"}</span>
                 <div className="auth-password-input">
@@ -344,7 +423,7 @@ export function AuthPage() {
                 </div>
               </label>
             ) : null}
-            {mode === "register" ? (
+            {mode === "register" && registerStep === 2 ? (
               <label>
                 <span>Confirme a senha</span>
                 <div className="auth-password-input">
@@ -383,17 +462,17 @@ export function AuthPage() {
             {mode === "reset" ? (
               <label><span>Código recebido por e-mail</span><input autoComplete="one-time-code" className={inputClass} inputMode="numeric" onChange={(event) => update("resetToken", event.target.value.replace(/\D/g, "").slice(0, 8))} placeholder="00000000" required value={form.resetToken} /></label>
             ) : null}
-            {mode === "register" ? (
+            {mode === "register" && registerStep === 3 ? (
               <div className="auth-financial-grid">
                 <label><span>Salário líquido</span><input className={inputClass} min="0" onChange={(event) => update("salary", event.target.value)} required type="number" value={form.salary} /></label>
                 <label><span>Teto mensal</span><input className={inputClass} min="0" onChange={(event) => update("monthlyLimit", event.target.value)} type="number" value={form.monthlyLimit} /></label>
-                <label><span>Horas trabalhadas por dia</span><input className={inputClass} max="24" min="1" onChange={(event) => update("workHoursPerDay", event.target.value)} required step="0.5" type="number" value={form.workHoursPerDay} /></label>
-                <label><span>Valor por hora calculado</span><input aria-describedby="hourly-rate-help" className={`${inputClass} auth-input-calculated`} readOnly value={`R$ ${calculatedHourlyRate}`} /></label>
+                <label><span>Horas por dia</span><input className={inputClass} max="24" min="1" onChange={(event) => update("workHoursPerDay", event.target.value)} required step="0.5" type="number" value={form.workHoursPerDay} /></label>
+                <label><span>Valor por hora</span><input aria-describedby="hourly-rate-help" className={`${inputClass} auth-input-calculated`} readOnly value={`R$ ${calculatedHourlyRate}`} /></label>
                 <small className="auth-field-hint" id="hourly-rate-help">Cálculo considerando 22 dias úteis por mês.</small>
               </div>
             ) : null}
 
-            {["login", "register", "verify"].includes(mode) ? (
+            {["login", "verify"].includes(mode) ? (
               <label className="auth-session-option">
                 <input checked={rememberSession} onChange={(event) => setRememberSession(event.target.checked)} type="checkbox" />
                 <span>
@@ -412,7 +491,16 @@ export function AuthPage() {
             ) : null}
             {success ? <p className="auth-message success" role="status">{success}</p> : null}
 
-            <button className="auth-submit" type="submit">{cta}<ArrowRight size={18} /></button>
+            {mode === "register" && registerStep > 1 ? (
+              <button className="auth-step-back" disabled={submitting} onClick={() => setRegisterStep((current) => Math.max(1, current - 1))} type="button">
+                <ArrowLeft aria-hidden="true" size={16} /> Voltar à etapa anterior
+              </button>
+            ) : null}
+            <button className="auth-submit" disabled={submitting} type="submit">
+              {submitting ? <LoaderCircle aria-hidden="true" className="auth-status-spinner" size={18} /> : null}
+              {submitting ? "Aguarde..." : cta}
+              {!submitting ? <ArrowRight aria-hidden="true" size={18} /> : null}
+            </button>
             {mode === "login" ? <button className="auth-forgot" onClick={() => switchMode("forgot")} type="button">Esqueceu a senha?</button> : null}
             {mode === "verify" ? <button className="auth-forgot" onClick={resendCode} type="button">Reenviar código</button> : null}
           </form>

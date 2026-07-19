@@ -6,7 +6,7 @@ import { api, getErrorMessage } from "../api/client";
 import { DatePickerField } from "../components/DatePickerField";
 import { OpportunityModal } from "../components/OpportunityModal";
 import { StatCard } from "../components/StatCard";
-import { WorkspaceHeader, WorkspaceTabs } from "../components/WorkspaceHeader";
+import { MobileSectionNav, WorkspaceHeader, WorkspaceTabs } from "../components/WorkspaceHeader";
 import { useAuth } from "../context/AuthContext";
 import { categoryLabel, categoryOptions, currency, monthInputValue, percent, shortDate } from "../utils/formatters";
 import { TimelinePage } from "./TimelinePage";
@@ -247,10 +247,16 @@ export function DashboardPage() {
         title={`Resumo de ${selectedMonthLabel}`}
       />
       <WorkspaceTabs active={activeView} tabs={dashboardTabs} />
+      <MobileSectionNav sections={[
+        { id: "resumo-financeiro", label: "Resumo" },
+        { id: "analises-financeiras", label: "Análises" },
+        { id: "movimentacoes", label: "Movimentações" },
+        { id: "planos", label: "Planos" }
+      ]} />
 
       {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p> : null}
 
-      <section className="dashboard-metrics grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="dashboard-metrics grid gap-4 md:grid-cols-2 xl:grid-cols-4" id="resumo-financeiro">
         <StatCard label="Entradas da janela" value={currency(widgets.income)} detail="Salário, freelances e outras rendas" />
         <StatCard label="Saídas da janela" value={currency(widgets.expenses)} detail="Tudo que saiu do bolso" />
         <StatCard label="Saldo da janela" value={currency(widgets.balance)} detail="Entrada menos saídas" tone={widgets.balance >= 0 ? "safe" : "danger"} />
@@ -273,7 +279,7 @@ export function DashboardPage() {
         <small>{percent(widgets.usagePercent)} do teto</small>
       </section>
 
-      <section className="dashboard-charts grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+      <section className="dashboard-charts grid gap-4 xl:grid-cols-[1.1fr_0.9fr]" id="analises-financeiras">
         <div className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -321,7 +327,7 @@ export function DashboardPage() {
         </div>
       </section>
 
-      <section className="dashboard-primary-actions grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+      <section className="dashboard-primary-actions grid gap-4 xl:grid-cols-[0.85fr_1.15fr]" id="movimentacoes">
         <form className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900" id="novo-registro" onSubmit={createTransaction}>
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-xl font-black">{editingTransactionId ? "Editar transação" : "Nova transação"}</h2>
@@ -426,7 +432,7 @@ export function DashboardPage() {
         </div>
       </section>
 
-      <div className="workspace-section-intro">
+      <div className="workspace-section-intro" id="planos">
         <h2>Planos e proteções</h2>
         <p>Organize objetivos e defina limites antes que o mês escolha por você.</p>
       </div>

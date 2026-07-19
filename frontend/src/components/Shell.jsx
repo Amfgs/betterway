@@ -14,6 +14,7 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { avatarSrc } from "../utils/avatars";
 import { readStoredValue, storageKeys } from "../utils/storageKeys";
+import { AvatarOnboarding } from "./AvatarOnboarding";
 import { Logo } from "./Logo";
 
 const navItems = [
@@ -77,6 +78,7 @@ export function Shell() {
 
   return (
     <div className={`app-shell ${collapsed ? "sidebar-is-collapsed" : ""}`}>
+      <AvatarOnboarding />
       <aside
         aria-expanded={!collapsed}
         aria-label={collapsed ? "Abrir navegação principal" : "Navegação principal"}
