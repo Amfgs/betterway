@@ -301,30 +301,48 @@ body.pluggy-connect-active {
 #PluggyConnect {
   position: fixed !important;
   inset: 0 !important;
-  z-index: 10000 !important;
+  z-index: 5000000000 !important;
   width: 100vw !important;
   height: 100dvh !important;
+  pointer-events: auto;
 }
 
 #PluggyConnect [id$="_modal-overlay"] {
   inset: 0 !important;
   width: 100vw !important;
   height: 100dvh !important;
-  min-height: 100dvh !important;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left) !important;
+  overflow: hidden !important;
 }
 
-#PluggyConnect [id$="_modal"],
+#PluggyConnect [id$="_modal"] {
+  display: flex !important;
+  width: min(500px, 100%) !important;
+  height: min(720px, 100%) !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+}
+
 #PluggyConnect [class*="_modal-content"],
-#PluggyConnect [class*="_container"],
-#PluggyConnect iframe {
+#PluggyConnect [class*="_container"] {
+  display: flex !important;
+  flex: 1 1 auto;
   width: 100% !important;
   height: 100% !important;
   min-height: 0 !important;
+  overflow: hidden !important;
 }
 
 #PluggyConnect iframe {
-  overflow: auto !important;
-  -webkit-overflow-scrolling: touch;
+  flex: 1 1 auto;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  border: 0 !important;
+  touch-action: pan-y !important;
+  overscroll-behavior: contain !important;
+  -webkit-overflow-scrolling: touch !important;
 }
 
 @media (max-width: 500px) {
@@ -348,10 +366,7 @@ body.pluggy-connect-active {
   }
 
   #PluggyConnect iframe {
-    width: 100% !important;
-    height: 100% !important;
-    min-height: 100dvh !important;
-    border: 0 !important;
+    min-height: 0 !important;
   }
 }
 
@@ -359,6 +374,5 @@ body.pluggy-connect-active {
   #PluggyConnect [id$="_modal-overlay"],
   #PluggyConnect [id$="_modal"] {
     height: -webkit-fill-available !important;
-    min-height: -webkit-fill-available !important;
   }
 }

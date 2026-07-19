@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { PluggyConnect } from "react-pluggy-connect";
 import {
   Building2,
@@ -77,10 +78,26 @@ export function BankConnectionsPanel({ onChange }) {
 
   useEffect(() => {
     if (!connectToken) return undefined;
+    const connectRoot = document.getElementById("PluggyConnect");
+
+    const enableIframeScrolling = () => {
+      connectRoot?.querySelectorAll("iframe").forEach((frame) => {
+        frame.setAttribute("scrolling", "yes");
+        frame.style.setProperty("touch-action", "pan-y");
+        frame.style.setProperty("overscroll-behavior", "contain");
+        frame.style.setProperty("-webkit-overflow-scrolling", "touch");
+      });
+    };
+
     document.documentElement.classList.add("pluggy-connect-active");
     document.body.classList.add("pluggy-connect-active");
+    enableIframeScrolling();
+
+    const observer = new MutationObserver(enableIframeScrolling);
+    if (connectRoot) observer.observe(connectRoot, { childList: true, subtree: true });
 
     return () => {
+      observer.disconnect();
       document.documentElement.classList.remove("pluggy-connect-active");
       document.body.classList.remove("pluggy-connect-active");
     };
@@ -165,7 +182,7 @@ export function BankConnectionsPanel({ onChange }) {
 
   return (
     <section className="bank-connections-panel rounded-lg border border-black/5 bg-white p-5 shadow-soft dark:border-white/10 dark:bg-neutral-900">
-      {connectToken ? (
+      {connectToken ? createPortal(
         <PluggyConnect
           allowConnectInBackground={false}
           allowFullscreen
@@ -183,7 +200,8 @@ export function BankConnectionsPanel({ onChange }) {
           onSuccess={finishConnection}
           products={["ACCOUNTS", "TRANSACTIONS", "INVESTMENTS"]}
           theme={theme}
-        />
+        />,
+        document.body
       ) : null}
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">

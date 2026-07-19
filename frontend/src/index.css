@@ -4317,37 +4317,6 @@ textarea:focus-visible {
   transform: rotate(180deg);
 }
 
-html.pluggy-connect-active,
-html.pluggy-connect-active body {
-  height: 100%;
-  overscroll-behavior: none;
-}
-
-#PluggyConnect [id$="_modal-overlay"] {
-  width: 100vw !important;
-  height: 100dvh !important;
-  min-height: 100dvh !important;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-  align-items: center !important;
-  overflow: hidden !important;
-}
-
-#PluggyConnect [id$="_modal"] {
-  width: min(500px, 100%) !important;
-  height: min(720px, 100%) !important;
-  max-width: 100% !important;
-  max-height: 100% !important;
-  overflow: hidden !important;
-}
-
-#PluggyConnect [class*="_modal-content"],
-#PluggyConnect [class*="_container"],
-#PluggyConnect iframe {
-  width: 100% !important;
-  height: 100% !important;
-  min-height: 0 !important;
-}
-
 @media (max-width: 767px) {
   html {
     scroll-padding-top: calc(116px + env(safe-area-inset-top));
@@ -4855,20 +4824,6 @@ html.pluggy-connect-active body {
     height: 31px;
   }
 
-  #PluggyConnect [id$="_modal-overlay"] {
-    padding: 0;
-    align-items: stretch !important;
-    background: #ffffff !important;
-  }
-
-  #PluggyConnect [id$="_modal"] {
-    width: 100vw !important;
-    height: 100dvh !important;
-    max-width: none !important;
-    max-height: none !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-  }
 }
 
 @media (max-width: 390px) {

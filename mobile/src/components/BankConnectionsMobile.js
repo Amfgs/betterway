@@ -152,10 +152,8 @@ export function BankConnectionsMobile() {
       <Modal
         animationType="slide"
         hardwareAccelerated
-        navigationBarTranslucent
         onRequestClose={() => setConnectToken("")}
         presentationStyle="fullScreen"
-        statusBarTranslucent
         visible={Boolean(connectToken)}
       >
         <View style={{ flex: 1, backgroundColor: "#ffffff", overflow: "hidden" }}>
