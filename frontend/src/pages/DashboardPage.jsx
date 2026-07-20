@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Area, AreaChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ArrowDownCircle, ArrowUpCircle, BrainCircuit, History, LayoutDashboard, Pencil, Plus, Trash2, WalletCards, X } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, BrainCircuit, ChartNoAxesCombined, History, LayoutDashboard, Pencil, Plus, Target, Trash2, WalletCards, X } from "lucide-react";
 import { api, getErrorMessage } from "../api/client";
 import { DatePickerField } from "../components/DatePickerField";
 import { OpportunityModal } from "../components/OpportunityModal";
 import { StatCard } from "../components/StatCard";
-import { MobileSectionNav, WorkspaceHeader, WorkspaceTabs } from "../components/WorkspaceHeader";
+import { GuidedSectionHeader, WorkspaceHeader, WorkspacePeriodControl, WorkspaceTabs } from "../components/WorkspaceHeader";
 import { useAuth } from "../context/AuthContext";
 import { categoryLabel, categoryOptions, currency, monthInputValue, percent, shortDate } from "../utils/formatters";
 import { TimelinePage } from "./TimelinePage";
@@ -48,6 +48,96 @@ const dashboardTabs = [
   { id: "overview", label: "Resumo do mês", to: "/dashboard", icon: LayoutDashboard },
   { id: "timeline", label: "Linha do tempo", to: "/dashboard?view=timeline", icon: History }
 ];
+
+function TransactionForm({ editingTransactionId, form, onCancel, onChange, onSubmit }) {
+  return (
+    <form className="transaction-priority-form" id="novo-registro" onSubmit={onSubmit}>
+      <div className="transaction-priority-heading">
+        <div>
+          <h3>{editingTransactionId ? "Editar transação" : "O que mudou no seu dinheiro?"}</h3>
+          <p>Registre uma entrada ou saída para manter saldo, teto e gráficos atualizados.</p>
+        </div>
+        {editingTransactionId ? (
+          <button className="transaction-cancel" onClick={onCancel} type="button">
+            <X size={15} />
+            Cancelar
+          </button>
+        ) : null}
+      </div>
+
+      <div className="transaction-type-toggle" role="group" aria-label="Tipo de movimentação">
+        <button aria-pressed={form.type === "expense"} onClick={() => onChange("type", "expense")} type="button">
+          <ArrowDownCircle size={17} /> Saída
+        </button>
+        <button aria-pressed={form.type === "income"} onClick={() => onChange("type", "income")} type="button">
+          <ArrowUpCircle size={17} /> Entrada
+        </button>
+      </div>
+
+      <div className="transaction-form-grid">
+        <label className="transaction-description-field">
+          <span>Descrição</span>
+          <input placeholder="Ex.: Mercado da semana" value={form.title} onChange={(event) => onChange("title", event.target.value)} required />
+        </label>
+        <label>
+          <span>Valor</span>
+          <input min="0" placeholder="R$ 0,00" step="0.01" type="number" value={form.amount} onChange={(event) => onChange("amount", event.target.value)} required />
+        </label>
+        <label>
+          <span>Setor</span>
+          <select value={form.category} onChange={(event) => onChange("category", event.target.value)}>
+            {categoryOptions.map((category) => (
+              <option key={category.value} value={category.value}>{category.label}</option>
+            ))}
+          </select>
+        </label>
+        <DatePickerField label="Data da transação" value={form.date} onChange={(value) => onChange("date", value)} />
+      </div>
+
+      <div className="transaction-form-footer">
+        <label className="transaction-superfluous-check">
+          <input checked={form.isSuperfluous} onChange={(event) => onChange("isSuperfluous", event.target.checked)} type="checkbox" />
+          <span><strong>Ativar Raio-X</strong><small>Mostra o custo de oportunidade desta compra.</small></span>
+        </label>
+        <button className="transaction-submit" type="submit">
+          {editingTransactionId ? <Pencil size={18} /> : <Plus size={18} />}
+          {editingTransactionId ? "Salvar edição" : "Registrar transação"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function DashboardSnapshot({ usageTone, widgets, windowLabel }) {
+  return (
+    <div className="dashboard-snapshot">
+      <div className={`dashboard-snapshot-balance ${Number(widgets.balance || 0) < 0 ? "negative" : ""}`}>
+        <span>Saldo desta janela</span>
+        <strong>{currency(widgets.balance)}</strong>
+        <small>Entradas menos saídas em {windowLabel || "30 dias"}</small>
+      </div>
+      <div className="dashboard-snapshot-grid">
+        <div>
+          <span className="snapshot-icon income"><ArrowUpCircle size={18} /></span>
+          <small>Entradas</small>
+          <strong>{currency(widgets.income)}</strong>
+        </div>
+        <div>
+          <span className="snapshot-icon expense"><ArrowDownCircle size={18} /></span>
+          <small>Saídas</small>
+          <strong>{currency(widgets.expenses)}</strong>
+        </div>
+        <div className="dashboard-limit-reading">
+          <span className={`snapshot-icon ${usageTone}`}><Target size={18} /></span>
+          <small>Teto usado</small>
+          <strong>{percent(widgets.usagePercent)}</strong>
+          <div aria-hidden="true"><i className={usageTone} style={{ width: `${Math.min(Number(widgets.usagePercent || 0), 100)}%` }} /></div>
+          <p>{currency(widgets.expensesForLimit)} de {currency(widgets.monthlyLimit)}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function DashboardPage() {
   const { user } = useAuth();
@@ -139,6 +229,10 @@ export function DashboardPage() {
       date: String(transaction.date || inputDate()).slice(0, 10),
       notes: transaction.notes || ""
     });
+    window.setTimeout(() => {
+      const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      document.getElementById("novo-registro")?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+    }, 40);
   }
 
   function cancelEditTransaction() {
@@ -236,50 +330,59 @@ export function DashboardPage() {
     <div className="workspace-page dashboard-page space-y-6">
       <OpportunityModal opportunity={opportunity} onClose={() => setOpportunity(null)} />
       <WorkspaceHeader
-        actions={(
-          <label className="workspace-month-control">
-            <span>Mês da análise</span>
-            <input type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
-          </label>
-        )}
-        description={`Acompanhe limite, saldo, registros e planos na janela de ${summary?.window?.label || "30 dias"}.`}
+        description="Registre o que aconteceu primeiro. A BW organiza o restante em leituras simples para você decidir o próximo passo."
         eyebrow="Visão geral"
-        title={`Resumo de ${selectedMonthLabel}`}
+        title={`Seu mês em ${selectedMonthLabel}`}
       />
       <WorkspaceTabs active={activeView} tabs={dashboardTabs} />
-      <MobileSectionNav sections={[
-        { id: "resumo-financeiro", label: "Resumo" },
-        { id: "analises-financeiras", label: "Análises" },
-        { id: "movimentacoes", label: "Movimentações" },
-        { id: "planos", label: "Planos" }
-      ]} />
+      <WorkspacePeriodControl
+        description={`A leitura considera ${summary?.window?.label || "a janela financeira atual"}.`}
+        label="Período analisado"
+        onChange={setMonth}
+        value={month}
+      />
 
       {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p> : null}
 
-      <section className="dashboard-metrics grid gap-4 md:grid-cols-2 xl:grid-cols-4" id="resumo-financeiro">
-        <StatCard label="Entradas da janela" value={currency(widgets.income)} detail="Salário, freelances e outras rendas" />
-        <StatCard label="Saídas da janela" value={currency(widgets.expenses)} detail="Tudo que saiu do bolso" />
-        <StatCard label="Saldo da janela" value={currency(widgets.balance)} detail="Entrada menos saídas" tone={widgets.balance >= 0 ? "safe" : "danger"} />
-        <StatCard label="Teto usado" value={percent(widgets.usagePercent)} detail={`Gastos de teto: ${currency(widgets.expensesForLimit)} · limite: ${currency(widgets.monthlyLimit)}`} tone={usageTone}>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
-            <div
-              className={`h-full rounded-full ${usageTone === "danger" ? "bg-red-500" : usageTone === "warning" ? "bg-amber-500" : "bg-emerald-500"}`}
-              style={{ width: `${Math.min(widgets.usagePercent || 0, 130)}%` }}
-            />
+      <section className="guided-page-section transaction-priority-section">
+        <GuidedSectionHeader
+          description="Uma movimentação leva poucos segundos e atualiza automaticamente todas as análises abaixo."
+          icon={Plus}
+          title="Comece pelo que aconteceu hoje"
+        />
+        <TransactionForm
+          editingTransactionId={editingTransactionId}
+          form={form}
+          onCancel={cancelEditTransaction}
+          onChange={updateForm}
+          onSubmit={createTransaction}
+        />
+      </section>
+
+      <section className="guided-page-section" id="resumo-financeiro">
+        <GuidedSectionHeader
+          description="Saldo, entradas, saídas e limite aparecem juntos para mostrar se o mês está sob controle."
+          icon={WalletCards}
+          title="Entenda o mês em um olhar"
+        />
+        <DashboardSnapshot usageTone={usageTone} widgets={widgets} windowLabel={summary?.window?.label} />
+        <div className={`behavior-banner rounded-lg border p-4 ${usageTone === "danger" ? "border-red-300 bg-red-50 text-red-950 danger-pulse dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-50" : usageTone === "warning" ? "border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-50" : "border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-50"}`}>
+          <span className="behavior-banner-icon"><BrainCircuit aria-hidden="true" size={20} /></span>
+          <div>
+            <p>Leitura comportamental</p>
+            <strong>{widgets.behaviorMessage || "Carregando leitura comportamental..."}</strong>
           </div>
-        </StatCard>
-      </section>
-
-      <section className={`behavior-banner rounded-lg border p-4 ${usageTone === "danger" ? "border-red-300 bg-red-50 text-red-950 danger-pulse dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-50" : usageTone === "warning" ? "border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-50" : "border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-50"}`}>
-        <span className="behavior-banner-icon"><BrainCircuit aria-hidden="true" size={20} /></span>
-        <div>
-          <p>Leitura comportamental</p>
-          <strong>{widgets.behaviorMessage || "Carregando leitura comportamental..."}</strong>
+          <small>{percent(widgets.usagePercent)} do teto</small>
         </div>
-        <small>{percent(widgets.usagePercent)} do teto</small>
       </section>
 
-      <section className="dashboard-charts grid gap-4 xl:grid-cols-[1.1fr_0.9fr]" id="analises-financeiras">
+      <section className="guided-page-section" id="analises-financeiras">
+        <GuidedSectionHeader
+          description="O primeiro gráfico compara o que entrou e saiu; o segundo revela quais categorias mais consumiram seu orçamento."
+          icon={ChartNoAxesCombined}
+          title="Veja como o dinheiro se move"
+        />
+        <div className="dashboard-charts grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -303,7 +406,7 @@ export function DashboardPage() {
 
         <div className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900">
           <h2 className="text-xl font-black">Categorias</h2>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">Onde o dinheiro mais escapou</p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">Descubra onde os gastos se concentram.</p>
           <div className="mt-4 h-72">
             {categoryChart.length ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -325,62 +428,16 @@ export function DashboardPage() {
             )}
           </div>
         </div>
+        </div>
       </section>
 
-      <section className="dashboard-primary-actions grid gap-4 xl:grid-cols-[0.85fr_1.15fr]" id="movimentacoes">
-        <form className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900" id="novo-registro" onSubmit={createTransaction}>
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-xl font-black">{editingTransactionId ? "Editar transação" : "Nova transação"}</h2>
-            {editingTransactionId ? (
-              <button className="inline-flex items-center gap-1 rounded-lg border border-black/10 px-3 py-2 text-sm font-bold text-zinc-600 dark:border-white/10 dark:text-zinc-300" onClick={cancelEditTransaction} type="button">
-                <X size={15} />
-                Cancelar
-              </button>
-            ) : null}
-          </div>
-          <div className="mt-4 grid gap-3">
-            <label>
-              <span className="mb-1 block text-xs font-bold text-zinc-500 dark:text-zinc-400">Descrição</span>
-              <input className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" placeholder="Ex.: Mercado da semana" value={form.title} onChange={(event) => updateForm("title", event.target.value)} />
-            </label>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label>
-                <span className="mb-1 block text-xs font-bold text-zinc-500 dark:text-zinc-400">Valor</span>
-                <input className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" placeholder="R$ 0,00" type="number" value={form.amount} onChange={(event) => updateForm("amount", event.target.value)} />
-              </label>
-              <label>
-                <span className="mb-1 block text-xs font-bold text-zinc-500 dark:text-zinc-400">Movimentação</span>
-                <select className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" value={form.type} onChange={(event) => updateForm("type", event.target.value)}>
-                  <option value="expense">Saída</option>
-                  <option value="income">Entrada</option>
-                </select>
-              </label>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label>
-                <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Setor</span>
-                <select className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" value={form.category} onChange={(event) => updateForm("category", event.target.value)}>
-                  {categoryOptions.map((category) => (
-                    <option key={category.value} value={category.value}>
-                      {category.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <DatePickerField label="Data da transação" value={form.date} onChange={(value) => updateForm("date", value)} />
-            </div>
-            <label className="flex items-center gap-2 rounded-lg border border-black/10 px-3 py-3 text-sm dark:border-white/10">
-              <input checked={form.isSuperfluous} onChange={(event) => updateForm("isSuperfluous", event.target.checked)} type="checkbox" />
-              Disparar Raio-X se for gasto supérfluo
-            </label>
-            <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-3 font-black text-white" type="submit">
-              {editingTransactionId ? <Pencil size={18} /> : <Plus size={18} />}
-              {editingTransactionId ? "Salvar edição" : "Registrar"}
-            </button>
-          </div>
-        </form>
-
-        <div className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900">
+      <section className="guided-page-section" id="movimentacoes">
+        <GuidedSectionHeader
+          description="Os cinco registros mais recentes ficam aqui; a linha do tempo completa organiza tudo por mês e permite editar."
+          icon={History}
+          title="Confira o que mudou"
+        />
+        <div className="dashboard-timeline rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-xl font-black">Linha do tempo</h2>
@@ -394,7 +451,7 @@ export function DashboardPage() {
             {loading ? <p className="text-sm text-zinc-500">Carregando...</p> : null}
             <div className="space-y-2">
               {recentTransactions.map((transaction) => (
-                <div key={transaction.id} className="flex items-center justify-between gap-3 rounded-lg border border-black/5 p-3 dark:border-white/10">
+                <div key={transaction.id} className="timeline-item flex items-center justify-between gap-3 rounded-lg border border-black/5 p-3 dark:border-white/10">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-bold">{transaction.title}</p>
@@ -404,7 +461,7 @@ export function DashboardPage() {
                       {shortDate(transaction.date)} · {categoryLabel(transaction.category)}
                     </p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-3">
+                  <div className="timeline-item-actions flex shrink-0 items-center gap-3">
                     <p className={`font-black ${transaction.type === "income" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
                       {transaction.type === "income" ? "+" : "-"}
                       {currency(transaction.amount)}
@@ -423,21 +480,29 @@ export function DashboardPage() {
         </div>
       </section>
 
-      <section className="dashboard-net-worth rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900">
+      <section className="guided-page-section">
+        <GuidedSectionHeader
+          description="Esta leitura reúne o saldo bancário e o valor investido para aproximar seu patrimônio líquido atual."
+          icon={WalletCards}
+          title="Acompanhe o que você está construindo"
+        />
+        <div className="dashboard-net-worth rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900">
         <h2 className="text-xl font-black">Patrimônio estimado</h2>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <StatCard label="Banco" value={currency(widgets.bankBalance)} detail={widgets.bankBalanceSource === "connected" ? "Saldo sincronizado" : "Calculado pelos registros"} />
           <StatCard label="Investido a custo" value={currency(widgets.investedCost)} />
           <StatCard label="Líquido estimado" value={currency(widgets.netWorthEstimate)} tone="safe" />
         </div>
+        </div>
       </section>
 
-      <div className="workspace-section-intro" id="planos">
-        <h2>Planos e proteções</h2>
-        <p>Organize objetivos e defina limites antes que o mês escolha por você.</p>
-      </div>
-
-      <section className="dashboard-planning grid gap-4 xl:grid-cols-2">
+      <section className="guided-page-section" id="planos">
+        <GuidedSectionHeader
+          description="Caixinhas transformam objetivos em progresso; limites avisam antes que uma categoria saia do planejado."
+          icon={Target}
+          title="Proteja seus próximos passos"
+        />
+        <div className="dashboard-planning grid gap-4 xl:grid-cols-2">
         <div className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900">
           <div className="flex items-center gap-3">
             <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-300">
@@ -599,6 +664,7 @@ export function DashboardPage() {
               </p>
             ) : null}
           </div>
+        </div>
         </div>
       </section>
     </div>

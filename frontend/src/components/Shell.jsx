@@ -55,6 +55,7 @@ export function Shell() {
   );
   const [query, setQuery] = useState("");
   const currentMeta = pageMeta[location.pathname] || pageMeta["/dashboard"];
+  const showTransactionAction = ["/dashboard", "/calendario"].includes(location.pathname);
 
   useEffect(() => {
     localStorage.setItem(storageKeys.sidebarCollapsed, String(collapsed));
@@ -74,6 +75,13 @@ export function Shell() {
   function submitSearch(event) {
     event.preventDefault();
     if (searchResults[0]) navigate(searchResults[0].to);
+  }
+
+  function focusTransactionForm() {
+    window.setTimeout(() => {
+      const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      document.getElementById("novo-registro")?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+    }, 80);
   }
 
   return (
@@ -154,20 +162,13 @@ export function Shell() {
                 </div>
               ) : null}
             </form>
-            <Link className="topbar-primary-action" to="/dashboard#novo-registro">
-              <Plus size={17} />
-              Novo registro
-            </Link>
           </div>
         </header>
 
         <header className="mobile-topbar">
           <Link aria-label="Ir para Visão Geral" to="/dashboard"><Logo size={34} withWordmark={false} /></Link>
-          <div>
-            <span>{currentMeta.title}</span>
-            <Link aria-label="Criar novo registro" className="mobile-quick-add" to="/dashboard#novo-registro"><Plus size={17} /></Link>
-            <Link aria-label="Abrir perfil" to="/perfil"><img alt="Avatar do usuário" src={avatarSrc(user?.avatarUrl)} /></Link>
-          </div>
+          <strong className="mobile-topbar-title">{currentMeta.title}</strong>
+          <Link aria-label="Abrir perfil" className="mobile-topbar-profile" to="/perfil"><img alt="Avatar do usuário" src={avatarSrc(user?.avatarUrl)} /></Link>
         </header>
 
         <main className="app-content">
@@ -176,6 +177,18 @@ export function Shell() {
             <Outlet />
           </div>
         </main>
+
+        {showTransactionAction ? (
+          <Link
+            aria-label="Cadastrar nova transação"
+            className="contextual-transaction-action"
+            onClick={focusTransactionForm}
+            to="/dashboard#novo-registro"
+          >
+            <Plus aria-hidden="true" size={19} />
+            <span>Nova transação</span>
+          </Link>
+        ) : null}
       </div>
 
       <nav aria-label="Navegação móvel" className="mobile-navigation">

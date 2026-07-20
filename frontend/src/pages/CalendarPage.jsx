@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Plus, Trash2, X } from "lucide-react";
+import { CalendarDays, Plus, SlidersHorizontal, Trash2, WalletCards, X } from "lucide-react";
 import { api, getErrorMessage } from "../api/client";
-import { MobileSectionNav, WorkspaceHeader } from "../components/WorkspaceHeader";
+import { GuidedSectionHeader, WorkspaceHeader, WorkspacePeriodControl } from "../components/WorkspaceHeader";
 import { useAuth } from "../context/AuthContext";
 import { currency, shortDate } from "../utils/formatters";
 import { readScopedStoredValue, removeStoredValue, scopedStorageKey, storageKeys } from "../utils/storageKeys";
@@ -368,34 +368,41 @@ export function CalendarPage() {
       ) : null}
 
       <WorkspaceHeader
-        actions={(
-          <label className="workspace-month-control">
-            <span>Mês planejado</span>
-            <input type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
-          </label>
-        )}
-        description="Veja primeiro quanto pode usar por dia. Depois, ajuste pesos, reservas e exceções quando precisar."
+        description="Transforme seus limites em um valor diário possível e ajuste somente os dias que fogem da rotina."
         eyebrow="Calendário"
-        title={`Planejamento de ${selectedMonthLabel}`}
+        title={`Planeje ${selectedMonthLabel}`}
       />
-      <MobileSectionNav sections={[
-        { id: "resumo-calendario", label: "Resumo" },
-        { id: "calendario-mensal", label: "Calendário" },
-        { id: "ajustes-calendario", label: "Ajustes" }
-      ]} />
+      <WorkspacePeriodControl
+        description="O calendário recalcula os dias sempre que seus limites ou movimentações mudam."
+        label="Mês planejado"
+        onChange={setMonth}
+        value={month}
+      />
 
       {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p> : null}
 
-      <section className="calendar-metrics grid gap-4 md:grid-cols-2 xl:grid-cols-5" id="resumo-calendario">
-        <Metric label="Entradas do mês" value={currency(calendar.income)} />
-        <Metric label="Saídas do mês" value={currency(calendar.expenses)} tone="danger" />
-        <Metric label="Limites disponíveis" value={currency(calendar.available)} tone={calendar.available >= 0 ? "safe" : "danger"} />
-        <Metric label="Dias na distribuição" value={calendar.remainingDays} />
-        <Metric label="Limites cadastrados" value={calendar.limitsCount || "Teto geral"} />
+      <section className="guided-page-section" id="resumo-calendario">
+        <GuidedSectionHeader
+          description="O valor disponível vem dos limites ainda não utilizados, e não do saldo total da sua conta."
+          icon={WalletCards}
+          title="Veja quanto ainda pode distribuir"
+        />
+        <div className="calendar-metrics grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <Metric label="Limites disponíveis" primary value={currency(calendar.available)} tone={calendar.available >= 0 ? "safe" : "danger"} />
+          <Metric label="Dias na distribuição" value={calendar.remainingDays} />
+          <Metric label="Saídas do mês" value={currency(calendar.expenses)} tone="danger" />
+          <Metric label="Entradas do mês" value={currency(calendar.income)} />
+          <Metric label="Limites cadastrados" value={calendar.limitsCount || "Teto geral"} />
+        </div>
       </section>
 
       <section className="calendar-workspace grid gap-4 xl:grid-cols-[1.28fr_0.72fr]">
         <div className="calendar-settings space-y-4" id="ajustes-calendario">
+          <GuidedSectionHeader
+            description="Escolha dias da semana, dê mais peso aos fins de semana e reserve valores para situações específicas."
+            icon={SlidersHorizontal}
+            title="Ajuste somente o que for exceção"
+          />
           <section className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900">
             <div className="flex items-center gap-2">
               <CalendarDays className="text-emerald-500" size={20} />
@@ -515,7 +522,13 @@ export function CalendarPage() {
           </div>
         </div>
 
-        <div className="calendar-board rounded-lg border border-black/5 bg-white p-2 shadow-soft dark:border-white/10 dark:bg-neutral-900 sm:p-4" id="calendario-mensal">
+        <div className="calendar-board-wrap" id="calendario-mensal">
+          <GuidedSectionHeader
+            description="Cada dia mostra a sugestão de gasto e o que já foi usado. Toque em uma data para dedicar um valor ou ignorá-la."
+            icon={CalendarDays}
+            title="Leia seu mês dia a dia"
+          />
+          <div className="calendar-board rounded-lg border border-black/5 bg-white p-2 shadow-soft dark:border-white/10 dark:bg-neutral-900 sm:p-4">
           <div className="grid grid-cols-7 gap-1 text-center text-xs font-black uppercase text-zinc-500 dark:text-zinc-300">
             {weekdayOptions.map((day) => (
               <span key={day.value}>{day.short}</span>
@@ -559,16 +572,17 @@ export function CalendarPage() {
               </button>
             ))}
           </div>
+          </div>
         </div>
       </section>
     </div>
   );
 }
 
-function Metric({ label, value, tone = "neutral" }) {
+function Metric({ label, value, tone = "neutral", primary = false }) {
   const color = tone === "danger" ? "text-red-600 dark:text-red-300" : tone === "safe" ? "text-emerald-600 dark:text-emerald-300" : "";
   return (
-    <div className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900">
+    <div className={`calendar-metric rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900 ${primary ? "primary" : ""}`}>
       <p className="text-sm text-zinc-500 dark:text-zinc-400">{label}</p>
       <p className={`mt-2 text-2xl font-black ${color}`}>{value}</p>
     </div>

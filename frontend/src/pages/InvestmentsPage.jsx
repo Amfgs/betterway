@@ -17,7 +17,7 @@ import {
 import { BriefcaseBusiness, Calculator, Eye, Newspaper, Plus, Trash2, TrendingUp } from "lucide-react";
 import { api, getErrorMessage } from "../api/client";
 import { StatCard } from "../components/StatCard";
-import { MobileSectionNav, WorkspaceHeader, WorkspaceTabs } from "../components/WorkspaceHeader";
+import { GuidedSectionHeader, WorkspaceHeader, WorkspaceTabs } from "../components/WorkspaceHeader";
 import { useAuth } from "../context/AuthContext";
 import { currency, percent } from "../utils/formatters";
 import { readScopedStoredValue, removeStoredValue, scopedStorageKey, storageKeys } from "../utils/storageKeys";
@@ -391,7 +391,14 @@ export function InvestmentsPage() {
           title="Simulador de investimentos"
         />
         <WorkspaceTabs active={activeView} tabs={investmentTabs} />
-        <SimulatorPage embedded />
+        <section className="guided-page-section">
+          <GuidedSectionHeader
+            description="Escolha o tipo de investimento, informe o aporte e compare quanto veio do seu bolso com o que foi gerado pelo rendimento."
+            icon={Calculator}
+            title="Transforme uma intenção em cenário"
+          />
+          <SimulatorPage embedded />
+        </section>
       </div>
     );
   }
@@ -405,7 +412,14 @@ export function InvestmentsPage() {
           title="Notícias do mercado"
         />
         <WorkspaceTabs active={activeView} tabs={investmentTabs} />
-        <NewsPage embedded />
+        <section className="guided-page-section">
+          <GuidedSectionHeader
+            description="Use o feed para entender fatos que podem afetar juros, inflação e ativos, sem transformar notícia em recomendação automática."
+            icon={Newspaper}
+            title="Leia o mercado com contexto"
+          />
+          <NewsPage embedded />
+        </section>
       </div>
     );
   }
@@ -418,12 +432,6 @@ export function InvestmentsPage() {
         title="Carteira e mercado"
       />
       <WorkspaceTabs active={activeView} tabs={investmentTabs} />
-      <MobileSectionNav sections={[
-        { id: "resumo-investimentos", label: "Resumo" },
-        { id: "carteira", label: "Carteira" },
-        { id: "visualizador", label: "Visualizador" },
-        { id: "ativos", label: "Ativos" }
-      ]} />
       {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p> : null}
       {selectedPending ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4">
@@ -528,12 +536,24 @@ export function InvestmentsPage() {
       ) : null}
 
       <section className="investment-overview-stats grid gap-4 md:grid-cols-3" id="resumo-investimentos">
+        <GuidedSectionHeader
+          className="guided-grid-span"
+          description="Compare o que foi aportado com o valor atual para entender o resultado total da carteira antes de olhar cada ativo."
+          icon={BriefcaseBusiness}
+          title="Comece pela carteira inteira"
+        />
         <StatCard label="Total investido" value={currency(totals.invested)} />
         <StatCard label="Valor atual" value={currency(totals.currentValue)} tone={totals.profit >= 0 ? "safe" : "danger"} />
         <StatCard label="Lucro / prejuízo" value={currency(totals.profit)} detail={percent(totals.profitPercent)} tone={totals.profit >= 0 ? "safe" : "danger"} />
       </section>
 
       <section className="investment-register-grid grid gap-4 xl:grid-cols-[0.8fr_1.2fr]" id="carteira">
+        <GuidedSectionHeader
+          className="guided-grid-span"
+          description="Cadastre posições para calcular preço médio e veja no gráfico como o patrimônio está dividido entre os tipos de investimento."
+          icon={Plus}
+          title="Mantenha a composição organizada"
+        />
         <form className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900" onSubmit={submit}>
           <h2 className="text-xl font-black">Cadastrar ativo</h2>
           <div className="mt-4 grid gap-3">
@@ -593,10 +613,13 @@ export function InvestmentsPage() {
       </section>
 
       <section className="investment-visualizer rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900" id="visualizador">
+        <GuidedSectionHeader
+          description="Selecione um ativo para comparar preço, variação, risco e comportamento recente em uma leitura maior."
+          icon={Eye}
+          title="Aprofunde um investimento por vez"
+        />
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Visualizador</p>
-            <h2 className="text-xl font-black">Análise por ativo com atualização periódica</h2>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
               Atualiza a cada 15s · última leitura: {market.updatedAt ? new Date(market.updatedAt).toLocaleTimeString("pt-BR") : "aguardando cotação"}
             </p>
@@ -702,7 +725,11 @@ export function InvestmentsPage() {
       </section>
 
       <section className="investment-assets-list rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900" id="ativos">
-        <h2 className="text-xl font-black">Ativos rastreados</h2>
+        <GuidedSectionHeader
+          description="Esta lista reúne quantidade, preço médio, cotação atual e resultado de cada posição cadastrada."
+          icon={TrendingUp}
+          title="Revise os ativos rastreados"
+        />
         <div className="mt-4 grid gap-3">
           {(portfolio?.assets || []).map((asset) => (
             <div key={asset.id} className="grid gap-3 rounded-lg border border-black/5 p-3 dark:border-white/10 md:grid-cols-[1fr_auto_auto] md:items-center">

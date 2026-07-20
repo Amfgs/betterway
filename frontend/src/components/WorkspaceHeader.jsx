@@ -14,6 +14,33 @@ export function WorkspaceHeader({ eyebrow, title, description, actions }) {
   );
 }
 
+export function GuidedSectionHeader({ icon: Icon, title, description, className = "" }) {
+  return (
+    <header className={`guided-section-header ${className}`.trim()}>
+      {Icon ? <span className="guided-section-icon"><Icon aria-hidden="true" size={20} /></span> : null}
+      <div>
+        <h2>{title}</h2>
+        <p>{description}</p>
+      </div>
+    </header>
+  );
+}
+
+export function WorkspacePeriodControl({ label, value, onChange, description }) {
+  return (
+    <section aria-label={label} className="workspace-period-strip">
+      <div>
+        <strong>{label}</strong>
+        <span>{description}</span>
+      </div>
+      <label>
+        <span>Alterar mês</span>
+        <input aria-label={label} onChange={(event) => onChange(event.target.value)} type="month" value={value} />
+      </label>
+    </section>
+  );
+}
+
 export function WorkspaceTabs({ tabs, active }) {
   return (
     <nav aria-label="Visões da página" className="workspace-tabs">
