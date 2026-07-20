@@ -3,6 +3,7 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import { Calculator, TrendingUp } from "lucide-react";
 import { api, getErrorMessage } from "../api/client";
 import { StatCard } from "../components/StatCard";
+import { useAuth } from "../context/AuthContext";
 import { currency, percent } from "../utils/formatters";
 
 const initialForm = {
@@ -36,6 +37,7 @@ const investmentTypeOptions = [
 ];
 
 export function SimulatorPage({ embedded = false }) {
+  const { user, updateProfile } = useAuth();
   const [form, setForm] = useState(initialForm);
   const [projection, setProjection] = useState(null);
   const [summary, setSummary] = useState(null);
@@ -102,6 +104,11 @@ export function SimulatorPage({ embedded = false }) {
         monthlyContribution: form.recurringContribution
       });
       setProjection(response.data.projection);
+      if (!user?.onboarding?.simulatedInvestment) {
+        updateProfile({ onboarding: { simulatedInvestment: true } })
+          .then(() => window.dispatchEvent(new Event("betterway:progress-refresh")))
+          .catch(() => {});
+      }
     } catch (err) {
       setError(getErrorMessage(err));
     }

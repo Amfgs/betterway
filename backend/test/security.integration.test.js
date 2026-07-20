@@ -152,6 +152,52 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
   assert.ok(decodedToken.payload.sst);
   assert.equal(decodedToken.payload.exp - decodedToken.payload.sst, 15 * 24 * 60 * 60);
 
+  const initialProfileProgress = await api(baseUrl, "/auth/profile-progress", { token: userA.token });
+  assert.equal(initialProfileProgress.status, 200);
+  assert.equal(initialProfileProgress.data.total, 6);
+  assert.equal(initialProfileProgress.data.completed, 0);
+  assert.equal(initialProfileProgress.data.percent, 0);
+  assert.equal(initialProfileProgress.data.tasks.some((task) => task.id === "bank" && task.completed), false);
+  assert.equal(initialProfileProgress.data.tasks.find((task) => task.id === "avatar").to, "/perfil?tab=conta&edit=avatar");
+
+  const invalidNotificationThreshold = await api(baseUrl, "/auth/me", {
+    method: "PUT",
+    token: userA.token,
+    body: { notificationPreferences: { limitThreshold: 40 } }
+  });
+  assert.equal(invalidNotificationThreshold.status, 400);
+
+  const notificationPreferences = await api(baseUrl, "/auth/me", {
+    method: "PUT",
+    token: userA.token,
+    body: {
+      notificationPreferences: {
+        emailEnabled: true,
+        limitAlerts: true,
+        goalAlerts: false,
+        limitThreshold: 85
+      }
+    }
+  });
+  assert.equal(notificationPreferences.status, 200);
+  assert.deepEqual(notificationPreferences.data.user.notificationPreferences, {
+    emailEnabled: true,
+    limitAlerts: true,
+    goalAlerts: false,
+    limitThreshold: 85
+  });
+
+  const completedSimulation = await api(baseUrl, "/auth/me", {
+    method: "PUT",
+    token: userA.token,
+    body: { onboarding: { simulatedInvestment: true } }
+  });
+  assert.equal(completedSimulation.status, 200);
+  const updatedProfileProgress = await api(baseUrl, "/auth/profile-progress", { token: userA.token });
+  assert.equal(updatedProfileProgress.data.completed, 1);
+  assert.equal(updatedProfileProgress.data.percent, 17);
+  assert.equal(updatedProfileProgress.data.tasks.some((task) => task.id === "simulation" && task.completed), true);
+
   const lockedEmail = `locked-${Date.now()}@example.com`;
   const lockedRegistration = await api(baseUrl, "/auth/register", {
     method: "POST",
@@ -235,6 +281,10 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
     token: userB.token
   });
   assert.equal(accepted.status, 200);
+
+  const progressWithFriend = await api(baseUrl, "/auth/profile-progress", { token: userA.token });
+  assert.equal(progressWithFriend.data.completed, 2);
+  assert.equal(progressWithFriend.data.tasks.some((task) => task.id === "friend" && task.completed), true);
 
   const directSharedGoal = await api(baseUrl, "/goals", {
     method: "POST",

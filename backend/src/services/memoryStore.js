@@ -8,6 +8,28 @@ const { normalizeAvatarValue } = require("../utils/avatars");
 const dataDir = path.resolve(__dirname, "../../data");
 const dataFile = process.env.LOCAL_STORE_PATH || path.join(dataDir, "store.json");
 
+const defaultNotificationPreferences = {
+  emailEnabled: true,
+  limitAlerts: true,
+  goalAlerts: true,
+  limitThreshold: 80
+};
+
+const defaultNotificationState = {
+  limitAlertMonth: "",
+  limitAlertLevel: 0,
+  goalReachedIds: []
+};
+
+const defaultOnboarding = {
+  avatarPromptDismissed: false,
+  bankPromptDismissed: false,
+  installPromptDismissed: false,
+  installCompleted: false,
+  simulatedInvestment: false,
+  viewedNews: false
+};
+
 function defaultState() {
   return {
     users: [],
@@ -30,7 +52,7 @@ function normalizeUsers(users) {
       ? current
       : availableUsername(identity, used);
     used.add(username);
-    return {
+    const normalized = {
       friendIds: [],
       acceptedFriendIds: [],
       sentFriendRequestIds: [],
@@ -47,6 +69,20 @@ function normalizeUsers(users) {
       ...user,
       username
     };
+    normalized.notificationPreferences = {
+      ...defaultNotificationPreferences,
+      ...(user.notificationPreferences || {})
+    };
+    normalized.notificationState = {
+      ...defaultNotificationState,
+      ...(user.notificationState || {}),
+      goalReachedIds: [...(user.notificationState?.goalReachedIds || [])]
+    };
+    normalized.onboarding = {
+      ...defaultOnboarding,
+      ...(user.onboarding || {})
+    };
+    return normalized;
   });
 }
 
@@ -186,6 +222,9 @@ module.exports = {
         streakReminderTime: "22:30",
         appBlockingIntent: false
       },
+      notificationPreferences: { ...defaultNotificationPreferences },
+      notificationState: { ...defaultNotificationState, goalReachedIds: [] },
+      onboarding: { ...defaultOnboarding },
       ...payload,
       username,
       email: payload.email.toLowerCase(),

@@ -1,23 +1,14 @@
-import { useEffect, useState } from "react";
-import { Check, UserRound } from "lucide-react";
+import { useState } from "react";
+import { Check, UserRound, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { avatarOptions } from "../utils/avatars";
 
-export function AvatarOnboarding() {
+export function AvatarOnboarding({ onFinished }) {
   const { user, updateProfile } = useAuth();
   const [selected, setSelected] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const open = Boolean(user && !user.avatarUrl);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [open]);
+  const open = Boolean(user && !user.avatarUrl && !user.onboarding?.avatarPromptDismissed);
 
   if (!open) return null;
 
@@ -26,7 +17,8 @@ export function AvatarOnboarding() {
     setSaving(true);
     setError("");
     try {
-      await updateProfile({ avatarUrl: selected });
+      await updateProfile({ avatarUrl: selected, onboarding: { avatarPromptDismissed: true } });
+      onFinished?.();
     } catch (avatarError) {
       setError(avatarError?.response?.data?.message || avatarError.message || "Não foi possível salvar seu avatar.");
     } finally {
@@ -34,9 +26,24 @@ export function AvatarOnboarding() {
     }
   }
 
+  async function dismissAvatar() {
+    if (saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      await updateProfile({ onboarding: { avatarPromptDismissed: true } });
+      onFinished?.();
+    } catch (avatarError) {
+      setError(avatarError?.response?.data?.message || avatarError.message || "Não foi possível fechar esta etapa.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div aria-labelledby="avatar-onboarding-title" aria-modal="true" className="fixed inset-0 z-[90] grid place-items-center overflow-y-auto bg-neutral-950/75 p-3 backdrop-blur-sm sm:p-6" role="dialog">
-      <section className="my-auto w-full max-w-4xl overflow-hidden rounded-lg border border-white/10 bg-white shadow-2xl dark:bg-neutral-900">
+      <section className="avatar-onboarding-dialog my-auto w-full max-w-4xl overflow-hidden rounded-lg border border-white/10 bg-white shadow-2xl dark:bg-neutral-900">
+        <button aria-label="Escolher avatar depois" className="avatar-onboarding-close" disabled={saving} onClick={dismissAvatar} type="button"><X size={19} /></button>
         <div className="border-b border-black/5 px-5 py-4 dark:border-white/10 sm:px-7 sm:py-5">
           <div className="flex items-center gap-3">
             <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-emerald-500 text-white"><UserRound size={22} /></span>

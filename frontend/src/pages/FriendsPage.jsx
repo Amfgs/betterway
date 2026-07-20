@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { ArrowLeftRight, Check, ChevronRight, Clock3, Plus, Search, Send, Target, Trash2, UserPlus, Users, WalletCards, X } from "lucide-react";
 import { api, getErrorMessage } from "../api/client";
 import { MobileSectionNav, WorkspaceHeader } from "../components/WorkspaceHeader";
@@ -26,6 +27,7 @@ function PersonIdentity({ person, size = "h-12 w-12" }) {
 
 export function FriendsPage() {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [friends, setFriends] = useState([]);
   const [incomingRequests, setIncomingRequests] = useState([]);
   const [outgoingRequests, setOutgoingRequests] = useState([]);
@@ -75,6 +77,15 @@ export function FriendsPage() {
     if (selectedFriendId && !friends.some((friend) => friend.id === selectedFriendId)) setSelectedFriendId("");
   }, [friends, selectedFriendId]);
 
+  useEffect(() => {
+    if (searchParams.get("add") === "1") setAddOpen(true);
+  }, [searchParams]);
+
+  function closeAddFriend() {
+    setAddOpen(false);
+    if (searchParams.get("add")) setSearchParams({}, { replace: true });
+  }
+
   const selectedFriend = friends.find((friend) => friend.id === selectedFriendId) || null;
   const sharedPlans = useMemo(() => ({
     goals: selectedFriend ? goals.filter((goal) => includesParticipant(goal, selectedFriend.id)) : [],
@@ -123,6 +134,7 @@ export function FriendsPage() {
       const response = await api.post(`/friends/${id}/accept`);
       setMessage(response.data.message || "Pedido de amizade aceito.");
       await loadWorkspace();
+      window.dispatchEvent(new Event("betterway:progress-refresh"));
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -417,11 +429,11 @@ export function FriendsPage() {
       <button aria-label="Adicionar amizade" className="fixed bottom-24 right-4 z-30 grid h-14 w-14 place-items-center rounded-full bg-emerald-500 text-white shadow-xl transition hover:scale-105 hover:bg-emerald-600 focus:outline-none focus:ring-4 focus:ring-emerald-500/30 md:bottom-6 md:right-6" onClick={() => setAddOpen(true)} title="Adicionar amizade" type="button"><Plus size={26} strokeWidth={2.5} /></button>
 
       {addOpen ? (
-        <div aria-labelledby="add-friend-title" aria-modal="true" className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setAddOpen(false); }} role="dialog">
+        <div aria-labelledby="add-friend-title" aria-modal="true" className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) closeAddFriend(); }} role="dialog">
           <section className="max-h-[86dvh] w-full max-w-xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl dark:bg-neutral-900 sm:rounded-lg">
             <div className="flex items-start justify-between gap-4">
               <div><p className="text-xs font-black uppercase text-emerald-600 dark:text-emerald-400">Nova conexão</p><h2 className="mt-1 text-2xl font-black" id="add-friend-title">Adicionar amizade</h2></div>
-              <button aria-label="Fechar" className="rounded-lg border border-black/10 p-2 dark:border-white/10" onClick={() => setAddOpen(false)} type="button"><X size={18} /></button>
+              <button aria-label="Fechar" className="rounded-lg border border-black/10 p-2 dark:border-white/10" onClick={closeAddFriend} type="button"><X size={18} /></button>
             </div>
 
             <form className="mt-5" onSubmit={addFriend}>

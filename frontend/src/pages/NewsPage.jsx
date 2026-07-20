@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { api, getErrorMessage } from "../api/client";
+import { useAuth } from "../context/AuthContext";
 
 export function NewsPage({ embedded = false }) {
+  const { user, updateProfile } = useAuth();
   const [articles, setArticles] = useState([]);
   const [error, setError] = useState("");
 
@@ -12,6 +14,13 @@ export function NewsPage({ embedded = false }) {
       .then((response) => setArticles(response.data.articles))
       .catch((err) => setError(getErrorMessage(err)));
   }, []);
+
+  function markNewsViewed() {
+    if (user?.onboarding?.viewedNews) return;
+    updateProfile({ onboarding: { viewedNews: true } })
+      .then(() => window.dispatchEvent(new Event("betterway:progress-refresh")))
+      .catch(() => {});
+  }
 
   return (
     <div className={`${embedded ? "embedded-page" : "workspace-page"} space-y-6`}>
@@ -39,7 +48,7 @@ export function NewsPage({ embedded = false }) {
               <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
                 {article.publishedAt ? new Date(article.publishedAt).toLocaleString("pt-BR") : "Publicação recente"}
               </p>
-              <a className="inline-flex items-center gap-2 rounded-lg border border-black/10 px-3 py-2 text-sm font-bold dark:border-white/10" href={article.url} rel="noreferrer" target="_blank">
+              <a className="inline-flex items-center gap-2 rounded-lg border border-black/10 px-3 py-2 text-sm font-bold dark:border-white/10" href={article.url} onClick={markNewsViewed} rel="noreferrer" target="_blank">
                 Ler fonte
                 <ExternalLink size={15} />
               </a>

@@ -1,5 +1,6 @@
 const asyncHandler = require("../utils/asyncHandler");
 const repository = require("../services/repository");
+const { maybeSendLimitAlert } = require("../services/notificationService");
 const { summarizeConnections } = require("../services/bankSummaryService");
 const {
   asNumber,
@@ -98,6 +99,20 @@ function buildBehaviorMessage(status, usagePercent) {
   return "Seu fluxo está saudável. Continue usando o dinheiro como ferramenta, não como susto no fim do mês.";
 }
 
+async function notifyLimitForMonth(user, referenceDate) {
+  const month = monthKey(referenceDate);
+  const transactions = await repository.listTransactions(user.id, { month });
+  const spent = transactions
+    .filter(isSpendingForLimit)
+    .reduce((sum, transaction) => sum + asNumber(transaction.amount), 0);
+  await maybeSendLimitAlert({
+    user,
+    month,
+    spent,
+    limit: asNumber(user.monthlyLimit)
+  });
+}
+
 const list = asyncHandler(async (req, res) => {
   if (!validateMonthFilter(req, res)) return;
   if (req.query.type && !["income", "expense"].includes(req.query.type)) {
@@ -136,6 +151,8 @@ const create = asyncHandler(async (req, res) => {
     const goals = await repository.listGoals(req.user.id);
     opportunity = calculateOpportunity(transaction, req.user, goals, monthTransactions);
   }
+
+  await notifyLimitForMonth(req.user, transaction.date);
 
   return res.status(201).json({ transaction, opportunity });
 });
@@ -196,6 +213,7 @@ const update = asyncHandler(async (req, res) => {
 
   const transaction = await repository.updateTransaction(req.user.id, req.params.id, fields);
   if (!transaction) return res.status(404).json({ message: "Transação não encontrada." });
+  await notifyLimitForMonth(req.user, transaction.date);
   return res.json({ transaction });
 });
 

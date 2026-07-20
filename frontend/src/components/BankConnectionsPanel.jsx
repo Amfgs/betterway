@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { PluggyConnect } from "react-pluggy-connect";
 import {
   Building2,
   ChevronDown,
@@ -11,8 +9,8 @@ import {
   Trash2
 } from "lucide-react";
 import { api, getErrorMessage } from "../api/client";
-import { useTheme } from "../context/ThemeContext";
 import { currency, shortDate } from "../utils/formatters";
+import { PluggyConnectModal } from "./PluggyConnectModal";
 
 function connectionTotals(connection) {
   return {
@@ -21,28 +19,7 @@ function connectionTotals(connection) {
   };
 }
 
-function pluggyErrorMessage(error) {
-  const raw = [
-    error?.code,
-    error?.message,
-    error?.data?.code,
-    error?.data?.message,
-    error?.data?.item?.error?.code,
-    error?.data?.item?.error?.message
-  ]
-    .filter(Boolean)
-    .join(" ");
-  if (/TRIAL_CLIENT_ITEM_CREATE_NOT_ALLOWED/i.test(raw)) {
-    return "Sua aplicação Pluggy ainda está em modo Trial. Nesse modo, apenas o banco de testes pode ser conectado. Para usar uma conta real, conclua o checklist e solicite acesso à produção no painel da Pluggy.";
-  }
-  if (/ITEM_CREATION_LIMIT_EXCEEDED/i.test(raw)) {
-    return "O limite de conexões do plano Pluggy foi atingido. Revise os itens ativos ou o plano da aplicação no painel da Pluggy.";
-  }
-  return error?.message || "Não foi possível concluir a conexão bancária.";
-}
-
 export function BankConnectionsPanel({ onChange }) {
-  const { theme } = useTheme();
   const [data, setData] = useState({ connections: [], totals: {}, providerConfigured: false, providerEnvironment: "trial" });
   const [connectToken, setConnectToken] = useState("");
   const [loading, setLoading] = useState(true);
@@ -75,33 +52,6 @@ export function BankConnectionsPanel({ onChange }) {
       .catch((loadError) => setError(getErrorMessage(loadError)))
       .finally(() => setLoading(false));
   }, []);
-
-  useEffect(() => {
-    if (!connectToken) return undefined;
-    const connectRoot = document.getElementById("PluggyConnect");
-
-    const enableIframeScrolling = () => {
-      connectRoot?.querySelectorAll("iframe").forEach((frame) => {
-        frame.setAttribute("scrolling", "yes");
-        frame.style.setProperty("touch-action", "pan-y");
-        frame.style.setProperty("overscroll-behavior", "contain");
-        frame.style.setProperty("-webkit-overflow-scrolling", "touch");
-      });
-    };
-
-    document.documentElement.classList.add("pluggy-connect-active");
-    document.body.classList.add("pluggy-connect-active");
-    enableIframeScrolling();
-
-    const observer = new MutationObserver(enableIframeScrolling);
-    if (connectRoot) observer.observe(connectRoot, { childList: true, subtree: true });
-
-    return () => {
-      observer.disconnect();
-      document.documentElement.classList.remove("pluggy-connect-active");
-      document.body.classList.remove("pluggy-connect-active");
-    };
-  }, [connectToken]);
 
   const totals = useMemo(() => ({
     accounts: Number(data.totals?.accountBalance || 0),
@@ -142,6 +92,7 @@ export function BankConnectionsPanel({ onChange }) {
       setMessage("Instituição conectada e patrimônio atualizado.");
       setConnectToken("");
       onChange?.();
+      window.dispatchEvent(new Event("betterway:progress-refresh"));
     } catch (syncError) {
       setError(getErrorMessage(syncError));
     } finally {
@@ -182,27 +133,16 @@ export function BankConnectionsPanel({ onChange }) {
 
   return (
     <section className="bank-connections-panel rounded-lg border border-black/5 bg-white p-5 shadow-soft dark:border-white/10 dark:bg-neutral-900">
-      {connectToken ? createPortal(
-        <PluggyConnect
-          allowConnectInBackground={false}
-          allowFullscreen
-          connectToken={connectToken}
-          countries={["BR"]}
-          forceOauthInBrowser
-          includeSandbox={data.providerEnvironment === "trial" || import.meta.env.DEV}
-          language="pt"
-          onClose={() => setConnectToken("")}
-          onError={(connectError) => {
-            setError(pluggyErrorMessage(connectError));
-            setConnectToken("");
-          }}
-          onLoadError={(loadError) => setError(pluggyErrorMessage(loadError))}
-          onSuccess={finishConnection}
-          products={["ACCOUNTS", "TRANSACTIONS", "INVESTMENTS"]}
-          theme={theme}
-        />,
-        document.body
-      ) : null}
+      <PluggyConnectModal
+        connectToken={connectToken}
+        environment={data.providerEnvironment}
+        onClose={() => setConnectToken("")}
+        onError={(connectError) => {
+          setError(connectError);
+          setConnectToken("");
+        }}
+        onSuccess={finishConnection}
+      />
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex gap-3">

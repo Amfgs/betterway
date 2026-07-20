@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Activity,
+  BellRing,
   ChartNoAxesCombined,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   Landmark,
   LockKeyhole,
@@ -31,34 +34,52 @@ const profileTabs = [
   { id: "resumo", label: "Resumo", description: "Sua leitura financeira", icon: ChartNoAxesCombined },
   { id: "financeiro", label: "Dados financeiros", description: "Renda, teto e valor-hora", icon: WalletCards },
   { id: "conexoes", label: "Conexões", description: "Bancos e corretoras", icon: Landmark },
+  { id: "notificacoes", label: "Alertas por e-mail", description: "Limites e metas", icon: BellRing },
   { id: "conta", label: "Conta e segurança", description: "Identidade e acesso", icon: SlidersHorizontal }
 ];
 
-function ProfileTabs({ active, onChange }) {
+function ProfileLaunchpad({ onChange, user }) {
   return (
-    <nav aria-label="Áreas do perfil" className="profile-tabs" role="tablist">
+    <div className="profile-launchpad">
+      <section className="profile-launchpad-identity">
+        <img alt={user?.name || "Avatar"} src={avatarSrc(user?.avatarUrl)} />
+        <div><span>Seu espaço na BW</span><h2>{user?.name}</h2><p>@{user?.username}</p></div>
+      </section>
+      <nav aria-label="Opções do perfil" className="profile-launchpad-grid">
       {profileTabs.map((tab) => (
         <button
-          aria-controls={`profile-panel-${tab.id}`}
-          aria-selected={active === tab.id}
-          className={active === tab.id ? "active" : ""}
           key={tab.id}
           onClick={() => onChange(tab.id)}
-          role="tab"
           type="button"
         >
-          <span className="profile-tab-icon"><tab.icon size={18} /></span>
+          <span className="profile-launchpad-icon"><tab.icon size={21} /></span>
           <span><strong>{tab.label}</strong><small>{tab.description}</small></span>
+          <ChevronRight size={18} />
         </button>
       ))}
-    </nav>
+      </nav>
+    </div>
+  );
+}
+
+function ProfileSectionHeader({ active, onBack }) {
+  const section = profileTabs.find((tab) => tab.id === active);
+  if (!section) return null;
+  const SectionIcon = section.icon;
+  return (
+    <div className="profile-section-header">
+      <button onClick={onBack} type="button"><ChevronLeft size={18} /> Todas as opções</button>
+      <div><span className="profile-launchpad-icon"><SectionIcon size={20} /></span><div><h2>{section.label}</h2><p>{section.description}</p></div></div>
+    </div>
   );
 }
 
 export function ProfilePage() {
   const { user, session, updateProfile, logout, setSessionPersistence } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const [activeTab, setActiveTab] = useState(() => sessionStorage.getItem("betterway_profile_tab") || "resumo");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const activeTab = profileTabs.some((tab) => tab.id === requestedTab) ? requestedTab : "inicio";
   const [form, setForm] = useState({
     name: user?.name || "",
     salary: user?.salary || 0,
@@ -79,6 +100,12 @@ export function ProfilePage() {
     newPassword: ""
   });
   const [settingsMessage, setSettingsMessage] = useState("");
+  const [notificationForm, setNotificationForm] = useState({
+    emailEnabled: user?.notificationPreferences?.emailEnabled ?? true,
+    limitAlerts: user?.notificationPreferences?.limitAlerts ?? true,
+    goalAlerts: user?.notificationPreferences?.goalAlerts ?? true,
+    limitThreshold: user?.notificationPreferences?.limitThreshold ?? 80
+  });
   const navigate = useNavigate();
 
   async function loadProfileData() {
@@ -103,11 +130,29 @@ export function ProfilePage() {
       email: user?.email || ""
     }));
     setForm((current) => ({ ...current, name: user?.name || current.name }));
+    setNotificationForm({
+      emailEnabled: user?.notificationPreferences?.emailEnabled ?? true,
+      limitAlerts: user?.notificationPreferences?.limitAlerts ?? true,
+      goalAlerts: user?.notificationPreferences?.goalAlerts ?? true,
+      limitThreshold: user?.notificationPreferences?.limitThreshold ?? 80
+    });
   }, [user]);
 
+  useEffect(() => {
+    if (searchParams.get("edit") === "avatar" && activeTab === "conta") setSettingsOpen(true);
+  }, [activeTab, searchParams]);
+
   function changeTab(tab) {
-    setActiveTab(tab);
-    sessionStorage.setItem("betterway_profile_tab", tab);
+    if (tab === "inicio") {
+      setSearchParams({}, { replace: false });
+      return;
+    }
+    setSearchParams({ tab }, { replace: false });
+  }
+
+  function closeSettings() {
+    setSettingsOpen(false);
+    if (searchParams.get("edit")) setSearchParams({ tab: "conta" }, { replace: true });
   }
 
   function update(key, value) {
@@ -125,6 +170,18 @@ export function ProfilePage() {
     try {
       await updateProfile(form);
       setMessage("Dados financeiros atualizados.");
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  }
+
+  async function saveNotifications(event) {
+    event.preventDefault();
+    setError("");
+    setMessage("");
+    try {
+      await updateProfile({ notificationPreferences: notificationForm });
+      setMessage("Preferências de e-mail atualizadas.");
     } catch (err) {
       setError(getErrorMessage(err));
     }
@@ -159,6 +216,7 @@ export function ProfilePage() {
       setForm((current) => ({ ...current, name: payload.name }));
       setSettingsForm((current) => ({ ...current, currentPassword: "", newPassword: "" }));
       setSettingsMessage("Perfil atualizado com segurança.");
+      window.dispatchEvent(new Event("betterway:progress-refresh"));
     } catch (err) {
       setError(getErrorMessage(err));
     }
@@ -190,14 +248,15 @@ export function ProfilePage() {
       <WorkspaceHeader
         description="Centralize identidade, planejamento, conexões e segurança sem perder o contexto."
         eyebrow="Conta"
-        title="Seu perfil Better Way"
+        title="Seu perfil na BW"
       />
 
       <section className="profile-shell">
-        <ProfileTabs active={activeTab} onChange={changeTab} />
         <div className="profile-panel-wrap">
           {error ? <p className="mb-4 rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-700 dark:text-red-300" role="alert">{error}</p> : null}
           {message ? <p className="mb-4 rounded-lg bg-emerald-500/10 p-3 text-sm font-medium text-emerald-700 dark:text-emerald-300" role="status">{message}</p> : null}
+
+          {activeTab === "inicio" ? <ProfileLaunchpad onChange={changeTab} user={user} /> : <ProfileSectionHeader active={activeTab} onBack={() => changeTab("inicio")} />}
 
           {activeTab === "resumo" ? (
             <div className="profile-tab-panel space-y-5" id="profile-panel-resumo" role="tabpanel">
@@ -257,6 +316,43 @@ export function ProfilePage() {
             <div className="profile-tab-panel" id="profile-panel-conexoes" role="tabpanel"><BankConnectionsPanel onChange={loadProfileData} /></div>
           ) : null}
 
+          {activeTab === "notificacoes" ? (
+            <form className="profile-tab-panel profile-content-card profile-notifications" id="profile-panel-notificacoes" onSubmit={saveNotifications} role="tabpanel">
+              <div className="profile-notification-heading">
+                <span><BellRing size={22} /></span>
+                <div><h2>Relatórios que chegam na hora certa</h2><p>Você controla quais eventos financeiros podem gerar um e-mail.</p></div>
+              </div>
+
+              <div className="profile-notification-list">
+                <label className="profile-notification-row">
+                  <span><strong>Receber alertas por e-mail</strong><small>Canal principal para relatórios automáticos da BW.</small></span>
+                  <input checked={notificationForm.emailEnabled} onChange={(event) => setNotificationForm((current) => ({ ...current, emailEnabled: event.target.checked }))} type="checkbox" />
+                </label>
+                <label className={`profile-notification-row ${!notificationForm.emailEnabled ? "disabled" : ""}`}>
+                  <span><strong>Limite próximo do teto</strong><small>Avise quando seus gastos alcançarem a porcentagem escolhida.</small></span>
+                  <input checked={notificationForm.limitAlerts} disabled={!notificationForm.emailEnabled} onChange={(event) => setNotificationForm((current) => ({ ...current, limitAlerts: event.target.checked }))} type="checkbox" />
+                </label>
+                <label className={`profile-notification-row ${!notificationForm.emailEnabled ? "disabled" : ""}`}>
+                  <span><strong>Meta atingida</strong><small>Receba um resumo quando uma caixinha chegar ao valor planejado.</small></span>
+                  <input checked={notificationForm.goalAlerts} disabled={!notificationForm.emailEnabled} onChange={(event) => setNotificationForm((current) => ({ ...current, goalAlerts: event.target.checked }))} type="checkbox" />
+                </label>
+              </div>
+
+              <label className={`profile-threshold-control ${!notificationForm.emailEnabled || !notificationForm.limitAlerts ? "disabled" : ""}`}>
+                <span><strong>Quando avisar sobre o limite?</strong><small>Um novo alerta é enviado se o teto for ultrapassado.</small></span>
+                <select disabled={!notificationForm.emailEnabled || !notificationForm.limitAlerts} onChange={(event) => setNotificationForm((current) => ({ ...current, limitThreshold: Number(event.target.value) }))} value={notificationForm.limitThreshold}>
+                  <option value="70">Ao chegar em 70%</option>
+                  <option value="80">Ao chegar em 80%</option>
+                  <option value="90">Ao chegar em 90%</option>
+                  <option value="100">Somente ao atingir 100%</option>
+                </select>
+              </label>
+
+              <div className="profile-email-destination"><ShieldCheck size={18} /><span>Os relatórios serão enviados para <strong>{user?.email}</strong>. A BW nunca inclui senhas ou credenciais bancárias.</span></div>
+              <button className="profile-primary-button" type="submit"><Save size={18} /> Salvar alertas</button>
+            </form>
+          ) : null}
+
           {activeTab === "conta" ? (
             <div className="profile-tab-panel grid gap-4 xl:grid-cols-2" id="profile-panel-conta" role="tabpanel">
               <section className="profile-content-card">
@@ -285,9 +381,9 @@ export function ProfilePage() {
       </section>
 
       {settingsOpen ? (
-        <div aria-modal="true" className="profile-dialog-backdrop" role="dialog" onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}>
+        <div aria-modal="true" className="profile-dialog-backdrop" role="dialog" onMouseDown={(event) => { if (event.target === event.currentTarget) closeSettings(); }}>
           <form className="profile-dialog" onSubmit={saveSettings}>
-            <div className="flex items-start justify-between gap-4"><div><p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Identidade e segurança</p><h2 className="text-2xl font-black">Editar perfil</h2></div><button aria-label="Fechar" className="profile-icon-button" onClick={() => setSettingsOpen(false)} type="button"><X size={18} /></button></div>
+            <div className="flex items-start justify-between gap-4"><div><p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Identidade e segurança</p><h2 className="text-2xl font-black">Editar perfil</h2></div><button aria-label="Fechar" className="profile-icon-button" onClick={closeSettings} type="button"><X size={18} /></button></div>
             <div className="mt-5"><span className="text-sm font-bold">Escolha seu avatar</span><div className="profile-avatar-grid mt-2">{avatarOptions.map((avatar) => { const active = settingsForm.avatarUrl === avatar.value; return <button aria-pressed={active} className={active ? "active" : ""} key={avatar.value} onClick={() => updateSettings("avatarUrl", avatar.value)} type="button"><img alt={avatar.label} src={avatar.src} /><span>{avatar.label}</span></button>; })}</div></div>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <label className="profile-field"><span>Nome</span><input value={settingsForm.name} onChange={(event) => updateSettings("name", event.target.value)} /></label>

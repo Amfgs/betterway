@@ -1,5 +1,6 @@
 const asyncHandler = require("../utils/asyncHandler");
 const repository = require("../services/repository");
+const { maybeSendGoalReachedAlert } = require("../services/notificationService");
 const crypto = require("crypto");
 const { asNumber, normalizeDateForStorage } = require("../utils/financial");
 const { cleanText, isValidDateKey, numberInRange, uniqueIds } = require("../utils/validation");
@@ -106,6 +107,14 @@ const movement = asyncHandler(async (req, res) => {
   });
 
   if (!goal) return res.status(404).json({ message: "Meta não encontrada." });
+  const latestMovement = goal.movements?.[0];
+  if (
+    movementType === "deposit" &&
+    Number(latestMovement?.previousAmount || 0) < Number(goal.targetAmount || 0) &&
+    Number(goal.currentAmount || 0) >= Number(goal.targetAmount || 0)
+  ) {
+    await maybeSendGoalReachedAlert({ user: req.user, goal });
+  }
   return res.status(201).json({ goal, movement: goal.movements?.[0] || null });
 });
 

@@ -39,6 +39,7 @@ router.post("/resend-verification", emailActionLimiter, authController.resendVer
 router.post("/forgot-password", emailActionLimiter, authController.forgotPassword);
 router.post("/reset-password", codeAttemptLimiter, authController.resetPassword);
 router.get("/me", authMiddleware, authController.me);
+router.get("/profile-progress", authMiddleware, authController.profileProgress);
 router.put("/me", authMiddleware, authController.updateProfile);
 
 module.exports = router;

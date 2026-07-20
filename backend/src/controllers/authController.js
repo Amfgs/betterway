@@ -26,6 +26,20 @@ const MAX_PASSWORD_BYTES = 72;
 const MAX_CODE_ATTEMPTS = 5;
 const EMAIL_RESEND_COOLDOWN_MS = 60 * 1000;
 const SESSION_TTL_SECONDS = 15 * 24 * 60 * 60;
+const DEFAULT_NOTIFICATION_PREFERENCES = {
+  emailEnabled: true,
+  limitAlerts: true,
+  goalAlerts: true,
+  limitThreshold: 80
+};
+const DEFAULT_ONBOARDING = {
+  avatarPromptDismissed: false,
+  bankPromptDismissed: false,
+  installPromptDismissed: false,
+  installCompleted: false,
+  simulatedInvestment: false,
+  viewedNews: false
+};
 function normalizeSessionStart(value) {
   const now = Math.floor(Date.now() / 1000);
   const parsed = Number(value);
@@ -495,6 +509,66 @@ const me = asyncHandler(async (req, res) => {
   return res.json({ user: req.user });
 });
 
+const profileProgress = asyncHandler(async (req, res) => {
+  const [connections, friendships] = await Promise.all([
+    repository.listBankConnections(req.user.id),
+    repository.listFriendships(req.user.id)
+  ]);
+  const onboarding = { ...DEFAULT_ONBOARDING, ...(req.user.onboarding || {}) };
+  const tasks = [
+    {
+      id: "avatar",
+      title: "Escolha seu avatar",
+      description: "Mostre como você aparece na BW e para seus amigos.",
+      completed: Boolean(req.user.avatarUrl),
+      to: "/perfil?tab=conta&edit=avatar"
+    },
+    {
+      id: "bank",
+      title: "Conecte uma instituição",
+      description: "Atualize saldo, extrato e investimentos automaticamente.",
+      completed: connections.some((connection) => connection.provider === "pluggy"),
+      to: "/perfil?tab=conexoes"
+    },
+    {
+      id: "friend",
+      title: "Adicione uma amizade",
+      description: "Crie metas e limites em conjunto.",
+      completed: Boolean(friendships.friends?.length),
+      to: "/amigos?add=1"
+    },
+    {
+      id: "simulation",
+      title: "Faça uma simulação",
+      description: "Compare um aporte com prazo e rendimento esperados.",
+      completed: Boolean(onboarding.simulatedInvestment),
+      to: "/investimentos?view=simulador"
+    },
+    {
+      id: "news",
+      title: "Veja o mercado",
+      description: "Abra uma notícia para acompanhar o cenário financeiro.",
+      completed: Boolean(onboarding.viewedNews),
+      to: "/investimentos?view=noticias"
+    },
+    {
+      id: "install",
+      title: "Adicione a BW ao celular",
+      description: "Abra a ferramenta como um app pela tela de início.",
+      completed: Boolean(onboarding.installCompleted),
+      action: "install"
+    }
+  ];
+  const completed = tasks.filter((task) => task.completed).length;
+
+  return res.json({
+    completed,
+    total: tasks.length,
+    percent: Math.round((completed / tasks.length) * 100),
+    tasks
+  });
+});
+
 const updateProfile = asyncHandler(async (req, res) => {
   const { currentPassword, newPassword, email } = req.body;
   const allowed = ["name", "username", "salary", "monthlyLimit", "hourlyRate", "workHoursPerDay", "theme", "avatarUrl"];
@@ -540,6 +614,45 @@ const updateProfile = asyncHandler(async (req, res) => {
   }
   if (fields.avatarUrl !== undefined && !AVATAR_VALUES.has(fields.avatarUrl)) {
     return res.status(400).json({ message: "Selecione um avatar disponível na Better Way." });
+  }
+  if (req.body.notificationPreferences !== undefined) {
+    const requested = req.body.notificationPreferences;
+    if (!requested || typeof requested !== "object" || Array.isArray(requested)) {
+      return res.status(400).json({ message: "Preferências de notificação inválidas." });
+    }
+    const current = { ...DEFAULT_NOTIFICATION_PREFERENCES, ...(req.user.notificationPreferences || {}) };
+    for (const key of ["emailEnabled", "limitAlerts", "goalAlerts"]) {
+      if (requested[key] !== undefined) {
+        if (typeof requested[key] !== "boolean") {
+          return res.status(400).json({ message: "As preferências de e-mail precisam ser verdadeiras ou falsas." });
+        }
+        current[key] = requested[key];
+      }
+    }
+    if (requested.limitThreshold !== undefined) {
+      const threshold = numberInRange(requested.limitThreshold, 50, 100);
+      if (threshold === null) {
+        return res.status(400).json({ message: "O aviso de limite precisa estar entre 50% e 100%." });
+      }
+      current.limitThreshold = Math.round(threshold);
+    }
+    fields.notificationPreferences = current;
+  }
+  if (req.body.onboarding !== undefined) {
+    const requested = req.body.onboarding;
+    if (!requested || typeof requested !== "object" || Array.isArray(requested)) {
+      return res.status(400).json({ message: "Estado de configuração inválido." });
+    }
+    const current = { ...DEFAULT_ONBOARDING, ...(req.user.onboarding || {}) };
+    for (const key of Object.keys(DEFAULT_ONBOARDING)) {
+      if (requested[key] !== undefined) {
+        if (typeof requested[key] !== "boolean") {
+          return res.status(400).json({ message: "O estado de configuração precisa ser verdadeiro ou falso." });
+        }
+        current[key] = requested[key];
+      }
+    }
+    fields.onboarding = current;
   }
 
   if (sensitiveChange) {
@@ -604,5 +717,6 @@ module.exports = {
   forgotPassword,
   resetPassword,
   me,
+  profileProgress,
   updateProfile
 };

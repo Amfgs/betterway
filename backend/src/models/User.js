@@ -159,6 +159,67 @@ const userSchema = new mongoose.Schema(
         type: Boolean,
         default: false
       }
+    },
+    notificationPreferences: {
+      emailEnabled: {
+        type: Boolean,
+        default: true
+      },
+      limitAlerts: {
+        type: Boolean,
+        default: true
+      },
+      goalAlerts: {
+        type: Boolean,
+        default: true
+      },
+      limitThreshold: {
+        type: Number,
+        min: 50,
+        max: 100,
+        default: 80
+      }
+    },
+    notificationState: {
+      limitAlertMonth: {
+        type: String,
+        default: ""
+      },
+      limitAlertLevel: {
+        type: Number,
+        min: 0,
+        default: 0
+      },
+      goalReachedIds: {
+        type: [String],
+        default: []
+      }
+    },
+    onboarding: {
+      avatarPromptDismissed: {
+        type: Boolean,
+        default: false
+      },
+      bankPromptDismissed: {
+        type: Boolean,
+        default: false
+      },
+      installPromptDismissed: {
+        type: Boolean,
+        default: false
+      },
+      installCompleted: {
+        type: Boolean,
+        default: false
+      },
+      simulatedInvestment: {
+        type: Boolean,
+        default: false
+      },
+      viewedNews: {
+        type: Boolean,
+        default: false
+      }
     }
   },
   {

@@ -154,8 +154,83 @@ async function sendEmailVerification({ email, name, token }) {
   return { delivered: true };
 }
 
+function currency(value) {
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(value || 0));
+}
+
+async function sendLimitAlertEmail({ email, name, usagePercent, spent, limit }) {
+  if (!emailConfigured()) return { delivered: false };
+  const safeName = escapeHtml(name);
+  const roundedUsage = Math.round(Number(usagePercent || 0));
+  const subject = roundedUsage >= 100
+    ? "Seu limite mensal foi atingido"
+    : `Seu limite mensal chegou a ${roundedUsage}%`;
+  const text = [
+    `Olá${name ? `, ${name}` : ""}.`,
+    "",
+    `Você já usou ${roundedUsage}% do seu limite mensal na BW.`,
+    `Gasto considerado: ${currency(spent)} de ${currency(limit)}.`,
+    "",
+    "Investimentos não entram nesse cálculo. Abra a BW para revisar os lançamentos antes da próxima decisão."
+  ].join("\n");
+
+  await deliverEmail({
+    email,
+    subject,
+    text,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.55; color: #10221c; max-width: 560px; margin: 0 auto; padding: 32px;">
+        <p style="color: #0d6b4f; font-size: 18px; font-weight: 800; margin: 0 0 28px;">BW · Better Way</p>
+        <h2 style="font-size: 26px; margin: 0 0 18px;">${roundedUsage >= 100 ? "Limite mensal atingido" : "Seu limite está próximo"}</h2>
+        <p>Olá${safeName ? `, ${safeName}` : ""}.</p>
+        <p>Você já usou <strong>${roundedUsage}%</strong> do limite mensal configurado na BW.</p>
+        <div style="background: #edf7f2; border: 1px solid #cce8da; border-radius: 8px; margin: 22px 0; padding: 18px;">
+          <strong style="display:block; font-size: 22px; color: #0d6b4f;">${currency(spent)} de ${currency(limit)}</strong>
+          <span style="font-size: 13px; color: #52635b;">Investimentos permanecem fora desse cálculo.</span>
+        </div>
+        <p>Abra a BW para revisar os lançamentos antes da próxima decisão.</p>
+      </div>
+    `
+  });
+  return { delivered: true };
+}
+
+async function sendGoalReachedEmail({ email, name, goalName, targetAmount }) {
+  if (!emailConfigured()) return { delivered: false };
+  const safeName = escapeHtml(name);
+  const safeGoalName = escapeHtml(goalName);
+  const subject = `Meta atingida: ${String(goalName || "sua meta").slice(0, 80)}`;
+  const text = [
+    `Olá${name ? `, ${name}` : ""}.`,
+    "",
+    `Você atingiu a meta "${goalName}" na BW.`,
+    `Valor alcançado: ${currency(targetAmount)}.`,
+    "",
+    "Abra a BW para acompanhar o histórico e escolher o próximo passo."
+  ].join("\n");
+
+  await deliverEmail({
+    email,
+    subject,
+    text,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.55; color: #10221c; max-width: 560px; margin: 0 auto; padding: 32px;">
+        <p style="color: #0d6b4f; font-size: 18px; font-weight: 800; margin: 0 0 28px;">BW · Better Way</p>
+        <h2 style="font-size: 26px; margin: 0 0 18px;">Meta atingida</h2>
+        <p>Olá${safeName ? `, ${safeName}` : ""}.</p>
+        <p>Você concluiu <strong>${safeGoalName}</strong>.</p>
+        <p style="display: inline-block; background: #dff5ea; border-radius: 8px; color: #0d6b4f; font-size: 22px; font-weight: 800; padding: 12px 18px;">${currency(targetAmount)}</p>
+        <p>Abra a BW para acompanhar o histórico e escolher o próximo passo.</p>
+      </div>
+    `
+  });
+  return { delivered: true };
+}
+
 module.exports = {
   emailConfigured,
   sendEmailVerification,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  sendGoalReachedEmail,
+  sendLimitAlertEmail
 };
