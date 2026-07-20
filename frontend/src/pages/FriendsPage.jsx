@@ -276,11 +276,18 @@ export function FriendsPage() {
               <div className="flex items-center gap-2"><Users className="text-emerald-500" size={20} /><h2 className="text-xl font-black">Amizades</h2></div>
               <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Toque em uma pessoa para planejar em conjunto.</p>
             </div>
-            {requestCount ? (
-              <button className="rounded-full bg-emerald-500/10 px-3 py-2 text-xs font-black text-emerald-700 dark:text-emerald-300" onClick={() => setAddOpen(true)} type="button">
-                {requestCount} {requestCount === 1 ? "pedido" : "pedidos"}
-              </button>
-            ) : null}
+            <div className="friends-list-actions">
+              {requestCount ? (
+                <button className="friends-request-button" onClick={() => setAddOpen(true)} type="button">
+                  {requestCount} {requestCount === 1 ? "pedido" : "pedidos"}
+                </button>
+              ) : null}
+              {loading || friends.length ? (
+                <button className="friends-new-button" onClick={() => setAddOpen(true)} type="button">
+                  Nova amizade <Plus aria-hidden="true" size={17} />
+                </button>
+              ) : null}
+            </div>
           </div>
 
           <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
@@ -302,10 +309,13 @@ export function FriendsPage() {
           </div>
 
           {!loading && !friends.length ? (
-            <div className="mt-4 rounded-lg border border-dashed border-black/10 px-4 py-8 text-center dark:border-white/10">
-              <UserPlus className="mx-auto text-emerald-500" size={28} />
+            <div className="friends-empty-state">
+              <UserPlus aria-hidden="true" className="mx-auto text-emerald-500" size={30} />
               <p className="mt-3 font-black">Sua lista ainda está vazia</p>
-              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Use o botão verde para encontrar alguém pelo nome de usuário.</p>
+              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Encontre alguém pelo nome de usuário para começar a planejar em conjunto.</p>
+              <button className="friends-new-button friends-new-button-empty" onClick={() => setAddOpen(true)} type="button">
+                Nova amizade <Plus aria-hidden="true" size={18} />
+              </button>
             </div>
           ) : null}
           {loading ? <p className="mt-4 text-sm text-zinc-500">Carregando amizades...</p> : null}
@@ -425,8 +435,6 @@ export function FriendsPage() {
           )}
         </div>
       </section>
-
-      <button aria-label="Adicionar amizade" className="fixed bottom-24 right-4 z-30 grid h-14 w-14 place-items-center rounded-full bg-emerald-500 text-white shadow-xl transition hover:scale-105 hover:bg-emerald-600 focus:outline-none focus:ring-4 focus:ring-emerald-500/30 md:bottom-6 md:right-6" onClick={() => setAddOpen(true)} title="Adicionar amizade" type="button"><Plus size={26} strokeWidth={2.5} /></button>
 
       {addOpen ? (
         <div aria-labelledby="add-friend-title" aria-modal="true" className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) closeAddFriend(); }} role="dialog">

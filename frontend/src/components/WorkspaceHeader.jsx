@@ -26,15 +26,15 @@ export function GuidedSectionHeader({ icon: Icon, title, description, className 
   );
 }
 
-export function WorkspacePeriodControl({ label, value, onChange, description }) {
+export function WorkspacePeriodControl({ label, value, onChange, description, controlLabel = "Alterar mês", stacked = false }) {
   return (
-    <section aria-label={label} className="workspace-period-strip">
+    <section aria-label={label} className={`workspace-period-strip ${stacked ? "workspace-period-stacked" : ""}`.trim()}>
       <div>
         <strong>{label}</strong>
         <span>{description}</span>
       </div>
       <label>
-        <span>Alterar mês</span>
+        <span>{controlLabel}</span>
         <input aria-label={label} onChange={(event) => onChange(event.target.value)} type="month" value={value} />
       </label>
     </section>

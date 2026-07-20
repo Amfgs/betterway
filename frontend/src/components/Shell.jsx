@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
+  ArrowLeftRight,
   CalendarRange,
   ChevronRight,
+  History,
   LayoutDashboard,
   Plus,
   Search,
+  Target,
   TrendingUp,
   UserRound,
   Users,
+  WalletCards,
   X
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -33,6 +37,21 @@ const pageMeta = {
   "/perfil": { title: "Perfil", description: "Preferências, segurança e comportamento financeiro." }
 };
 
+const dashboardQuickActions = {
+  overview: [
+    { label: "Nova transação", to: "/dashboard#novo-registro", targetId: "novo-registro", icon: ArrowLeftRight },
+    { label: "Novo limite", to: "/dashboard#novo-limite", targetId: "novo-limite", icon: WalletCards },
+    { label: "Nova meta", to: "/dashboard#nova-meta", targetId: "nova-meta", icon: Target },
+    { label: "Linha do tempo", to: "/dashboard?view=timeline", icon: History }
+  ],
+  timeline: [
+    { label: "Nova transação", to: "/dashboard#novo-registro", targetId: "novo-registro", icon: ArrowLeftRight },
+    { label: "Novo limite", to: "/dashboard#novo-limite", targetId: "novo-limite", icon: WalletCards },
+    { label: "Nova meta", to: "/dashboard#nova-meta", targetId: "nova-meta", icon: Target },
+    { label: "Resumo do mês", to: "/dashboard", icon: LayoutDashboard }
+  ]
+};
+
 function SidebarLink({ item, collapsed }) {
   return (
     <NavLink
@@ -54,8 +73,12 @@ export function Shell() {
     () => readStoredValue(storageKeys.sidebarCollapsed, storageKeys.legacySidebarCollapsed, "false") === "true"
   );
   const [query, setQuery] = useState("");
+  const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const currentMeta = pageMeta[location.pathname] || pageMeta["/dashboard"];
-  const showTransactionAction = ["/dashboard", "/calendario"].includes(location.pathname);
+  const isDashboard = location.pathname === "/dashboard";
+  const isTimeline = isDashboard && new URLSearchParams(location.search).get("view") === "timeline";
+  const showCalendarTransactionAction = location.pathname === "/calendario";
+  const quickActions = dashboardQuickActions[isTimeline ? "timeline" : "overview"];
 
   useEffect(() => {
     localStorage.setItem(storageKeys.sidebarCollapsed, String(collapsed));
@@ -63,8 +86,22 @@ export function Shell() {
 
   useEffect(() => {
     setQuery("");
+    setQuickActionsOpen(false);
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    if (!quickActionsOpen) return undefined;
+    function closeOnEscape(event) {
+      if (event.key === "Escape") setQuickActionsOpen(false);
+    }
+    document.body.classList.add("quick-actions-open");
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.classList.remove("quick-actions-open");
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [quickActionsOpen]);
 
   const searchResults = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("pt-BR");
@@ -77,11 +114,12 @@ export function Shell() {
     if (searchResults[0]) navigate(searchResults[0].to);
   }
 
-  function focusTransactionForm() {
+  function focusDashboardTarget(targetId = "novo-registro") {
+    setQuickActionsOpen(false);
     window.setTimeout(() => {
       const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-      document.getElementById("novo-registro")?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
-    }, 80);
+      document.getElementById(targetId)?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+    }, 120);
   }
 
   return (
@@ -178,11 +216,51 @@ export function Shell() {
           </div>
         </main>
 
-        {showTransactionAction ? (
+        {isDashboard ? (
+          <>
+            {quickActionsOpen ? (
+              <button
+                aria-label="Fechar menu de ações"
+                className="quick-action-backdrop"
+                onClick={() => setQuickActionsOpen(false)}
+                type="button"
+              />
+            ) : null}
+            <div className={`dashboard-quick-actions ${quickActionsOpen ? "open" : ""}`}>
+              {quickActionsOpen ? (
+                <nav aria-label="Ações rápidas" className="quick-action-menu" id="dashboard-quick-actions">
+                  {quickActions.map((action, index) => (
+                    <Link
+                      className="quick-action-item"
+                      key={action.label}
+                      onClick={() => action.targetId ? focusDashboardTarget(action.targetId) : setQuickActionsOpen(false)}
+                      style={{ "--quick-action-index": index }}
+                      to={action.to}
+                    >
+                      <span>{action.label}</span>
+                      <i><action.icon aria-hidden="true" size={19} /></i>
+                    </Link>
+                  ))}
+                </nav>
+              ) : null}
+              <button
+                aria-controls="dashboard-quick-actions"
+                aria-expanded={quickActionsOpen}
+                aria-haspopup="menu"
+                aria-label={quickActionsOpen ? "Fechar ações rápidas" : "Abrir ações rápidas"}
+                className="quick-action-trigger"
+                onClick={() => setQuickActionsOpen((current) => !current)}
+                type="button"
+              >
+                {quickActionsOpen ? <X aria-hidden="true" size={23} /> : <Plus aria-hidden="true" size={23} />}
+              </button>
+            </div>
+          </>
+        ) : showCalendarTransactionAction ? (
           <Link
             aria-label="Cadastrar nova transação"
             className="contextual-transaction-action"
-            onClick={focusTransactionForm}
+            onClick={() => focusDashboardTarget("novo-registro")}
             to="/dashboard#novo-registro"
           >
             <Plus aria-hidden="true" size={19} />

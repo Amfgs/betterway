@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Area, AreaChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ArrowDownCircle, ArrowUpCircle, BrainCircuit, ChartNoAxesCombined, History, LayoutDashboard, Pencil, Plus, Target, Trash2, WalletCards, X } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, BrainCircuit, ChartNoAxesCombined, History, Pencil, Plus, Target, Trash2, WalletCards, X } from "lucide-react";
 import { api, getErrorMessage } from "../api/client";
 import { DatePickerField } from "../components/DatePickerField";
 import { OpportunityModal } from "../components/OpportunityModal";
 import { StatCard } from "../components/StatCard";
-import { GuidedSectionHeader, WorkspaceHeader, WorkspacePeriodControl, WorkspaceTabs } from "../components/WorkspaceHeader";
+import { GuidedSectionHeader, WorkspaceHeader, WorkspacePeriodControl } from "../components/WorkspaceHeader";
 import { useAuth } from "../context/AuthContext";
 import { categoryLabel, categoryOptions, currency, monthInputValue, percent, shortDate } from "../utils/formatters";
 import { TimelinePage } from "./TimelinePage";
@@ -43,11 +43,6 @@ const emptyLimitForm = {
   category: "Alimentacao",
   amount: ""
 };
-
-const dashboardTabs = [
-  { id: "overview", label: "Resumo do mês", to: "/dashboard", icon: LayoutDashboard },
-  { id: "timeline", label: "Linha do tempo", to: "/dashboard?view=timeline", icon: History }
-];
 
 function TransactionForm({ editingTransactionId, form, onCancel, onChange, onSubmit }) {
   return (
@@ -320,7 +315,6 @@ export function DashboardPage() {
           eyebrow="Histórico"
           title="Linha do tempo"
         />
-        <WorkspaceTabs active={activeView} tabs={dashboardTabs} />
         <TimelinePage embedded />
       </div>
     );
@@ -334,30 +328,16 @@ export function DashboardPage() {
         eyebrow="Visão geral"
         title={`Seu mês em ${selectedMonthLabel}`}
       />
-      <WorkspaceTabs active={activeView} tabs={dashboardTabs} />
       <WorkspacePeriodControl
+        controlLabel="Mês selecionado"
         description={`A leitura considera ${summary?.window?.label || "a janela financeira atual"}.`}
         label="Período analisado"
         onChange={setMonth}
+        stacked
         value={month}
       />
 
       {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p> : null}
-
-      <section className="guided-page-section transaction-priority-section">
-        <GuidedSectionHeader
-          description="Uma movimentação leva poucos segundos e atualiza automaticamente todas as análises abaixo."
-          icon={Plus}
-          title="Comece pelo que aconteceu hoje"
-        />
-        <TransactionForm
-          editingTransactionId={editingTransactionId}
-          form={form}
-          onCancel={cancelEditTransaction}
-          onChange={updateForm}
-          onSubmit={createTransaction}
-        />
-      </section>
 
       <section className="guided-page-section" id="resumo-financeiro">
         <GuidedSectionHeader
@@ -374,6 +354,21 @@ export function DashboardPage() {
           </div>
           <small>{percent(widgets.usagePercent)} do teto</small>
         </div>
+      </section>
+
+      <section className="guided-page-section transaction-priority-section">
+        <GuidedSectionHeader
+          description="Uma movimentação leva poucos segundos e atualiza automaticamente todas as análises abaixo."
+          icon={Plus}
+          title="Registre o que aconteceu hoje"
+        />
+        <TransactionForm
+          editingTransactionId={editingTransactionId}
+          form={form}
+          onCancel={cancelEditTransaction}
+          onChange={updateForm}
+          onSubmit={createTransaction}
+        />
       </section>
 
       <section className="guided-page-section" id="analises-financeiras">
@@ -503,7 +498,7 @@ export function DashboardPage() {
           title="Proteja seus próximos passos"
         />
         <div className="dashboard-planning grid gap-4 xl:grid-cols-2">
-        <div className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900">
+        <div className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900" id="nova-meta">
           <div className="flex items-center gap-3">
             <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-300">
               <WalletCards size={20} />
@@ -593,7 +588,7 @@ export function DashboardPage() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900">
+        <div className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900" id="novo-limite">
           <h2 className="text-xl font-black">Cadastro de limites</h2>
           <form className="mt-4 grid gap-3" onSubmit={createLimit}>
             <div className="grid gap-3 sm:grid-cols-[1fr_1fr]">
