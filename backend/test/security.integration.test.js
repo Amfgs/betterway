@@ -478,8 +478,63 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
   assert.equal(bankConnections.data.providerConfigured, false);
   assert.equal(bankConnections.data.providerEnvironment, "trial");
   assert.equal(bankConnections.data.connections.length, 0);
-  assert.deepEqual(bankConnections.data.methods, [{ id: "open_finance", available: false }]);
+  assert.deepEqual(bankConnections.data.methods, [
+    { id: "open_finance", available: false },
+    { id: "direct_api", available: true }
+  ]);
+  assert.ok(bankConnections.data.directBankCatalog.some((provider) => provider.id === "inter"));
   assert.equal(bankConnections.data.totals.accountBalance, 0);
+
+  const rejectedBankSecret = await api(baseUrl, "/bank-connections/direct/request", {
+    method: "POST",
+    token: passwordChange.data.token,
+    body: {
+      bankId: "inter",
+      accountType: "business",
+      scopes: ["balance", "transactions"],
+      acceptedReadOnlyTerms: true,
+      clientSecret: "segredo-que-nao-deve-ser-recebido"
+    }
+  });
+  assert.equal(rejectedBankSecret.status, 400);
+  assert.match(rejectedBankSecret.data.message, /Não envie senha, token, certificado ou segredo bancário/);
+
+  const unsupportedAccountType = await api(baseUrl, "/bank-connections/direct/request", {
+    method: "POST",
+    token: passwordChange.data.token,
+    body: {
+      bankId: "inter",
+      accountType: "personal",
+      scopes: ["balance"],
+      acceptedReadOnlyTerms: true
+    }
+  });
+  assert.equal(unsupportedAccountType.status, 400);
+
+  const directBankRequest = await api(baseUrl, "/bank-connections/direct/request", {
+    method: "POST",
+    token: passwordChange.data.token,
+    body: {
+      bankId: "inter",
+      accountType: "business",
+      scopes: ["balance", "transactions"],
+      acceptedReadOnlyTerms: true
+    }
+  });
+  assert.equal(directBankRequest.status, 201);
+  assert.equal(directBankRequest.data.connection.provider, "direct_api");
+  assert.equal(directBankRequest.data.connection.syncStatus, "pending");
+  assert.equal(directBankRequest.data.connection.externalId, undefined);
+  assert.equal(directBankRequest.data.connection.directConfig.accountType, "business");
+
+  const bankConnectionsWithRequest = await api(baseUrl, "/bank-connections", { token: passwordChange.data.token });
+  assert.equal(bankConnectionsWithRequest.status, 200);
+  assert.equal(bankConnectionsWithRequest.data.connections.length, 1);
+  assert.equal(bankConnectionsWithRequest.data.totals.netWorth, 0);
+
+  const isolatedAfterDirectRequest = await api(baseUrl, "/bank-connections", { token: userB.token });
+  assert.equal(isolatedAfterDirectRequest.status, 200);
+  assert.equal(isolatedAfterDirectRequest.data.connections.length, 0);
 
   const isolatedBankConnections = await api(baseUrl, "/bank-connections", { token: userB.token });
   assert.equal(isolatedBankConnections.status, 200);

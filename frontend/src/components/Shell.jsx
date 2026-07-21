@@ -77,7 +77,6 @@ export function Shell() {
   const currentMeta = pageMeta[location.pathname] || pageMeta["/dashboard"];
   const isDashboard = location.pathname === "/dashboard";
   const isTimeline = isDashboard && new URLSearchParams(location.search).get("view") === "timeline";
-  const showCalendarTransactionAction = location.pathname === "/calendario";
   const quickActions = dashboardQuickActions[isTimeline ? "timeline" : "overview"];
 
   useEffect(() => {
@@ -256,16 +255,6 @@ export function Shell() {
               </button>
             </div>
           </>
-        ) : showCalendarTransactionAction ? (
-          <Link
-            aria-label="Cadastrar nova transação"
-            className="contextual-transaction-action"
-            onClick={() => focusDashboardTarget("novo-registro")}
-            to="/dashboard#novo-registro"
-          >
-            <Plus aria-hidden="true" size={19} />
-            <span>Nova transação</span>
-          </Link>
         ) : null}
       </div>
 

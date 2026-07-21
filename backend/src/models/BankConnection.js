@@ -54,8 +54,14 @@ const bankConnectionSchema = new mongoose.Schema(
     },
     provider: {
       type: String,
-      enum: ["pluggy", "statement_import"],
+      enum: ["pluggy", "direct_api", "statement_import"],
       required: true
+    },
+    institutionKey: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 80
     },
     externalId: {
       type: String,
@@ -92,12 +98,32 @@ const bankConnectionSchema = new mongoose.Schema(
     },
     syncStatus: {
       type: String,
-      enum: ["active", "error"],
+      enum: ["pending", "active", "error"],
       default: "active"
     },
     syncError: {
       code: { type: String, default: "" },
       message: { type: String, default: "" }
+    },
+    directConfig: {
+      accountType: {
+        type: String,
+        enum: ["", "personal", "business"],
+        default: ""
+      },
+      requestedScopes: {
+        type: [String],
+        default: []
+      },
+      setupStatus: {
+        type: String,
+        enum: ["", "action_required", "under_review", "connected"],
+        default: ""
+      },
+      eligibilityConfirmedAt: {
+        type: Date,
+        default: null
+      }
     }
   },
   { timestamps: true }

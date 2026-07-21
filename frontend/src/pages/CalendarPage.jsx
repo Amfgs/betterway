@@ -376,7 +376,9 @@ export function CalendarPage() {
         description="O calendário recalcula os dias sempre que seus limites ou movimentações mudam."
         label="Mês planejado"
         onChange={setMonth}
+        stacked
         value={month}
+        variant="planning"
       />
 
       {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p> : null}

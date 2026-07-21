@@ -3,14 +3,12 @@ import { Check, UserRound, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { avatarOptions } from "../utils/avatars";
 
-export function AvatarOnboarding({ onFinished }) {
+export function AvatarOnboarding({ onDismissed, onFinished, open = false }) {
   const { user, updateProfile } = useAuth();
   const [selected, setSelected] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const open = Boolean(user && !user.avatarUrl && !user.onboarding?.avatarPromptDismissed);
-
-  if (!open) return null;
+  if (!open || !user || user.avatarUrl) return null;
 
   async function confirmAvatar() {
     if (!selected || saving) return;
@@ -26,18 +24,8 @@ export function AvatarOnboarding({ onFinished }) {
     }
   }
 
-  async function dismissAvatar() {
-    if (saving) return;
-    setSaving(true);
-    setError("");
-    try {
-      await updateProfile({ onboarding: { avatarPromptDismissed: true } });
-      onFinished?.();
-    } catch (avatarError) {
-      setError(avatarError?.response?.data?.message || avatarError.message || "Não foi possível fechar esta etapa.");
-    } finally {
-      setSaving(false);
-    }
+  function dismissAvatar() {
+    if (!saving) onDismissed?.();
   }
 
   return (

@@ -8,6 +8,25 @@ export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || (import.meta.env.PROD ? productionApiUrl : localApiUrl)
 });
 
+let sessionValidationPromise = null;
+
+async function validateStoredSession(token) {
+  if (!sessionValidationPromise) {
+    sessionValidationPromise = axios.get(`${api.defaults.baseURL}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 12000,
+      validateStatus: () => true
+    }).then((response) => {
+      if (response.status === 200) return "valid";
+      if ([401, 403].includes(response.status)) return "invalid";
+      return "unknown";
+    }).catch(() => "unknown").finally(() => {
+      sessionValidationPromise = null;
+    });
+  }
+  return sessionValidationPromise;
+}
+
 api.interceptors.request.use((config) => {
   const token = readAuthToken();
   if (token) {
@@ -18,12 +37,20 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     const hadToken = Boolean(readAuthToken());
-    const isAuthAttempt = /\/auth\/(login|register|verify-email|forgot-password|reset-password)/.test(error?.config?.url || "");
-    if (hadToken && error?.response?.status === 401 && !isAuthAttempt) {
-      clearAuthSession();
-      window.dispatchEvent(new Event("betterway:session-expired"));
+    const requestUrl = error?.config?.url || "";
+    const isAuthRequest = /\/auth\/(login|register|verify-email|forgot-password|reset-password|me)/.test(requestUrl);
+    if (hadToken && error?.response?.status === 401 && !isAuthRequest && !error?.config?._bwSessionConfirmed) {
+      const token = readAuthToken();
+      const sessionState = token ? await validateStoredSession(token) : "invalid";
+      if (sessionState === "valid") {
+        return api.request({ ...error.config, _bwSessionConfirmed: true });
+      }
+      if (sessionState === "invalid") {
+        clearAuthSession();
+        window.dispatchEvent(new Event("betterway:session-expired"));
+      }
     }
     return Promise.reject(error);
   }

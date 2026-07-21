@@ -26,6 +26,7 @@ router.use(authMiddleware);
 router.get("/", controller.list);
 router.post("/pluggy/token", providerActionLimiter, controller.createConnectToken);
 router.post("/pluggy/sync", providerActionLimiter, controller.syncPluggy);
+router.post("/direct/request", providerActionLimiter, controller.requestDirectConnection);
 router.post("/refresh", providerActionLimiter, controller.refresh);
 router.delete("/:id", controller.remove);
 

@@ -1,6 +1,7 @@
 const asyncHandler = require("../utils/asyncHandler");
 const repository = require("../services/repository");
 const pluggy = require("../services/pluggyService");
+const directBankService = require("../services/directBankService");
 const { summarizeConnections } = require("../services/bankSummaryService");
 const { processEvent } = require("./pluggyWebhookController");
 
@@ -19,8 +20,12 @@ function publicConnections(connections) {
   return connections.map(publicConnection);
 }
 
-function directConnections(connections) {
-  return connections.filter((connection) => connection.provider === "pluggy");
+function visibleConnections(connections) {
+  return connections.filter((connection) => ["pluggy", "direct_api"].includes(connection.provider));
+}
+
+function syncedConnections(connections) {
+  return visibleConnections(connections).filter((connection) => connection.syncStatus === "active");
 }
 
 async function syncPluggyItem(userId, itemId) {
@@ -40,13 +45,33 @@ const list = asyncHandler(async (req, res) => {
       }
     }
   }
-  const connections = directConnections(await repository.listBankConnections(req.user.id));
+  const connections = visibleConnections(await repository.listBankConnections(req.user.id));
   return res.json({
     providerConfigured: pluggy.providerConfigured(),
     providerEnvironment: pluggy.providerEnvironment(),
     connections: publicConnections(connections),
-    totals: summarizeConnections(connections),
-    methods: [{ id: "open_finance", available: pluggy.providerConfigured() }]
+    totals: summarizeConnections(syncedConnections(connections)),
+    directBankCatalog: directBankService.catalog(),
+    methods: [
+      { id: "open_finance", available: pluggy.providerConfigured() },
+      { id: "direct_api", available: true }
+    ]
+  });
+});
+
+const requestDirectConnection = asyncHandler(async (req, res) => {
+  const setup = directBankService.prepareRequest(req.body);
+  const connection = await repository.upsertBankConnection(
+    req.user.id,
+    "direct_api",
+    setup.externalId,
+    setup.fields
+  );
+  const connections = visibleConnections(await repository.listBankConnections(req.user.id));
+  return res.status(201).json({
+    connection: publicConnection(connection),
+    provider: setup.provider,
+    totals: summarizeConnections(syncedConnections(connections))
   });
 });
 
@@ -63,30 +88,37 @@ const syncPluggy = asyncHandler(async (req, res) => {
   const itemId = String(req.body.itemId || "").trim();
   if (!itemId || itemId.length > 200) return res.status(400).json({ message: "A conexão bancária não informou um item válido." });
   const connection = await syncPluggyItem(req.user.id, itemId);
-  const connections = directConnections(await repository.listBankConnections(req.user.id));
-  return res.status(201).json({ connection: publicConnection(connection), totals: summarizeConnections(connections) });
+  const connections = visibleConnections(await repository.listBankConnections(req.user.id));
+  return res.status(201).json({ connection: publicConnection(connection), totals: summarizeConnections(syncedConnections(connections)) });
 });
 
 const refresh = asyncHandler(async (req, res) => {
   const connections = await repository.listBankConnections(req.user.id);
-  const connectedProviders = directConnections(connections);
+  const connectedProviders = connections.filter(
+    (connection) => ["pluggy", "direct_api"].includes(connection.provider) && connection.syncStatus === "active"
+  );
   let refreshed = 0;
   let failed = 0;
 
   for (const connection of connectedProviders) {
     try {
-      await syncPluggyItem(req.user.id, connection.externalId);
+      if (connection.provider === "pluggy") {
+        await syncPluggyItem(req.user.id, connection.externalId);
+      } else {
+        const snapshot = await directBankService.fetchSnapshot(connection, { userId: req.user.id });
+        await repository.upsertBankConnection(req.user.id, "direct_api", connection.externalId, snapshot);
+      }
       refreshed += 1;
     } catch (error) {
-      console.warn("Falha ao atualizar uma conexão Pluggy:", error.message);
+      console.warn("Falha ao atualizar uma conexão financeira:", error.message);
       failed += 1;
     }
   }
 
-  const updated = directConnections(await repository.listBankConnections(req.user.id));
+  const updated = visibleConnections(await repository.listBankConnections(req.user.id));
   return res.json({
     connections: publicConnections(updated),
-    totals: summarizeConnections(updated),
+    totals: summarizeConnections(syncedConnections(updated)),
     refreshed,
     failed
   });
@@ -102,6 +134,7 @@ const remove = asyncHandler(async (req, res) => {
 
 module.exports = {
   list,
+  requestDirectConnection,
   createConnectToken,
   syncPluggy,
   refresh,

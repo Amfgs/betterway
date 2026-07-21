@@ -89,6 +89,8 @@ Notícias reais: se `NEWS_API_KEY` estiver ausente, o backend usa Google News RS
 
 Conexão bancária: com `PLUGGY_CLIENT_ID` e `PLUGGY_CLIENT_SECRET`, o usuário pode autorizar contas por Open Finance e sincronizar saldos, investimentos e os últimos 90 dias do extrato. Em Trial, `PLUGGY_ENVIRONMENT=trial` libera apenas o conector Pluggy Bank; bancos reais exigem aprovação de produção no painel da Pluggy. O webhook autenticado mantém as posições atualizadas. Sem as credenciais, a conexão permanece indisponível e nenhum fluxo alternativo de importação de arquivos é exibido.
 
+Como alternativa, a aba Perfil > Conexões oferece a preparação de APIs oficiais de bancos. Ela registra instituição, tipo de conta e escopos de leitura, sem receber credenciais bancárias. Inter Empresas, BB, Santander, Bradesco, BTG Empresas, Cora, Stone, Sicoob, Sicredi e PagBank EDI já possuem catálogo e contrato comum de adaptador. A conexão só passa a sincronizar depois da homologação e da implementação do módulo específico. Consulte [`docs/DIRECT_BANK_APIS.md`](./docs/DIRECT_BANK_APIS.md) para os passos e requisitos de cada instituição.
+
 Sessões persistentes expiram 15 dias após o primeiro login, mesmo que o perfil seja alterado. No app nativo, o token fica no Secure Store e o usuário pode ativar Face ID, Touch ID ou biometria Android para desbloqueá-lo; a senha nunca é salva no aparelho.
 
 O login Google usa Google Identity Services. Configure o mesmo OAuth Web Client ID como `GOOGLE_CLIENT_ID` na API e `VITE_GOOGLE_CLIENT_ID` no frontend. O token recebido no navegador só vira uma sessão após validação criptográfica no backend.

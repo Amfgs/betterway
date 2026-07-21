@@ -527,7 +527,9 @@ const profileProgress = asyncHandler(async (req, res) => {
       id: "bank",
       title: "Conecte uma instituição",
       description: "Atualize saldo, extrato e investimentos automaticamente.",
-      completed: connections.some((connection) => connection.provider === "pluggy"),
+      completed: connections.some((connection) =>
+        connection.syncStatus === "active" && ["pluggy", "direct_api"].includes(connection.provider)
+      ),
       to: "/perfil?tab=conexoes"
     },
     {

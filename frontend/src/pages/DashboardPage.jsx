@@ -335,6 +335,7 @@ export function DashboardPage() {
         onChange={setMonth}
         stacked
         value={month}
+        variant="analysis"
       />
 
       {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p> : null}

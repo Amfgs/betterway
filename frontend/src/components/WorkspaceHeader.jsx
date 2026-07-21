@@ -1,5 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { CalendarRange, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+
+function formattedMonth(value) {
+  const [year, month] = String(value || "").split("-").map(Number);
+  if (!year || !month) return "Escolha o mês";
+  return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(new Date(year, month - 1, 1));
+}
+
+function shiftedMonth(value, amount) {
+  const [year, month] = String(value || "").split("-").map(Number);
+  const date = year && month ? new Date(year, month - 1 + amount, 1) : new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
 
 export function WorkspaceHeader({ eyebrow, title, description, actions }) {
   return (
@@ -26,35 +39,86 @@ export function GuidedSectionHeader({ icon: Icon, title, description, className 
   );
 }
 
-export function WorkspacePeriodControl({ label, value, onChange, description, controlLabel = "Alterar mês", stacked = false }) {
+export function WorkspacePeriodControl({ label, value, onChange, description, controlLabel = "Alterar mês", stacked = false, variant = "default" }) {
   return (
-    <section aria-label={label} className={`workspace-period-strip ${stacked ? "workspace-period-stacked" : ""}`.trim()}>
-      <div>
-        <strong>{label}</strong>
-        <span>{description}</span>
+    <section aria-label={label} className={`workspace-period-strip workspace-period-${variant} ${stacked ? "workspace-period-stacked" : ""}`.trim()}>
+      <div className="workspace-period-copy">
+        <span className="workspace-period-icon"><CalendarRange aria-hidden="true" size={19} /></span>
+        <span>
+          <strong>{label}</strong>
+          <small>{description}</small>
+        </span>
       </div>
-      <label>
-        <span>{controlLabel}</span>
-        <input aria-label={label} onChange={(event) => onChange(event.target.value)} type="month" value={value} />
-      </label>
+      <div className="workspace-period-navigator">
+        <button aria-label="Mês anterior" onClick={() => onChange(shiftedMonth(value, -1))} title="Mês anterior" type="button"><ChevronLeft size={18} /></button>
+        <label>
+          <span>{controlLabel}</span>
+          <strong>{formattedMonth(value)}</strong>
+          <input aria-label={label} onChange={(event) => onChange(event.target.value)} type="month" value={value} />
+        </label>
+        <button aria-label="Próximo mês" onClick={() => onChange(shiftedMonth(value, 1))} title="Próximo mês" type="button"><ChevronRight size={18} /></button>
+      </div>
     </section>
   );
 }
 
-export function WorkspaceTabs({ tabs, active }) {
+export function WorkspaceTabs({ tabs, active, compactMobile = false }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const pickerRef = useRef(null);
+  const currentTab = tabs.find((tab) => tab.id === active) || tabs[0];
+  const CurrentIcon = currentTab?.icon;
+
+  useEffect(() => {
+    setPickerOpen(false);
+  }, [active]);
+
+  useEffect(() => {
+    if (!pickerOpen) return undefined;
+    function closePicker(event) {
+      if (!pickerRef.current?.contains(event.target)) setPickerOpen(false);
+    }
+    document.addEventListener("pointerdown", closePicker);
+    return () => document.removeEventListener("pointerdown", closePicker);
+  }, [pickerOpen]);
+
   return (
-    <nav aria-label="Visões da página" className="workspace-tabs">
-      {tabs.map((tab) => {
-        const Icon = tab.icon;
-        return (
-          <Link aria-current={active === tab.id ? "page" : undefined} className={active === tab.id ? "active" : ""} key={tab.id} to={tab.to}>
-            {Icon ? <Icon size={17} /> : null}
-            <span>{tab.label}</span>
-            {tab.badge ? <small>{tab.badge}</small> : null}
-          </Link>
-        );
-      })}
-    </nav>
+    <>
+      <nav aria-label="Visões da página" className={`workspace-tabs ${compactMobile ? "workspace-tabs-compact-mobile" : ""}`.trim()}>
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <Link aria-current={active === tab.id ? "page" : undefined} className={active === tab.id ? "active" : ""} key={tab.id} to={tab.to}>
+              {Icon ? <Icon size={17} /> : null}
+              <span>{tab.label}</span>
+              {tab.badge ? <small>{tab.badge}</small> : null}
+            </Link>
+          );
+        })}
+      </nav>
+      {compactMobile ? (
+        <div className={`workspace-view-picker ${pickerOpen ? "open" : ""}`} ref={pickerRef}>
+          <button aria-expanded={pickerOpen} aria-haspopup="menu" onClick={() => setPickerOpen((current) => !current)} type="button">
+            <span className="workspace-view-picker-icon">{CurrentIcon ? <CurrentIcon size={18} /> : null}</span>
+            <span><small>Visão de investimentos</small><strong>{currentTab?.label}</strong></span>
+            <ChevronDown aria-hidden="true" size={17} />
+          </button>
+          {pickerOpen ? (
+            <nav aria-label="Escolher visão de investimentos" className="workspace-view-picker-menu">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <Link aria-current={active === tab.id ? "page" : undefined} className={active === tab.id ? "active" : ""} key={tab.id} onClick={() => setPickerOpen(false)} to={tab.to}>
+                    <span>{Icon ? <Icon size={17} /> : null}</span>
+                    <strong>{tab.label}</strong>
+                    {active === tab.id ? <i>Atual</i> : null}
+                  </Link>
+                );
+              })}
+            </nav>
+          ) : null}
+        </div>
+      ) : null}
+    </>
   );
 }
 

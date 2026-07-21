@@ -376,3 +376,434 @@ body.pluggy-connect-active {
     height: -webkit-fill-available !important;
   }
 }
+
+@media (max-width: 767px) {
+  html {
+    scrollbar-gutter: auto;
+  }
+
+  .workspace-period-strip,
+  .workspace-period-stacked {
+    display: flex !important;
+    width: 100% !important;
+    align-items: stretch !important;
+    flex-direction: column !important;
+    gap: 13px !important;
+    padding: 13px !important;
+    overflow: hidden;
+  }
+
+  .workspace-period-copy {
+    align-items: flex-start;
+  }
+
+  .workspace-period-icon {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+  }
+
+  .workspace-period-copy strong {
+    font-size: 0.78rem;
+  }
+
+  .workspace-period-copy small {
+    display: -webkit-box;
+    margin-top: 2px;
+    overflow: hidden;
+    font-size: 0.63rem;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .workspace-period-navigator {
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+  }
+
+  .workspace-period-navigator > button {
+    min-height: 48px !important;
+  }
+
+  .workspace-period-navigator > label {
+    min-width: 0 !important;
+    padding: 5px 8px !important;
+  }
+
+  .workspace-period-navigator > label strong {
+    font-size: 0.73rem;
+  }
+
+  .workspace-tabs-compact-mobile {
+    display: none !important;
+  }
+
+  .workspace-view-picker {
+    display: block;
+    width: 100%;
+  }
+
+  .workspace-view-picker > button {
+    display: grid;
+    width: 100%;
+    min-height: 50px !important;
+    grid-template-columns: 36px minmax(0, 1fr) 20px;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid rgba(16, 27, 23, 0.1);
+    border-radius: 8px;
+    background: #fff;
+    padding: 6px 10px;
+    text-align: left;
+  }
+
+  .dark .workspace-view-picker > button {
+    border-color: rgba(255, 255, 255, 0.1);
+    background: #151d18;
+  }
+
+  .workspace-view-picker-icon {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    place-items: center;
+    border-radius: 8px;
+    background: #e4f2ea;
+    color: var(--bw-green-700, #0d6b4f);
+  }
+
+  .workspace-view-picker > button span:nth-child(2),
+  .workspace-view-picker > button small,
+  .workspace-view-picker > button strong {
+    display: block;
+    min-width: 0;
+  }
+
+  .workspace-view-picker > button small {
+    color: var(--bw-muted, #66736d);
+    font-size: 0.56rem;
+  }
+
+  .workspace-view-picker > button strong {
+    margin-top: 1px;
+    font-size: 0.73rem;
+  }
+
+  .workspace-view-picker > button > svg {
+    color: #718078;
+    transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .workspace-view-picker.open > button > svg {
+    transform: rotate(180deg);
+  }
+
+  .workspace-view-picker-menu {
+    position: absolute;
+    z-index: 50;
+    top: calc(100% + 7px);
+    right: 0;
+    left: 0;
+    display: grid;
+    gap: 3px;
+    padding: 5px;
+    border: 1px solid rgba(16, 27, 23, 0.1);
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 18px 45px rgba(10, 30, 21, 0.18);
+  }
+
+  .dark .workspace-view-picker-menu {
+    border-color: rgba(255, 255, 255, 0.1);
+    background: #151d18;
+  }
+
+  .workspace-view-picker-menu a {
+    display: grid;
+    min-height: 46px;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 9px;
+    border-radius: 6px;
+    padding: 5px 9px;
+  }
+
+  .workspace-view-picker-menu a.active {
+    background: #e7f3ec;
+    color: var(--bw-green-700, #0d6b4f);
+  }
+
+  .dark .workspace-view-picker-menu a.active {
+    background: rgba(53, 194, 139, 0.11);
+    color: #68d9ae;
+  }
+
+  .workspace-view-picker-menu a > span {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    border-radius: 7px;
+    background: rgba(13, 107, 79, 0.08);
+  }
+
+  .workspace-view-picker-menu a strong {
+    font-size: 0.71rem;
+  }
+
+  .workspace-view-picker-menu a i {
+    color: var(--bw-green-700, #0d6b4f);
+    font-size: 0.57rem;
+    font-style: normal;
+    font-weight: 800;
+  }
+
+  .bank-panel-heading {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .bank-panel-title > span {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+  }
+
+  .bank-panel-title h2 {
+    font-size: 1.08rem;
+  }
+
+  .bank-panel-title small {
+    font-size: 0.65rem;
+  }
+
+  .bank-refresh-button {
+    width: 100%;
+  }
+
+  .bank-total-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 16px;
+  }
+
+  .bank-total-strip > div {
+    padding: 11px;
+  }
+
+  .bank-total-strip > div:nth-child(3) {
+    grid-column: 1 / -1;
+    border-top: 1px solid rgba(16, 27, 23, 0.07);
+    border-left: 0;
+  }
+
+  .bank-total-strip strong {
+    font-size: 0.94rem;
+  }
+
+  .bank-method-switcher {
+    margin-top: 18px;
+  }
+
+  .bank-method-switcher button {
+    min-height: 46px !important;
+    justify-content: center;
+    padding: 7px 8px;
+    text-align: center;
+  }
+
+  .bank-method-switcher button > svg {
+    display: none;
+  }
+
+  .bank-method-switcher small {
+    display: none;
+  }
+
+  .bank-method-content {
+    margin-top: 16px;
+  }
+
+  .bank-method-intro > span {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+  }
+
+  .bank-method-title-row {
+    align-items: flex-start;
+  }
+
+  .bank-primary-action {
+    width: 100%;
+  }
+
+  .direct-bank-fields,
+  .direct-bank-eligibility {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .direct-bank-eligibility > div + div {
+    border-top: 1px solid rgba(16, 27, 23, 0.08);
+  }
+
+  .direct-bank-scopes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .direct-bank-scopes span {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .direct-bank-actions {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .direct-bank-actions > a {
+    width: 100%;
+  }
+
+  .bank-source-row {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .bank-source-actions {
+    justify-content: space-between;
+    padding-left: 48px;
+    text-align: left;
+  }
+
+  .bank-source-actions > div {
+    text-align: left;
+  }
+
+  .bank-activity-details > summary p,
+  .bank-activity-details > summary > span span {
+    display: none;
+  }
+
+  .bank-transaction-list > div {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 9px;
+  }
+
+  .bank-transaction-list > div > span {
+    display: none;
+  }
+
+  .first-run-actions {
+    align-items: stretch;
+  }
+
+  .first-run-bank-actions {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column-reverse;
+    gap: 5px;
+  }
+
+  .first-run-bank-actions .first-run-primary,
+  .first-run-direct-link {
+    width: 100%;
+  }
+}
+
+@media (max-width: 360px) {
+  .direct-bank-scopes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-view-picker > button > svg {
+    transition: none !important;
+  }
+}
+
+/* Compact period controls: keep context above the month without consuming the viewport. */
+@media (max-width: 767px) {
+  .workspace-period-strip.workspace-period-analysis,
+  .workspace-period-strip.workspace-period-planning {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 10px !important;
+    padding: 12px !important;
+    overflow: visible;
+  }
+
+  .workspace-period-strip .workspace-period-copy {
+    display: grid !important;
+    grid-template-columns: 34px minmax(0, 1fr) !important;
+    align-items: center !important;
+    gap: 10px !important;
+  }
+
+  .workspace-period-strip .workspace-period-icon {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+  }
+
+  .workspace-period-strip .workspace-period-copy strong {
+    font-size: 0.76rem;
+  }
+
+  .workspace-period-strip .workspace-period-copy small {
+    display: block;
+    margin-top: 1px;
+    overflow: visible;
+    font-size: 0.61rem;
+    line-height: 1.35;
+    -webkit-line-clamp: unset;
+  }
+
+  .workspace-period-strip .workspace-period-navigator {
+    display: grid !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 50px;
+    grid-template-columns: 42px minmax(0, 1fr) 42px !important;
+    grid-template-rows: 50px !important;
+    align-items: stretch !important;
+    gap: 0 !important;
+  }
+
+  .workspace-period-strip .workspace-period-navigator > button {
+    display: grid !important;
+    width: 42px !important;
+    min-width: 42px !important;
+    min-height: 50px !important;
+    grid-row: 1 !important;
+    place-items: center !important;
+    padding: 0 !important;
+  }
+
+  .workspace-period-strip .workspace-period-navigator > label {
+    display: flex !important;
+    width: auto !important;
+    min-width: 0 !important;
+    min-height: 50px !important;
+    grid-row: 1 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    padding: 5px 8px !important;
+  }
+
+  .workspace-period-strip .workspace-period-navigator > label > span {
+    margin: 0 !important;
+    font-size: 0.56rem !important;
+  }
+
+  .workspace-period-strip .workspace-period-navigator > label > strong {
+    margin-top: 2px;
+    font-size: 0.72rem;
+  }
+}

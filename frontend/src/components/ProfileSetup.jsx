@@ -105,6 +105,7 @@ export function ProfileSetup() {
   const [error, setError] = useState("");
   const [installOpen, setInstallOpen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
+  const [dismissedThisVisit, setDismissedThisVisit] = useState({ avatar: false, bank: false, install: false });
   const platform = useMemo(devicePlatform, []);
   const standalone = useMemo(isStandaloneApp, []);
 
@@ -141,14 +142,13 @@ export function ProfileSetup() {
     return () => window.removeEventListener("beforeinstallprompt", captureInstallPrompt);
   }, []);
 
-  const onboarding = user?.onboarding || {};
-  const avatarPending = Boolean(user && !user.avatarUrl && !onboarding.avatarPromptDismissed);
+  const avatarPending = Boolean(user && !user.avatarUrl && !dismissedThisVisit.avatar);
   const bankComplete = Boolean(progress?.tasks?.find((task) => task.id === "bank")?.completed);
   const bankPending = Boolean(
     progress &&
     !avatarPending &&
     !bankComplete &&
-    !onboarding.bankPromptDismissed
+    !dismissedThisVisit.bank
   );
   const installComplete = Boolean(progress?.tasks?.find((task) => task.id === "install")?.completed || standalone);
   const installPending = Boolean(
@@ -157,7 +157,7 @@ export function ProfileSetup() {
     !bankPending &&
     platform !== "other" &&
     !installComplete &&
-    !onboarding.installPromptDismissed
+    !dismissedThisVisit.install
   );
   const showInstallGuide = installOpen || installPending;
 
@@ -177,9 +177,14 @@ export function ProfileSetup() {
     window.dispatchEvent(new Event("betterway:progress-refresh"));
   }
 
-  async function dismissBankOnboarding() {
+  function dismissBankOnboarding() {
     setError("");
-    await patchOnboarding({ bankPromptDismissed: true });
+    setDismissedThisVisit((current) => ({ ...current, bank: true }));
+  }
+
+  function openDirectBankSetup() {
+    setDismissedThisVisit((current) => ({ ...current, bank: true }));
+    navigate("/perfil?tab=conexoes&method=direct");
   }
 
   async function startBankConnection() {
@@ -202,7 +207,8 @@ export function ProfileSetup() {
     try {
       await api.post("/bank-connections/pluggy/sync", { itemId: item.id });
       setConnectToken("");
-      await patchOnboarding({ bankPromptDismissed: true });
+      await loadProgress();
+      window.dispatchEvent(new Event("betterway:progress-refresh"));
     } catch (syncError) {
       setError(getErrorMessage(syncError));
     } finally {
@@ -210,11 +216,9 @@ export function ProfileSetup() {
     }
   }
 
-  async function closeInstallGuide() {
+  function closeInstallGuide() {
     setInstallOpen(false);
-    if (!onboarding.installPromptDismissed) {
-      await patchOnboarding({ installPromptDismissed: true });
-    }
+    setDismissedThisVisit((current) => ({ ...current, install: true }));
   }
 
   async function confirmInstalled() {
@@ -239,7 +243,11 @@ export function ProfileSetup() {
 
   return (
     <>
-      <AvatarOnboarding onFinished={loadProgress} />
+      <AvatarOnboarding
+        onDismissed={() => setDismissedThisVisit((current) => ({ ...current, avatar: true }))}
+        onFinished={loadProgress}
+        open={avatarPending}
+      />
 
       <SetupProgress
         expanded={expanded}
@@ -297,9 +305,12 @@ export function ProfileSetup() {
                 {bankStep < 2 ? (
                   <button className="first-run-primary" onClick={() => setBankStep((step) => step + 1)} type="button">Próximo <ArrowRight size={17} /></button>
                 ) : (
-                  <button className="first-run-primary" disabled={Boolean(working)} onClick={startBankConnection} type="button">
-                    <Landmark size={18} /> {working ? "Preparando..." : "Conectar minha conta"}
-                  </button>
+                  <div className="first-run-bank-actions">
+                    <button className="first-run-direct-link" onClick={openDirectBankSetup} type="button">Usar API do meu banco</button>
+                    <button className="first-run-primary" disabled={Boolean(working)} onClick={startBankConnection} type="button">
+                      <Landmark size={18} /> {working ? "Preparando..." : "Conectar Open Finance"}
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

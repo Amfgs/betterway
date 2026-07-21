@@ -186,7 +186,7 @@ export function InvestmentsPage() {
 
   useEffect(() => {
     if (activeView !== "portfolio") setSelectedPending(null);
-    load();
+    if (activeView === "portfolio") load();
   }, [activeView]);
 
   useEffect(() => {
@@ -238,9 +238,10 @@ export function InvestmentsPage() {
   }, []);
 
   useEffect(() => {
+    if (activeView !== "portfolio") return undefined;
     const timer = window.setInterval(() => refreshMarket({ silent: true }), 15000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [activeView]);
 
   function update(key, value) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -390,7 +391,7 @@ export function InvestmentsPage() {
           eyebrow="Investimentos"
           title="Simulador de investimentos"
         />
-        <WorkspaceTabs active={activeView} tabs={investmentTabs} />
+        <WorkspaceTabs active={activeView} compactMobile tabs={investmentTabs} />
         <section className="guided-page-section">
           <GuidedSectionHeader
             description="Escolha o tipo de investimento, informe o aporte e compare quanto veio do seu bolso com o que foi gerado pelo rendimento."
@@ -411,7 +412,7 @@ export function InvestmentsPage() {
           eyebrow="Investimentos"
           title="Notícias do mercado"
         />
-        <WorkspaceTabs active={activeView} tabs={investmentTabs} />
+        <WorkspaceTabs active={activeView} compactMobile tabs={investmentTabs} />
         <section className="guided-page-section">
           <GuidedSectionHeader
             description="Use o feed para entender fatos que podem afetar juros, inflação e ativos, sem transformar notícia em recomendação automática."
@@ -431,7 +432,7 @@ export function InvestmentsPage() {
         eyebrow="Investimentos"
         title="Carteira e mercado"
       />
-      <WorkspaceTabs active={activeView} tabs={investmentTabs} />
+      <WorkspaceTabs active={activeView} compactMobile tabs={investmentTabs} />
       {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p> : null}
       {selectedPending ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4">
