@@ -77,6 +77,7 @@ const journeyStages = [
 ];
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+const VIDEO_FPS = 24;
 
 const mobileCameraStops = [
   { x: 0, y: -26, scale: 1.55 },
@@ -110,6 +111,7 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
   const pendingSeekRef = useRef(null);
   const frameRef = useRef(null);
   const objectUrlRef = useRef(null);
+  const worldNearViewportRef = useRef(true);
   const viewportWidthRef = useRef(0);
   const viewportHeightRef = useRef(0);
   const [activeStage, setActiveStage] = useState(0);
@@ -188,7 +190,7 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
     if (!video || video.seeking || pendingSeekRef.current == null) return;
     const nextTime = pendingSeekRef.current;
     pendingSeekRef.current = null;
-    if (Math.abs(video.currentTime - nextTime) > 0.035) video.currentTime = nextTime;
+    if (Math.abs(video.currentTime - nextTime) > 1 / (VIDEO_FPS * 2)) video.currentTime = nextTime;
   }, []);
 
   const syncFromScroll = useCallback(() => {
@@ -213,13 +215,16 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
 
     const video = videoRef.current;
     if (videoReady && video?.duration) {
-      pendingSeekRef.current = clamp(video.duration * (0.02 + progress * 0.96), 0, video.duration - 0.03);
+      const rawTime = video.duration * (0.02 + progress * 0.96);
+      const frameTime = Math.round(rawTime * VIDEO_FPS) / VIDEO_FPS;
+      pendingSeekRef.current = clamp(frameTime, 0, video.duration - 1 / VIDEO_FPS);
       applyPendingSeek();
     }
   }, [applyPendingSeek, isDesktop, reducedMotion, videoReady]);
 
   useEffect(() => {
     const onScroll = () => {
+      if (!worldNearViewportRef.current) return;
       if (frameRef.current == null) frameRef.current = window.requestAnimationFrame(syncFromScroll);
     };
     let orientationTimer;
@@ -240,7 +245,14 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
         onScroll();
       }, 180);
     };
+    const observer = "IntersectionObserver" in window
+      ? new IntersectionObserver(([entry]) => {
+        worldNearViewportRef.current = entry.isIntersecting;
+        if (entry.isIntersecting) onScroll();
+      }, { rootMargin: "100% 0px" })
+      : null;
     syncFromScroll();
+    observer?.observe(sectionRef.current);
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onResize, { passive: true });
     window.addEventListener("orientationchange", onOrientationChange, { passive: true });
@@ -248,6 +260,7 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("orientationchange", onOrientationChange);
+      observer?.disconnect();
       window.clearTimeout(orientationTimer);
       if (frameRef.current != null) window.cancelAnimationFrame(frameRef.current);
     };
@@ -289,8 +302,13 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
           </picture>
           {isDesktop && !reducedMotion ? (
             <video
+              aria-hidden="true"
+              disablePictureInPicture
+              disableRemotePlayback
               muted
+              onError={() => setVideoReady(false)}
               onLoadedData={() => {
+                videoRef.current?.pause();
                 setVideoReady(true);
                 syncFromScroll();
               }}
@@ -299,6 +317,7 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
               poster={desktopPoster}
               preload="none"
               ref={videoRef}
+              tabIndex={-1}
             />
           ) : null}
           <div className="bw-scroll-world__shade" />
