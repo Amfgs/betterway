@@ -12,7 +12,9 @@ import {
   Target
 } from "lucide-react";
 import desktopPoster from "../assets/landing/scroll-world/bw-world-desktop.webp";
+import desktopPosterHd from "../assets/landing/scroll-world/bw-world-desktop-hd.webp";
 import mobilePoster from "../assets/landing/scroll-world/bw-world-mobile.webp";
+import mobilePosterHd from "../assets/landing/scroll-world/bw-world-mobile-hd.webp";
 import worldVideo from "../assets/landing/scroll-world/bw-world-flight.mp4";
 
 const journeyStages = [
@@ -110,25 +112,43 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
       return undefined;
     }
 
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType || "")) {
+      setVideoReady(false);
+      return undefined;
+    }
+
     const controller = new AbortController();
     let disposed = false;
-    fetch(worldVideo, { signal: controller.signal })
-      .then((response) => {
-        if (!response.ok) throw new Error("Não foi possível carregar a animação.");
-        return response.blob();
-      })
-      .then((blob) => {
-        if (disposed || !videoRef.current) return;
-        objectUrlRef.current = URL.createObjectURL(blob);
-        videoRef.current.src = objectUrlRef.current;
-        videoRef.current.load();
-      })
-      .catch((error) => {
-        if (error.name !== "AbortError") setVideoReady(false);
-      });
+    let idleId;
+    let fallbackId;
+    const loadVideo = () => {
+      fetch(worldVideo, { cache: "force-cache", signal: controller.signal })
+        .then((response) => {
+          if (!response.ok) throw new Error("Não foi possível carregar a animação.");
+          return response.blob();
+        })
+        .then((blob) => {
+          if (disposed || !videoRef.current) return;
+          objectUrlRef.current = URL.createObjectURL(blob);
+          videoRef.current.src = objectUrlRef.current;
+          videoRef.current.load();
+        })
+        .catch((error) => {
+          if (error.name !== "AbortError") setVideoReady(false);
+        });
+    };
+
+    if ("requestIdleCallback" in window) {
+      idleId = window.requestIdleCallback(loadVideo, { timeout: 1200 });
+    } else {
+      fallbackId = window.setTimeout(loadVideo, 450);
+    }
 
     return () => {
       disposed = true;
+      if (idleId != null) window.cancelIdleCallback(idleId);
+      if (fallbackId != null) window.clearTimeout(fallbackId);
       controller.abort();
       if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
       objectUrlRef.current = null;
@@ -152,6 +172,7 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
     const progress = clamp(-rect.top / scrollable, 0, 1);
     section.style.setProperty("--bw-world-progress", progress.toFixed(4));
     section.style.setProperty("--bw-world-position", `${88 - progress * 76}%`);
+    section.style.setProperty("--bw-world-video-mix", clamp((progress - 0.01) / 0.04, 0, 1).toFixed(3));
     const nextStage = clamp(Math.floor(progress * journeyStages.length), 0, journeyStages.length - 1);
     setActiveStage((current) => current === nextStage ? current : nextStage);
 
@@ -195,8 +216,19 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
       <div className="bw-scroll-world__sticky">
         <div aria-hidden="true" className="bw-scroll-world__media">
           <picture className="bw-scroll-world__poster">
-            <source media="(max-width: 767px)" srcSet={mobilePoster} />
-            <img alt="" fetchPriority="high" src={desktopPoster} />
+            <source
+              media="(max-width: 767px)"
+              sizes="100vw"
+              srcSet={`${mobilePoster} 941w, ${mobilePosterHd} 1440w`}
+            />
+            <img
+              alt=""
+              decoding="async"
+              fetchPriority="high"
+              sizes="100vw"
+              src={desktopPoster}
+              srcSet={`${desktopPoster} 1672w, ${desktopPosterHd} 2560w`}
+            />
           </picture>
           {isDesktop && !reducedMotion ? (
             <video
@@ -208,7 +240,7 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
               onSeeked={applyPendingSeek}
               playsInline
               poster={desktopPoster}
-              preload="auto"
+              preload="none"
               ref={videoRef}
             />
           ) : null}
@@ -277,8 +309,18 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
           <p>Uma jornada completa para entender, planejar e construir o que importa.</p>
         </div>
         <picture>
-          <source media="(max-width: 767px)" srcSet={mobilePoster} />
-          <img alt="Jornada financeira em origami, da renda até a conquista de uma casa" src={desktopPoster} />
+          <source
+            media="(max-width: 767px)"
+            sizes="100vw"
+            srcSet={`${mobilePoster} 941w, ${mobilePosterHd} 1440w`}
+          />
+          <img
+            alt="Jornada financeira em origami, da renda até a conquista de uma casa"
+            decoding="async"
+            sizes="100vw"
+            src={desktopPoster}
+            srcSet={`${desktopPoster} 1672w, ${desktopPosterHd} 2560w`}
+          />
         </picture>
         <ol>
           {journeyStages.map((stage) => (
