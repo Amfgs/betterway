@@ -15,7 +15,7 @@ import desktopPoster from "../assets/landing/scroll-world/bw-world-desktop.webp"
 import desktopPosterHd from "../assets/landing/scroll-world/bw-world-desktop-hd.webp";
 import mobilePoster from "../assets/landing/scroll-world/bw-world-mobile.webp";
 import mobilePosterHd from "../assets/landing/scroll-world/bw-world-mobile-hd.webp";
-import worldVideo from "../assets/landing/scroll-world/bw-world-flight.mp4";
+import worldVideo from "../assets/landing/scroll-world/bw-world-flight-hd.mp4";
 
 const journeyStages = [
   {
