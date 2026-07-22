@@ -15,11 +15,18 @@ import desktopPoster from "../assets/landing/scroll-world/bw-world-desktop.webp"
 import desktopPosterHd from "../assets/landing/scroll-world/bw-world-desktop-hd.webp";
 import mobilePoster from "../assets/landing/scroll-world/bw-world-mobile.webp";
 import mobilePosterHd from "../assets/landing/scroll-world/bw-world-mobile-hd.webp";
-import worldVideo from "../assets/landing/scroll-world/bw-world-flight.mp4";
+import incomeAsset from "../assets/landing/scroll-world/higgsfield/income.webp";
+import paymentAsset from "../assets/landing/scroll-world/higgsfield/payment.webp";
+import limitsAsset from "../assets/landing/scroll-world/higgsfield/limits.webp";
+import choiceAsset from "../assets/landing/scroll-world/higgsfield/choice.webp";
+import growthAsset from "../assets/landing/scroll-world/higgsfield/growth.webp";
+import goalAsset from "../assets/landing/scroll-world/higgsfield/goal.webp";
+import achievementAsset from "../assets/landing/scroll-world/higgsfield/achievement.webp";
 
 const journeyStages = [
   {
     id: "income",
+    asset: incomeAsset,
     icon: BadgeDollarSign,
     label: "Renda",
     title: "Seu dinheiro merece mais do que um retrovisor.",
@@ -28,6 +35,7 @@ const journeyStages = [
   },
   {
     id: "payment",
+    asset: paymentAsset,
     icon: Smartphone,
     label: "Pagamento",
     title: "A vida acontece em cada pagamento.",
@@ -36,6 +44,7 @@ const journeyStages = [
   },
   {
     id: "limits",
+    asset: limitsAsset,
     icon: ScanLine,
     label: "Limites",
     title: "Você vê o limite antes de ultrapassá-lo.",
@@ -44,6 +53,7 @@ const journeyStages = [
   },
   {
     id: "choice",
+    asset: choiceAsset,
     icon: BrainCircuit,
     label: "Escolha",
     title: "Uma pausa muda a próxima decisão.",
@@ -52,6 +62,7 @@ const journeyStages = [
   },
   {
     id: "growth",
+    asset: growthAsset,
     icon: ChartNoAxesCombined,
     label: "Investimentos",
     title: "O que você protege começa a crescer.",
@@ -60,6 +71,7 @@ const journeyStages = [
   },
   {
     id: "goal",
+    asset: goalAsset,
     icon: Target,
     label: "Metas",
     title: "Metas ganham forma, sozinho ou junto.",
@@ -68,6 +80,7 @@ const journeyStages = [
   },
   {
     id: "achievement",
+    asset: achievementAsset,
     icon: KeyRound,
     label: "Conquista",
     title: "Até que o plano vira parte da sua vida.",
@@ -106,16 +119,14 @@ const getMobileCamera = (progress) => {
 
 export function FinancialJourney({ isAuthenticated, primaryTo }) {
   const sectionRef = useRef(null);
-  const videoRef = useRef(null);
-  const pendingSeekRef = useRef(null);
+  const assetRefs = useRef([]);
   const frameRef = useRef(null);
-  const objectUrlRef = useRef(null);
   const viewportWidthRef = useRef(0);
   const viewportHeightRef = useRef(0);
   const [activeStage, setActiveStage] = useState(0);
   const [isDesktop, setIsDesktop] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
-  const [videoReady, setVideoReady] = useState(false);
+  const [assetsReady, setAssetsReady] = useState(false);
   const currentStage = journeyStages[activeStage];
 
   useEffect(() => {
@@ -134,63 +145,6 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
     };
   }, []);
 
-  useEffect(() => {
-    if (!isDesktop || reducedMotion || !videoRef.current) {
-      setVideoReady(false);
-      return undefined;
-    }
-
-    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-    if (connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType || "")) {
-      setVideoReady(false);
-      return undefined;
-    }
-
-    const controller = new AbortController();
-    let disposed = false;
-    let idleId;
-    let fallbackId;
-    const loadVideo = () => {
-      fetch(worldVideo, { cache: "force-cache", signal: controller.signal })
-        .then((response) => {
-          if (!response.ok) throw new Error("Não foi possível carregar a animação.");
-          return response.blob();
-        })
-        .then((blob) => {
-          if (disposed || !videoRef.current) return;
-          objectUrlRef.current = URL.createObjectURL(blob);
-          videoRef.current.src = objectUrlRef.current;
-          videoRef.current.load();
-        })
-        .catch((error) => {
-          if (error.name !== "AbortError") setVideoReady(false);
-        });
-    };
-
-    if ("requestIdleCallback" in window) {
-      idleId = window.requestIdleCallback(loadVideo, { timeout: 1200 });
-    } else {
-      fallbackId = window.setTimeout(loadVideo, 450);
-    }
-
-    return () => {
-      disposed = true;
-      if (idleId != null) window.cancelIdleCallback(idleId);
-      if (fallbackId != null) window.clearTimeout(fallbackId);
-      controller.abort();
-      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
-      objectUrlRef.current = null;
-    };
-  }, [isDesktop, reducedMotion]);
-
-  const applyPendingSeek = useCallback(() => {
-    const video = videoRef.current;
-    if (!video || video.seeking || pendingSeekRef.current == null) return;
-    const nextTime = pendingSeekRef.current;
-    pendingSeekRef.current = null;
-    if (Math.abs(video.currentTime - nextTime) > 0.035) video.currentTime = nextTime;
-  }, []);
-
   const syncFromScroll = useCallback(() => {
     frameRef.current = null;
     const section = sectionRef.current;
@@ -203,7 +157,6 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
     const mobileCamera = getMobileCamera(progress);
     section.style.setProperty("--bw-world-progress", progress.toFixed(4));
     section.style.setProperty("--bw-world-position", `${88 - progress * 76}%`);
-    section.style.setProperty("--bw-world-video-mix", clamp((progress - 0.01) / 0.04, 0, 1).toFixed(3));
     section.style.setProperty("--bw-world-mobile-x", `${mobileCamera.x.toFixed(2)}%`);
     section.style.setProperty("--bw-world-mobile-y", `${mobileCamera.y.toFixed(2)}%`);
     section.style.setProperty("--bw-world-mobile-scale", mobileCamera.scale.toFixed(3));
@@ -211,12 +164,27 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
     const nextStage = clamp(Math.floor(progress * journeyStages.length), 0, journeyStages.length - 1);
     setActiveStage((current) => current === nextStage ? current : nextStage);
 
-    const video = videoRef.current;
-    if (videoReady && video?.duration) {
-      pendingSeekRef.current = clamp(video.duration * (0.02 + progress * 0.96), 0, video.duration - 0.03);
-      applyPendingSeek();
-    }
-  }, [applyPendingSeek, isDesktop, reducedMotion, videoReady]);
+    const stagePosition = progress * journeyStages.length;
+    const stageIndex = Math.min(Math.floor(stagePosition), journeyStages.length - 1);
+    const localProgress = stagePosition - stageIndex;
+    const transitionProgress = stageIndex < journeyStages.length - 1
+      ? clamp((localProgress - 0.68) / 0.32, 0, 1)
+      : 0;
+    const easedTransition = transitionProgress * transitionProgress * (3 - 2 * transitionProgress);
+    const scenePosition = stageIndex + easedTransition;
+
+    assetRefs.current.forEach((asset, index) => {
+      if (!asset) return;
+      const distance = index - scenePosition;
+      const absoluteDistance = Math.abs(distance);
+      const opacity = clamp(1 - absoluteDistance, 0, 1);
+      const drift = (0.5 - localProgress) * 1.4;
+      asset.style.setProperty("--bw-asset-opacity", opacity.toFixed(3));
+      asset.style.setProperty("--bw-asset-x", `${(distance * 2.8 + drift).toFixed(2)}%`);
+      asset.style.setProperty("--bw-asset-y", `${(absoluteDistance * 1.2 - drift * 0.32).toFixed(2)}%`);
+      asset.style.setProperty("--bw-asset-scale", (1.018 + absoluteDistance * 0.028).toFixed(3));
+    });
+  }, [isDesktop, reducedMotion]);
 
   useEffect(() => {
     const onScroll = () => {
@@ -266,7 +234,7 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
   return (
     <section
       aria-labelledby="bw-world-title"
-      className={`bw-scroll-world ${videoReady ? "has-video" : ""}`}
+      className={`bw-scroll-world ${assetsReady ? "has-assets" : ""}`}
       id="como-funciona"
       ref={sectionRef}
     >
@@ -288,18 +256,26 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
             />
           </picture>
           {isDesktop && !reducedMotion ? (
-            <video
-              muted
-              onLoadedData={() => {
-                setVideoReady(true);
-                syncFromScroll();
-              }}
-              onSeeked={applyPendingSeek}
-              playsInline
-              poster={desktopPoster}
-              preload="none"
-              ref={videoRef}
-            />
+            <div className="bw-scroll-world__assets">
+              {journeyStages.map((stage, index) => (
+                <img
+                  alt=""
+                  decoding="async"
+                  fetchPriority={index === 0 ? "high" : "auto"}
+                  key={stage.id}
+                  loading={index === 0 ? "eager" : "lazy"}
+                  onLoad={index === 0 ? () => setAssetsReady(true) : undefined}
+                  ref={(node) => { assetRefs.current[index] = node; }}
+                  src={stage.asset}
+                  style={{
+                    "--bw-asset-opacity": index === 0 ? 1 : 0,
+                    "--bw-asset-scale": index === 0 ? 1.018 : 1.046,
+                    "--bw-asset-x": index === 0 ? "0.7%" : "2.8%",
+                    "--bw-asset-y": "0.16%"
+                  }}
+                />
+              ))}
+            </div>
           ) : null}
           <div className="bw-scroll-world__shade" />
           <div className="bw-scroll-world__grain" />
