@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
-  ArrowDown,
   BrainCircuit,
   CalendarRange,
   Check,
@@ -13,7 +12,6 @@ import {
   TrendingUp,
   WalletCards
 } from "lucide-react";
-import heroImage from "../assets/landing/betterway-hero.webp";
 import decisionImage from "../assets/landing/betterway-decision.webp";
 import financialAtmosphereImage from "../assets/landing/betterway-financial-atmosphere.webp";
 import { Logo } from "../components/Logo";
@@ -172,6 +170,7 @@ function Reveal({ children, className = "" }) {
 
 function LandingRail() {
   const [activeSection, setActiveSection] = useState(landingSections[0].id);
+  const [worldActive, setWorldActive] = useState(true);
 
   useEffect(() => {
     const elements = landingSections
@@ -191,8 +190,24 @@ function LandingRail() {
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    const world = document.getElementById("como-funciona");
+    if (!world || !("IntersectionObserver" in window)) return undefined;
+    const observer = new IntersectionObserver(
+      ([entry]) => setWorldActive(entry.isIntersecting),
+      { rootMargin: "-2% 0px -2%", threshold: 0 }
+    );
+    observer.observe(world);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <nav aria-label="Atalhos da página" className="landing-side-nav">
+    <nav
+      aria-hidden={worldActive ? "true" : undefined}
+      aria-label="Atalhos da página"
+      className={`landing-side-nav ${worldActive ? "is-world-hidden" : ""}`}
+      inert={worldActive ? true : undefined}
+    >
       {landingSections.map((section) => (
         <a
           aria-current={activeSection === section.id ? "location" : undefined}
@@ -219,81 +234,22 @@ export function LandingPage() {
   return (
     <div className="landing-page">
       <LandingRail />
-      <section aria-labelledby="landing-hero-title" className="landing-hero">
-        <img alt="Pessoa organizando as finanças com tranquilidade" className="landing-hero-image" src={heroImage} />
-        <div className="landing-hero-shade" />
-        <div aria-hidden="true" className="landing-nav-backdrop" />
-
-        <header className="landing-nav">
-          <Link aria-label="Better Way início" to="/">
-            <Logo className="landing-logo" />
+      <div aria-hidden="true" className="landing-nav-backdrop" />
+      <header className="landing-nav landing-nav-world">
+        <Link aria-label="Better Way início" to="/">
+          <Logo className="landing-logo" />
+        </Link>
+        <div className="landing-nav-actions">
+          {!isAuthenticated ? <Link className="landing-login-link" to="/login">Entrar</Link> : null}
+          <Link className="landing-nav-cta" to={primaryTo}>
+            {isAuthenticated ? "Abrir painel" : "Criar conta"}
+            <ArrowRight size={16} />
           </Link>
-          <div className="landing-nav-actions">
-            {!isAuthenticated ? <Link className="landing-login-link" to="/login">Entrar</Link> : null}
-            <Link className="landing-nav-cta" to={primaryTo}>
-              {isAuthenticated ? "Abrir painel" : "Criar conta"}
-              <ArrowRight size={16} />
-            </Link>
-          </div>
-        </header>
-
-        <div className="landing-hero-content">
-          <h1 id="landing-hero-title">Seu dinheiro merece mais do que um retrovisor.</h1>
-          <p>
-            A Better Way transforma hábitos, limites e investimentos em decisões claras para hoje e em possibilidades maiores para amanhã.
-          </p>
-          <div className="landing-hero-actions">
-            <Link className="landing-primary-button" to={primaryTo}>
-              {isAuthenticated ? "Ir para meu painel" : "Começar gratuitamente"}
-              <ArrowRight size={18} />
-            </Link>
-            <a className="landing-secondary-button" href="#produto">
-              Conhecer a plataforma
-            </a>
-          </div>
-          <a className="landing-hero-scroll-cue" href="#como-funciona">
-            <span>Veja seu dinheiro ganhar direção</span>
-            <ArrowDown aria-hidden="true" size={16} />
-          </a>
         </div>
-
-        <div className="landing-live-strip" aria-label="Demonstração de indicadores">
-          <span className="landing-live-lead"><i /> Sua leitura de hoje</span>
-          <div><WalletCards size={17} /><span><strong>68%</strong> do limite disponível</span></div>
-          <div><Target size={17} /><span><strong>Casa própria</strong> como meta principal</span></div>
-          <div><TrendingUp size={17} /><span>Patrimônio <strong className="positive">+8,4%</strong> no período</span></div>
-          <span className="landing-live-status">Atualizado agora</span>
-        </div>
-      </section>
+      </header>
 
       <main>
-        <FinancialJourney />
-
-        <section className="landing-decision-section">
-          <Reveal className="landing-container landing-decision-grid">
-            <div className="landing-decision-media">
-              <img alt="Pessoa avaliando uma compra com apoio da Better Way" loading="lazy" src={decisionImage} />
-              <div className="landing-xray-card">
-                <div className="landing-xray-title"><BrainCircuit size={18} /> Raio-X da compra</div>
-                <strong>R$ 240,00</strong>
-                <div><Clock3 size={15} /><span>6 horas de trabalho</span></div>
-                <div><Target size={15} /><span>Meta adiada em 9 dias</span></div>
-                <div><TrendingUp size={15} /><span>R$ 421 em 4 anos</span></div>
-              </div>
-            </div>
-            <div className="landing-decision-copy">
-              <h2>A melhor compra também pode ser a que você decide não fazer.</h2>
-              <p>
-                Em vez de apenas registrar o passado, a Better Way revela o impacto de cada escolha no instante em que ela acontece.
-              </p>
-              <ul>
-                <li><Check size={17} /> Compare desejo imediato e objetivo futuro</li>
-                <li><Check size={17} /> Veja o custo em tempo de trabalho</li>
-                <li><Check size={17} /> Entenda o potencial dos juros compostos</li>
-              </ul>
-            </div>
-          </Reveal>
-        </section>
+        <FinancialJourney isAuthenticated={isAuthenticated} primaryTo={primaryTo} />
 
         <section className="landing-product-section" id="produto">
           <div aria-hidden="true" className="landing-product-atmosphere">
@@ -350,6 +306,32 @@ export function LandingPage() {
                   <div className="landing-chart-days"><span>01</span><span>07</span><span>14</span><span>21</span><span>27</span></div>
                 </div>
               </div>
+            </div>
+          </Reveal>
+        </section>
+
+        <section className="landing-decision-section">
+          <Reveal className="landing-container landing-decision-grid">
+            <div className="landing-decision-media">
+              <img alt="Pessoa avaliando uma compra com apoio da Better Way" loading="lazy" src={decisionImage} />
+              <div className="landing-xray-card">
+                <div className="landing-xray-title"><BrainCircuit size={18} /> Raio-X da compra</div>
+                <strong>R$ 240,00</strong>
+                <div><Clock3 size={15} /><span>6 horas de trabalho</span></div>
+                <div><Target size={15} /><span>Meta adiada em 9 dias</span></div>
+                <div><TrendingUp size={15} /><span>R$ 421 em 4 anos</span></div>
+              </div>
+            </div>
+            <div className="landing-decision-copy">
+              <h2>A melhor compra também pode ser a que você decide não fazer.</h2>
+              <p>
+                Em vez de apenas registrar o passado, a Better Way revela o impacto de cada escolha no instante em que ela acontece.
+              </p>
+              <ul>
+                <li><Check size={17} /> Compare desejo imediato e objetivo futuro</li>
+                <li><Check size={17} /> Veja o custo em tempo de trabalho</li>
+                <li><Check size={17} /> Entenda o potencial dos juros compostos</li>
+              </ul>
             </div>
           </Reveal>
         </section>
