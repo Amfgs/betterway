@@ -3261,6 +3261,7 @@ textarea:focus-visible {
 .bw-scroll-world__media,
 .bw-scroll-world__poster,
 .bw-scroll-world__poster img,
+.bw-scroll-world__clips,
 .bw-scroll-world__shade,
 .bw-scroll-world__grain {
   position: absolute;
@@ -3330,6 +3331,36 @@ textarea:focus-visible {
   --bw-chapter-horizontal-mask: linear-gradient(90deg, transparent 0%, #000 16%, #000 100%);
 }
 
+.bw-scroll-world__clips {
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.bw-scroll-world__clip {
+  --bw-clip-opacity: 0;
+  position: absolute;
+  inset: -1.5%;
+  opacity: 0;
+  transform: translateZ(0) scale(1.012);
+  backface-visibility: hidden;
+  will-change: opacity;
+}
+
+.bw-scroll-world__clip.has-frame {
+  opacity: var(--bw-clip-opacity);
+}
+
+.bw-scroll-world__clip video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  filter: saturate(1.025) contrast(1.015);
+  backface-visibility: hidden;
+}
+
 @media (min-width: 768px) and (pointer: fine) {
   .bw-scroll-world.has-panorama .bw-scroll-world__poster img {
     opacity: 0;
@@ -3337,14 +3368,14 @@ textarea:focus-visible {
 }
 
 .bw-scroll-world__shade {
-  z-index: 2;
+  z-index: 3;
   background:
     linear-gradient(90deg, rgba(3, 12, 8, 0.97) 0%, rgba(3, 12, 8, 0.83) 31%, rgba(3, 12, 8, 0.18) 63%, rgba(3, 12, 8, 0.12) 100%),
     linear-gradient(180deg, rgba(3, 12, 8, 0.38) 0%, transparent 24%, transparent 72%, rgba(3, 12, 8, 0.74) 100%);
 }
 
 .bw-scroll-world__grain {
-  z-index: 3;
+  z-index: 4;
   opacity: 0.018;
   background-image: repeating-linear-gradient(0deg, transparent 0 3px, rgba(255, 255, 255, 0.025) 3px 4px);
   mix-blend-mode: soft-light;
@@ -3583,6 +3614,10 @@ textarea:focus-visible {
 
   .bw-scroll-world__poster {
     overflow: hidden;
+  }
+
+  .bw-scroll-world__clips {
+    display: none;
   }
 
   .bw-scroll-world__poster img {

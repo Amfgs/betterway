@@ -19,6 +19,13 @@ import incomePaymentChapter from "../assets/landing/scroll-world/connected/incom
 import limitsChoiceChapter from "../assets/landing/scroll-world/connected/limits-choice.webp";
 import growthGoalChapter from "../assets/landing/scroll-world/connected/growth-goal.webp";
 import achievementChapter from "../assets/landing/scroll-world/connected/achievement.webp";
+import incomeClip from "../assets/landing/scroll-world/clips/01-income.mp4";
+import paymentClip from "../assets/landing/scroll-world/clips/02-payment.mp4";
+import limitsClip from "../assets/landing/scroll-world/clips/03-limits.mp4";
+import choiceClip from "../assets/landing/scroll-world/clips/04-choice.mp4";
+import growthClip from "../assets/landing/scroll-world/clips/05-growth.mp4";
+import goalClip from "../assets/landing/scroll-world/clips/06-goal.mp4";
+import achievementClip from "../assets/landing/scroll-world/clips/07-achievement.mp4";
 
 const journeyStages = [
   {
@@ -80,6 +87,20 @@ const journeyStages = [
 ];
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+const smoothStep = (value) => {
+  const clamped = clamp(value, 0, 1);
+  return clamped * clamped * (3 - 2 * clamped);
+};
+
+const journeyClips = [
+  incomeClip,
+  paymentClip,
+  limitsClip,
+  choiceClip,
+  growthClip,
+  goalClip,
+  achievementClip
+];
 
 const worldChapters = [
   { id: "income-payment", src: incomePaymentChapter, x: 0, y: 0 },
@@ -140,29 +161,150 @@ const getDesktopCamera = (stageIndex, localProgress) => {
 export function FinancialJourney({ isAuthenticated, primaryTo }) {
   const sectionRef = useRef(null);
   const frameRef = useRef(null);
+  const clipFrameRef = useRef(null);
+  const clipLayerRefs = useRef([]);
+  const clipVideoRefs = useRef([]);
+  const clipRuntimeRef = useRef(journeyClips.map(() => ({
+    blobUrl: "",
+    controller: null,
+    current: 0,
+    duration: 0,
+    loading: false,
+    painted: false,
+    ready: false,
+    target: 0
+  })));
   const viewportWidthRef = useRef(0);
   const viewportHeightRef = useRef(0);
   const [activeStage, setActiveStage] = useState(0);
   const [isDesktop, setIsDesktop] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
+  const [constrainedNetwork, setConstrainedNetwork] = useState(false);
   const [panoramaReady, setPanoramaReady] = useState(false);
   const currentStage = journeyStages[activeStage];
+  const clipsEnabled = isDesktop && !reducedMotion && !constrainedNetwork;
 
   useEffect(() => {
     const desktopQuery = window.matchMedia("(min-width: 768px) and (pointer: fine)");
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
     const syncPreferences = () => {
       setIsDesktop(desktopQuery.matches);
       setReducedMotion(motionQuery.matches);
+      setConstrainedNetwork(Boolean(
+        connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType || "")
+      ));
     };
     syncPreferences();
     desktopQuery.addEventListener("change", syncPreferences);
     motionQuery.addEventListener("change", syncPreferences);
+    connection?.addEventListener?.("change", syncPreferences);
     return () => {
       desktopQuery.removeEventListener("change", syncPreferences);
       motionQuery.removeEventListener("change", syncPreferences);
+      connection?.removeEventListener?.("change", syncPreferences);
     };
   }, []);
+
+  const loadClip = useCallback((index) => {
+    if (!clipsEnabled || index < 0 || index >= journeyClips.length) return;
+    const runtime = clipRuntimeRef.current[index];
+    const video = clipVideoRefs.current[index];
+    if (!runtime || !video || runtime.loading) return;
+    if (runtime.blobUrl) {
+      if (video.src !== runtime.blobUrl) {
+        runtime.ready = false;
+        runtime.painted = false;
+        video.src = runtime.blobUrl;
+        video.load();
+      }
+      return;
+    }
+
+    runtime.loading = true;
+    runtime.controller = new AbortController();
+    fetch(journeyClips[index], { signal: runtime.controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Falha ao carregar cena ${index + 1}`);
+        return response.blob();
+      })
+      .then((blob) => {
+        runtime.controller = null;
+        runtime.blobUrl = URL.createObjectURL(blob);
+        video.src = runtime.blobUrl;
+        video.load();
+      })
+      .catch((error) => {
+        runtime.controller = null;
+        runtime.loading = false;
+        if (error?.name === "AbortError") return;
+      });
+  }, [clipsEnabled]);
+
+  useEffect(() => {
+    if (!clipsEnabled) return undefined;
+    const indexes = [activeStage, activeStage + 1, activeStage - 1];
+    const loadNearby = () => indexes.forEach(loadClip);
+    const idleId = window.requestIdleCallback
+      ? window.requestIdleCallback(loadNearby, { timeout: 480 })
+      : window.setTimeout(loadNearby, 80);
+
+    return () => {
+      if (window.cancelIdleCallback && typeof idleId === "number") {
+        window.cancelIdleCallback(idleId);
+      } else {
+        window.clearTimeout(idleId);
+      }
+    };
+  }, [activeStage, clipsEnabled, loadClip]);
+
+  useEffect(() => () => {
+    clipRuntimeRef.current.forEach((runtime) => {
+      runtime.controller?.abort();
+      if (runtime.blobUrl) URL.revokeObjectURL(runtime.blobUrl);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!clipsEnabled) return undefined;
+    let mounted = true;
+
+    const paint = () => {
+      clipRuntimeRef.current.forEach((runtime, index) => {
+        const video = clipVideoRefs.current[index];
+        if (!runtime.ready || !video || video.seeking || !runtime.duration) return;
+        const distance = runtime.target - runtime.current;
+        if (Math.abs(distance) < 0.0008) return;
+        runtime.current += distance * 0.2;
+        const targetTime = clamp(runtime.current * (runtime.duration - 1 / 24), 0, runtime.duration);
+        if (Math.abs(video.currentTime - targetTime) > 0.018) video.currentTime = targetTime;
+      });
+      if (mounted) clipFrameRef.current = window.requestAnimationFrame(paint);
+    };
+
+    clipFrameRef.current = window.requestAnimationFrame(paint);
+    return () => {
+      mounted = false;
+      if (clipFrameRef.current != null) window.cancelAnimationFrame(clipFrameRef.current);
+      clipFrameRef.current = null;
+    };
+  }, [clipsEnabled]);
+
+  const handleClipMetadata = (index, video) => {
+    const runtime = clipRuntimeRef.current[index];
+    runtime.duration = Number.isFinite(video.duration) ? video.duration : 0;
+    runtime.ready = runtime.duration > 0;
+    runtime.loading = false;
+    if (runtime.ready && video.currentTime === 0) video.currentTime = 0.001;
+  };
+
+  const handleClipPainted = (index) => {
+    const runtime = clipRuntimeRef.current[index];
+    const layer = clipLayerRefs.current[index];
+    if (!runtime || !layer) return;
+    runtime.painted = true;
+    layer.classList.add("has-frame");
+  };
 
   const syncFromScroll = useCallback(() => {
     frameRef.current = null;
@@ -176,7 +318,7 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
     const mobileCamera = getMobileCamera(progress);
     const stagePosition = progress * journeyStages.length;
     const stageIndex = Math.min(Math.floor(stagePosition), journeyStages.length - 1);
-    const localProgress = stageIndex === journeyStages.length - 1 ? 0 : stagePosition - stageIndex;
+    const localProgress = clamp(stagePosition - stageIndex, 0, 1);
     const desktopCamera = getDesktopCamera(stageIndex, localProgress);
     section.style.setProperty("--bw-world-progress", progress.toFixed(4));
     section.style.setProperty("--bw-world-position", `${88 - progress * 76}%`);
@@ -187,8 +329,24 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
     section.style.setProperty("--bw-world-mobile-y", `${mobileCamera.y.toFixed(2)}%`);
     section.style.setProperty("--bw-world-mobile-scale", mobileCamera.scale.toFixed(3));
     section.style.setProperty("--bw-world-mobile-sheen", `${-68 + progress * 136}%`);
+
+    if (clipsEnabled) {
+      clipRuntimeRef.current.forEach((runtime, index) => {
+        runtime.target = index < stageIndex ? 1 : index === stageIndex ? localProgress : 0;
+        const layer = clipLayerRefs.current[index];
+        if (layer) layer.style.setProperty("--bw-clip-opacity", "0");
+      });
+
+      const handoff = stageIndex < journeyStages.length - 1
+        ? smoothStep((localProgress - 0.92) / 0.08)
+        : 0;
+      const currentLayer = clipLayerRefs.current[stageIndex];
+      const nextLayer = clipLayerRefs.current[stageIndex + 1];
+      if (currentLayer) currentLayer.style.setProperty("--bw-clip-opacity", String(1 - handoff));
+      if (nextLayer) nextLayer.style.setProperty("--bw-clip-opacity", String(handoff));
+    }
     setActiveStage((current) => current === stageIndex ? current : stageIndex);
-  }, [isDesktop, reducedMotion]);
+  }, [clipsEnabled, isDesktop, reducedMotion]);
 
   useEffect(() => {
     const onScroll = () => {
@@ -238,7 +396,7 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
   return (
     <section
       aria-labelledby="bw-world-title"
-      className={`bw-scroll-world ${panoramaReady ? "has-panorama" : ""}`}
+      className={`bw-scroll-world ${panoramaReady ? "has-panorama" : ""} ${clipsEnabled ? "has-scrubbed-clips" : ""}`}
       id="como-funciona"
       ref={sectionRef}
     >
@@ -276,6 +434,30 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
                     "--bw-chapter-y": `${chapter.y}vh`
                   }}
                 />
+              ))}
+            </div>
+          ) : null}
+          {clipsEnabled ? (
+            <div className="bw-scroll-world__clips">
+              {journeyStages.map((stage, index) => (
+                <div
+                  className="bw-scroll-world__clip"
+                  key={stage.id}
+                  ref={(node) => { clipLayerRefs.current[index] = node; }}
+                >
+                  <video
+                    aria-hidden="true"
+                    disablePictureInPicture
+                    muted
+                    onLoadedData={(event) => event.currentTarget.pause()}
+                    onLoadedMetadata={(event) => handleClipMetadata(index, event.currentTarget)}
+                    onSeeked={() => handleClipPainted(index)}
+                    playsInline
+                    preload="metadata"
+                    ref={(node) => { clipVideoRefs.current[index] = node; }}
+                    tabIndex={-1}
+                  />
+                </div>
               ))}
             </div>
           ) : null}
