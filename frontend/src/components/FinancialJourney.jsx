@@ -78,12 +78,40 @@ const journeyStages = [
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
+const mobileCameraStops = [
+  { x: 0, y: -26, scale: 1.55 },
+  { x: 2.5, y: -18, scale: 1.51 },
+  { x: -1.5, y: -9, scale: 1.48 },
+  { x: 2, y: 0, scale: 1.52 },
+  { x: -2, y: 9, scale: 1.49 },
+  { x: 1.5, y: 18, scale: 1.52 },
+  { x: -1, y: 26, scale: 1.56 }
+];
+
+const getMobileCamera = (progress) => {
+  const position = clamp(progress, 0, 1) * (mobileCameraStops.length - 1);
+  const startIndex = Math.min(Math.floor(position), mobileCameraStops.length - 2);
+  const localProgress = position - startIndex;
+  const easedProgress = localProgress * localProgress * (3 - 2 * localProgress);
+  const start = mobileCameraStops[startIndex];
+  const end = mobileCameraStops[startIndex + 1];
+  const interpolate = (key) => start[key] + (end[key] - start[key]) * easedProgress;
+
+  return {
+    x: interpolate("x"),
+    y: interpolate("y"),
+    scale: interpolate("scale")
+  };
+};
+
 export function FinancialJourney({ isAuthenticated, primaryTo }) {
   const sectionRef = useRef(null);
   const videoRef = useRef(null);
   const pendingSeekRef = useRef(null);
   const frameRef = useRef(null);
   const objectUrlRef = useRef(null);
+  const viewportWidthRef = useRef(0);
+  const viewportHeightRef = useRef(0);
   const [activeStage, setActiveStage] = useState(0);
   const [isDesktop, setIsDesktop] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -168,11 +196,18 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
     const section = sectionRef.current;
     if (!section || reducedMotion) return;
     const rect = section.getBoundingClientRect();
-    const scrollable = Math.max(section.offsetHeight - window.innerHeight, 1);
+    if (!viewportHeightRef.current) viewportHeightRef.current = window.innerHeight;
+    const viewportHeight = isDesktop ? window.innerHeight : viewportHeightRef.current;
+    const scrollable = Math.max(section.offsetHeight - viewportHeight, 1);
     const progress = clamp(-rect.top / scrollable, 0, 1);
+    const mobileCamera = getMobileCamera(progress);
     section.style.setProperty("--bw-world-progress", progress.toFixed(4));
     section.style.setProperty("--bw-world-position", `${88 - progress * 76}%`);
     section.style.setProperty("--bw-world-video-mix", clamp((progress - 0.01) / 0.04, 0, 1).toFixed(3));
+    section.style.setProperty("--bw-world-mobile-x", `${mobileCamera.x.toFixed(2)}%`);
+    section.style.setProperty("--bw-world-mobile-y", `${mobileCamera.y.toFixed(2)}%`);
+    section.style.setProperty("--bw-world-mobile-scale", mobileCamera.scale.toFixed(3));
+    section.style.setProperty("--bw-world-mobile-sheen", `${-68 + progress * 136}%`);
     const nextStage = clamp(Math.floor(progress * journeyStages.length), 0, journeyStages.length - 1);
     setActiveStage((current) => current === nextStage ? current : nextStage);
 
@@ -181,27 +216,49 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
       pendingSeekRef.current = clamp(video.duration * (0.02 + progress * 0.96), 0, video.duration - 0.03);
       applyPendingSeek();
     }
-  }, [applyPendingSeek, reducedMotion, videoReady]);
+  }, [applyPendingSeek, isDesktop, reducedMotion, videoReady]);
 
   useEffect(() => {
     const onScroll = () => {
       if (frameRef.current == null) frameRef.current = window.requestAnimationFrame(syncFromScroll);
     };
+    let orientationTimer;
+    viewportWidthRef.current = window.innerWidth;
+    viewportHeightRef.current = window.innerHeight;
+    const onResize = () => {
+      const widthChanged = Math.abs(window.innerWidth - viewportWidthRef.current) > 2;
+      if (!isDesktop && !widthChanged) return;
+      viewportWidthRef.current = window.innerWidth;
+      viewportHeightRef.current = window.innerHeight;
+      onScroll();
+    };
+    const onOrientationChange = () => {
+      window.clearTimeout(orientationTimer);
+      orientationTimer = window.setTimeout(() => {
+        viewportWidthRef.current = window.innerWidth;
+        viewportHeightRef.current = window.innerHeight;
+        onScroll();
+      }, 180);
+    };
     syncFromScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll, { passive: true });
+    window.addEventListener("resize", onResize, { passive: true });
+    window.addEventListener("orientationchange", onOrientationChange, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onOrientationChange);
+      window.clearTimeout(orientationTimer);
       if (frameRef.current != null) window.cancelAnimationFrame(frameRef.current);
     };
-  }, [syncFromScroll]);
+  }, [isDesktop, syncFromScroll]);
 
   const goToStage = (index) => {
     const section = sectionRef.current;
     if (!section) return;
     const sectionTop = window.scrollY + section.getBoundingClientRect().top;
-    const scrollable = Math.max(section.offsetHeight - window.innerHeight, 1);
+    const viewportHeight = isDesktop ? window.innerHeight : viewportHeightRef.current || window.innerHeight;
+    const scrollable = Math.max(section.offsetHeight - viewportHeight, 1);
     const destination = sectionTop + scrollable * ((index + 0.12) / journeyStages.length);
     window.scrollTo({ top: destination, behavior: reducedMotion ? "auto" : "smooth" });
   };
