@@ -15,18 +15,14 @@ import desktopPoster from "../assets/landing/scroll-world/bw-world-desktop.webp"
 import desktopPosterHd from "../assets/landing/scroll-world/bw-world-desktop-hd.webp";
 import mobilePoster from "../assets/landing/scroll-world/bw-world-mobile.webp";
 import mobilePosterHd from "../assets/landing/scroll-world/bw-world-mobile-hd.webp";
-import incomeAsset from "../assets/landing/scroll-world/higgsfield/income.webp";
-import paymentAsset from "../assets/landing/scroll-world/higgsfield/payment.webp";
-import limitsAsset from "../assets/landing/scroll-world/higgsfield/limits.webp";
-import choiceAsset from "../assets/landing/scroll-world/higgsfield/choice.webp";
-import growthAsset from "../assets/landing/scroll-world/higgsfield/growth.webp";
-import goalAsset from "../assets/landing/scroll-world/higgsfield/goal.webp";
-import achievementAsset from "../assets/landing/scroll-world/higgsfield/achievement.webp";
+import incomePaymentChapter from "../assets/landing/scroll-world/connected/income-payment.webp";
+import limitsChoiceChapter from "../assets/landing/scroll-world/connected/limits-choice.webp";
+import growthGoalChapter from "../assets/landing/scroll-world/connected/growth-goal.webp";
+import achievementChapter from "../assets/landing/scroll-world/connected/achievement.webp";
 
 const journeyStages = [
   {
     id: "income",
-    asset: incomeAsset,
     icon: BadgeDollarSign,
     label: "Renda",
     title: "Seu dinheiro merece mais do que um retrovisor.",
@@ -35,7 +31,6 @@ const journeyStages = [
   },
   {
     id: "payment",
-    asset: paymentAsset,
     icon: Smartphone,
     label: "Pagamento",
     title: "A vida acontece em cada pagamento.",
@@ -44,7 +39,6 @@ const journeyStages = [
   },
   {
     id: "limits",
-    asset: limitsAsset,
     icon: ScanLine,
     label: "Limites",
     title: "Você vê o limite antes de ultrapassá-lo.",
@@ -53,7 +47,6 @@ const journeyStages = [
   },
   {
     id: "choice",
-    asset: choiceAsset,
     icon: BrainCircuit,
     label: "Escolha",
     title: "Uma pausa muda a próxima decisão.",
@@ -62,7 +55,6 @@ const journeyStages = [
   },
   {
     id: "growth",
-    asset: growthAsset,
     icon: ChartNoAxesCombined,
     label: "Investimentos",
     title: "O que você protege começa a crescer.",
@@ -71,7 +63,6 @@ const journeyStages = [
   },
   {
     id: "goal",
-    asset: goalAsset,
     icon: Target,
     label: "Metas",
     title: "Metas ganham forma, sozinho ou junto.",
@@ -80,7 +71,6 @@ const journeyStages = [
   },
   {
     id: "achievement",
-    asset: achievementAsset,
     icon: KeyRound,
     label: "Conquista",
     title: "Até que o plano vira parte da sua vida.",
@@ -90,6 +80,23 @@ const journeyStages = [
 ];
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+const worldChapters = [
+  { id: "income-payment", src: incomePaymentChapter, x: 0, y: 0 },
+  { id: "limits-choice", src: limitsChoiceChapter, x: 78, y: 49 },
+  { id: "growth-goal", src: growthGoalChapter, x: 156, y: 93 },
+  { id: "achievement", src: achievementChapter, x: 234, y: 136 }
+];
+
+const desktopCameraStops = [
+  { x: -6, y: 0, scale: 1.025 },
+  { x: 10, y: 8, scale: 1.055 },
+  { x: 78, y: 49, scale: 1.025 },
+  { x: 90, y: 57, scale: 1.055 },
+  { x: 156, y: 93, scale: 1.025 },
+  { x: 168, y: 101, scale: 1.055 },
+  { x: 234, y: 136, scale: 1.025 }
+];
 
 const mobileCameraStops = [
   { x: 0, y: -26, scale: 1.55 },
@@ -117,16 +124,28 @@ const getMobileCamera = (progress) => {
   };
 };
 
+const getDesktopCamera = (stageIndex, localProgress) => {
+  const start = desktopCameraStops[stageIndex];
+  const end = desktopCameraStops[Math.min(stageIndex + 1, desktopCameraStops.length - 1)];
+  const easedProgress = localProgress * localProgress * (3 - 2 * localProgress);
+  const interpolate = (key) => start[key] + (end[key] - start[key]) * easedProgress;
+
+  return {
+    x: interpolate("x"),
+    y: interpolate("y"),
+    scale: interpolate("scale")
+  };
+};
+
 export function FinancialJourney({ isAuthenticated, primaryTo }) {
   const sectionRef = useRef(null);
-  const assetRefs = useRef([]);
   const frameRef = useRef(null);
   const viewportWidthRef = useRef(0);
   const viewportHeightRef = useRef(0);
   const [activeStage, setActiveStage] = useState(0);
   const [isDesktop, setIsDesktop] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
-  const [assetsReady, setAssetsReady] = useState(false);
+  const [panoramaReady, setPanoramaReady] = useState(false);
   const currentStage = journeyStages[activeStage];
 
   useEffect(() => {
@@ -155,35 +174,20 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
     const scrollable = Math.max(section.offsetHeight - viewportHeight, 1);
     const progress = clamp(-rect.top / scrollable, 0, 1);
     const mobileCamera = getMobileCamera(progress);
+    const stagePosition = progress * journeyStages.length;
+    const stageIndex = Math.min(Math.floor(stagePosition), journeyStages.length - 1);
+    const localProgress = stageIndex === journeyStages.length - 1 ? 0 : stagePosition - stageIndex;
+    const desktopCamera = getDesktopCamera(stageIndex, localProgress);
     section.style.setProperty("--bw-world-progress", progress.toFixed(4));
     section.style.setProperty("--bw-world-position", `${88 - progress * 76}%`);
+    section.style.setProperty("--bw-panorama-x", `${(-desktopCamera.x).toFixed(2)}vw`);
+    section.style.setProperty("--bw-panorama-y", `${(-desktopCamera.y).toFixed(2)}vh`);
+    section.style.setProperty("--bw-panorama-scale", desktopCamera.scale.toFixed(4));
     section.style.setProperty("--bw-world-mobile-x", `${mobileCamera.x.toFixed(2)}%`);
     section.style.setProperty("--bw-world-mobile-y", `${mobileCamera.y.toFixed(2)}%`);
     section.style.setProperty("--bw-world-mobile-scale", mobileCamera.scale.toFixed(3));
     section.style.setProperty("--bw-world-mobile-sheen", `${-68 + progress * 136}%`);
-    const nextStage = clamp(Math.floor(progress * journeyStages.length), 0, journeyStages.length - 1);
-    setActiveStage((current) => current === nextStage ? current : nextStage);
-
-    const stagePosition = progress * journeyStages.length;
-    const stageIndex = Math.min(Math.floor(stagePosition), journeyStages.length - 1);
-    const localProgress = stagePosition - stageIndex;
-    const transitionProgress = stageIndex < journeyStages.length - 1
-      ? clamp((localProgress - 0.68) / 0.32, 0, 1)
-      : 0;
-    const easedTransition = transitionProgress * transitionProgress * (3 - 2 * transitionProgress);
-    const scenePosition = stageIndex + easedTransition;
-
-    assetRefs.current.forEach((asset, index) => {
-      if (!asset) return;
-      const distance = index - scenePosition;
-      const absoluteDistance = Math.abs(distance);
-      const opacity = clamp(1 - absoluteDistance, 0, 1);
-      const drift = (0.5 - localProgress) * 1.4;
-      asset.style.setProperty("--bw-asset-opacity", opacity.toFixed(3));
-      asset.style.setProperty("--bw-asset-x", `${(distance * 2.8 + drift).toFixed(2)}%`);
-      asset.style.setProperty("--bw-asset-y", `${(absoluteDistance * 1.2 - drift * 0.32).toFixed(2)}%`);
-      asset.style.setProperty("--bw-asset-scale", (1.018 + absoluteDistance * 0.028).toFixed(3));
-    });
+    setActiveStage((current) => current === stageIndex ? current : stageIndex);
   }, [isDesktop, reducedMotion]);
 
   useEffect(() => {
@@ -234,7 +238,7 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
   return (
     <section
       aria-labelledby="bw-world-title"
-      className={`bw-scroll-world ${assetsReady ? "has-assets" : ""}`}
+      className={`bw-scroll-world ${panoramaReady ? "has-panorama" : ""}`}
       id="como-funciona"
       ref={sectionRef}
     >
@@ -256,22 +260,20 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
             />
           </picture>
           {isDesktop && !reducedMotion ? (
-            <div className="bw-scroll-world__assets">
-              {journeyStages.map((stage, index) => (
+            <div className="bw-scroll-world__panorama">
+              {worldChapters.map((chapter, index) => (
                 <img
                   alt=""
+                  className={`bw-scroll-world__chapter chapter-${index + 1}`}
                   decoding="async"
                   fetchPriority={index === 0 ? "high" : "auto"}
-                  key={stage.id}
-                  loading={index === 0 ? "eager" : "lazy"}
-                  onLoad={index === 0 ? () => setAssetsReady(true) : undefined}
-                  ref={(node) => { assetRefs.current[index] = node; }}
-                  src={stage.asset}
+                  key={chapter.id}
+                  loading="eager"
+                  onLoad={index === 0 ? () => setPanoramaReady(true) : undefined}
+                  src={chapter.src}
                   style={{
-                    "--bw-asset-opacity": index === 0 ? 1 : 0,
-                    "--bw-asset-scale": index === 0 ? 1.018 : 1.046,
-                    "--bw-asset-x": index === 0 ? "0.7%" : "2.8%",
-                    "--bw-asset-y": "0.16%"
+                    "--bw-chapter-x": `${chapter.x}vw`,
+                    "--bw-chapter-y": `${chapter.y}vh`
                   }}
                 />
               ))}

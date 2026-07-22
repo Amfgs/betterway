@@ -3233,6 +3233,9 @@ textarea:focus-visible {
 .bw-scroll-world {
   --bw-world-progress: 0;
   --bw-world-position: 88%;
+  --bw-panorama-x: 0vw;
+  --bw-panorama-y: 0vh;
+  --bw-panorama-scale: 1.025;
   --bw-world-mobile-x: 0%;
   --bw-world-mobile-y: -26%;
   --bw-world-mobile-scale: 1.55;
@@ -3258,8 +3261,6 @@ textarea:focus-visible {
 .bw-scroll-world__media,
 .bw-scroll-world__poster,
 .bw-scroll-world__poster img,
-.bw-scroll-world__assets,
-.bw-scroll-world__assets img,
 .bw-scroll-world__shade,
 .bw-scroll-world__grain {
   position: absolute;
@@ -3274,7 +3275,7 @@ textarea:focus-visible {
 }
 
 .bw-scroll-world__poster img,
-.bw-scroll-world__assets img {
+.bw-scroll-world__chapter {
   object-fit: cover;
   object-position: center;
   backface-visibility: hidden;
@@ -3285,21 +3286,52 @@ textarea:focus-visible {
   transition: opacity 420ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.bw-scroll-world__assets {
+.bw-scroll-world__panorama {
+  position: absolute;
   z-index: 1;
+  top: 0;
+  left: 0;
+  width: 334vw;
+  height: 236vh;
   background: #07120e;
-  overflow: hidden;
+  transform: translate3d(var(--bw-panorama-x), var(--bw-panorama-y), 0) scale(var(--bw-panorama-scale));
+  transform-origin: 0 0;
+  backface-visibility: hidden;
+  will-change: transform;
 }
 
-.bw-scroll-world__assets img {
-  opacity: var(--bw-asset-opacity, 0);
-  transform: translate3d(var(--bw-asset-x, 0), var(--bw-asset-y, 0), 0) scale(var(--bw-asset-scale, 1.018));
-  transform-origin: center;
-  will-change: opacity, transform;
+.bw-scroll-world__chapter {
+  --bw-chapter-horizontal-mask: linear-gradient(90deg, transparent 0%, #000 14%, #000 86%, transparent 100%);
+  position: absolute;
+  top: var(--bw-chapter-y);
+  left: var(--bw-chapter-x);
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  -webkit-mask-image:
+    var(--bw-chapter-horizontal-mask),
+    linear-gradient(180deg, transparent 0%, #000 10%, #000 90%, transparent 100%);
+  mask-image:
+    var(--bw-chapter-horizontal-mask),
+    linear-gradient(180deg, transparent 0%, #000 10%, #000 90%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+
+.bw-scroll-world__chapter.chapter-1 {
+  --bw-chapter-horizontal-mask: linear-gradient(90deg, #000 0%, #000 84%, transparent 100%);
+}
+
+.bw-scroll-world__chapter.chapter-4 {
+  --bw-chapter-horizontal-mask: linear-gradient(90deg, transparent 0%, #000 16%, #000 100%);
 }
 
 @media (min-width: 768px) and (pointer: fine) {
-  .bw-scroll-world.has-assets .bw-scroll-world__poster img {
+  .bw-scroll-world.has-panorama .bw-scroll-world__poster img {
     opacity: 0;
   }
 }
