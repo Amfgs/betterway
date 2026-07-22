@@ -3233,9 +3233,7 @@ textarea:focus-visible {
 .bw-scroll-world {
   --bw-world-progress: 0;
   --bw-world-position: 88%;
-  --bw-panorama-x: 0vw;
-  --bw-panorama-y: 0vh;
-  --bw-panorama-scale: 1.025;
+  --bw-world-video-mix: 0;
   --bw-world-mobile-x: 0%;
   --bw-world-mobile-y: -26%;
   --bw-world-mobile-scale: 1.55;
@@ -3261,7 +3259,7 @@ textarea:focus-visible {
 .bw-scroll-world__media,
 .bw-scroll-world__poster,
 .bw-scroll-world__poster img,
-.bw-scroll-world__clips,
+.bw-scroll-world__media video,
 .bw-scroll-world__shade,
 .bw-scroll-world__grain {
   position: absolute;
@@ -3276,7 +3274,7 @@ textarea:focus-visible {
 }
 
 .bw-scroll-world__poster img,
-.bw-scroll-world__chapter {
+.bw-scroll-world__media video {
   object-fit: cover;
   object-position: center;
   backface-visibility: hidden;
@@ -3287,96 +3285,32 @@ textarea:focus-visible {
   transition: opacity 420ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.bw-scroll-world__panorama {
-  position: absolute;
+.bw-scroll-world__media video {
   z-index: 1;
-  top: 0;
-  left: 0;
-  width: 334vw;
-  height: 236vh;
   background: #07120e;
-  transform: translate3d(var(--bw-panorama-x), var(--bw-panorama-y), 0) scale(var(--bw-panorama-scale));
-  transform-origin: 0 0;
-  backface-visibility: hidden;
-  will-change: transform;
-}
-
-.bw-scroll-world__chapter {
-  --bw-chapter-horizontal-mask: linear-gradient(90deg, transparent 0%, #000 14%, #000 86%, transparent 100%);
-  position: absolute;
-  top: var(--bw-chapter-y);
-  left: var(--bw-chapter-x);
-  display: block;
-  width: 100vw;
-  height: 100vh;
-  -webkit-mask-image:
-    var(--bw-chapter-horizontal-mask),
-    linear-gradient(180deg, transparent 0%, #000 10%, #000 90%, transparent 100%);
-  mask-image:
-    var(--bw-chapter-horizontal-mask),
-    linear-gradient(180deg, transparent 0%, #000 10%, #000 90%, transparent 100%);
-  -webkit-mask-composite: source-in;
-  mask-composite: intersect;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-size: 100% 100%;
-  mask-size: 100% 100%;
-}
-
-.bw-scroll-world__chapter.chapter-1 {
-  --bw-chapter-horizontal-mask: linear-gradient(90deg, #000 0%, #000 84%, transparent 100%);
-}
-
-.bw-scroll-world__chapter.chapter-4 {
-  --bw-chapter-horizontal-mask: linear-gradient(90deg, transparent 0%, #000 16%, #000 100%);
-}
-
-.bw-scroll-world__clips {
-  z-index: 2;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.bw-scroll-world__clip {
-  --bw-clip-opacity: 0;
-  position: absolute;
-  inset: -1.5%;
   opacity: 0;
-  transform: translateZ(0) scale(1.012);
-  backface-visibility: hidden;
-  will-change: opacity;
+  transform: translateZ(0);
+  transition: opacity 520ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.bw-scroll-world__clip.has-frame {
-  opacity: var(--bw-clip-opacity);
+.bw-scroll-world.has-video .bw-scroll-world__media video {
+  opacity: var(--bw-world-video-mix);
 }
 
-.bw-scroll-world__clip video {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-  filter: saturate(1.025) contrast(1.015);
-  backface-visibility: hidden;
-}
-
-@media (min-width: 768px) and (pointer: fine) {
-  .bw-scroll-world.has-panorama .bw-scroll-world__poster img {
-    opacity: 0;
-  }
+.bw-scroll-world.has-video .bw-scroll-world__poster img {
+  opacity: calc(1 - var(--bw-world-video-mix));
 }
 
 .bw-scroll-world__shade {
-  z-index: 3;
+  z-index: 2;
   background:
     linear-gradient(90deg, rgba(3, 12, 8, 0.97) 0%, rgba(3, 12, 8, 0.83) 31%, rgba(3, 12, 8, 0.18) 63%, rgba(3, 12, 8, 0.12) 100%),
     linear-gradient(180deg, rgba(3, 12, 8, 0.38) 0%, transparent 24%, transparent 72%, rgba(3, 12, 8, 0.74) 100%);
 }
 
 .bw-scroll-world__grain {
-  z-index: 4;
-  opacity: 0.018;
+  z-index: 3;
+  opacity: 0.055;
   background-image: repeating-linear-gradient(0deg, transparent 0 3px, rgba(255, 255, 255, 0.025) 3px 4px);
   mix-blend-mode: soft-light;
   pointer-events: none;
@@ -3614,10 +3548,6 @@ textarea:focus-visible {
 
   .bw-scroll-world__poster {
     overflow: hidden;
-  }
-
-  .bw-scroll-world__clips {
-    display: none;
   }
 
   .bw-scroll-world__poster img {

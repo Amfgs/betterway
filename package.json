@@ -15,7 +15,6 @@
     "dev:web": "npm --workspace frontend run dev",
     "dev:mobile": "node scripts/start-mobile-local-api.js",
     "dev:mobile:tunnel": "node scripts/start-mobile-local-api.js --tunnel",
-    "render:scroll-world": "bash scripts/render-scroll-world-clips.sh",
     "build:web": "npm --workspace frontend run build",
     "start:backend": "npm --workspace backend start",
     "test": "npm --workspace backend test",

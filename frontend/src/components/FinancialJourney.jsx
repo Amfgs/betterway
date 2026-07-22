@@ -15,17 +15,7 @@ import desktopPoster from "../assets/landing/scroll-world/bw-world-desktop.webp"
 import desktopPosterHd from "../assets/landing/scroll-world/bw-world-desktop-hd.webp";
 import mobilePoster from "../assets/landing/scroll-world/bw-world-mobile.webp";
 import mobilePosterHd from "../assets/landing/scroll-world/bw-world-mobile-hd.webp";
-import incomePaymentChapter from "../assets/landing/scroll-world/connected/income-payment.webp";
-import limitsChoiceChapter from "../assets/landing/scroll-world/connected/limits-choice.webp";
-import growthGoalChapter from "../assets/landing/scroll-world/connected/growth-goal.webp";
-import achievementChapter from "../assets/landing/scroll-world/connected/achievement.webp";
-import incomeClip from "../assets/landing/scroll-world/clips/01-income.mp4";
-import paymentClip from "../assets/landing/scroll-world/clips/02-payment.mp4";
-import limitsClip from "../assets/landing/scroll-world/clips/03-limits.mp4";
-import choiceClip from "../assets/landing/scroll-world/clips/04-choice.mp4";
-import growthClip from "../assets/landing/scroll-world/clips/05-growth.mp4";
-import goalClip from "../assets/landing/scroll-world/clips/06-goal.mp4";
-import achievementClip from "../assets/landing/scroll-world/clips/07-achievement.mp4";
+import worldVideo from "../assets/landing/scroll-world/bw-world-flight.mp4";
 
 const journeyStages = [
   {
@@ -87,37 +77,6 @@ const journeyStages = [
 ];
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
-const smoothStep = (value) => {
-  const clamped = clamp(value, 0, 1);
-  return clamped * clamped * (3 - 2 * clamped);
-};
-
-const journeyClips = [
-  incomeClip,
-  paymentClip,
-  limitsClip,
-  choiceClip,
-  growthClip,
-  goalClip,
-  achievementClip
-];
-
-const worldChapters = [
-  { id: "income-payment", src: incomePaymentChapter, x: 0, y: 0 },
-  { id: "limits-choice", src: limitsChoiceChapter, x: 78, y: 49 },
-  { id: "growth-goal", src: growthGoalChapter, x: 156, y: 93 },
-  { id: "achievement", src: achievementChapter, x: 234, y: 136 }
-];
-
-const desktopCameraStops = [
-  { x: -6, y: 0, scale: 1.025 },
-  { x: 10, y: 8, scale: 1.055 },
-  { x: 78, y: 49, scale: 1.025 },
-  { x: 90, y: 57, scale: 1.055 },
-  { x: 156, y: 93, scale: 1.025 },
-  { x: 168, y: 101, scale: 1.055 },
-  { x: 234, y: 136, scale: 1.025 }
-];
 
 const mobileCameraStops = [
   { x: 0, y: -26, scale: 1.55 },
@@ -145,166 +104,92 @@ const getMobileCamera = (progress) => {
   };
 };
 
-const getDesktopCamera = (stageIndex, localProgress) => {
-  const start = desktopCameraStops[stageIndex];
-  const end = desktopCameraStops[Math.min(stageIndex + 1, desktopCameraStops.length - 1)];
-  const easedProgress = localProgress * localProgress * (3 - 2 * localProgress);
-  const interpolate = (key) => start[key] + (end[key] - start[key]) * easedProgress;
-
-  return {
-    x: interpolate("x"),
-    y: interpolate("y"),
-    scale: interpolate("scale")
-  };
-};
-
 export function FinancialJourney({ isAuthenticated, primaryTo }) {
   const sectionRef = useRef(null);
+  const videoRef = useRef(null);
+  const pendingSeekRef = useRef(null);
   const frameRef = useRef(null);
-  const clipFrameRef = useRef(null);
-  const clipLayerRefs = useRef([]);
-  const clipVideoRefs = useRef([]);
-  const clipRuntimeRef = useRef(journeyClips.map(() => ({
-    blobUrl: "",
-    controller: null,
-    current: 0,
-    duration: 0,
-    loading: false,
-    painted: false,
-    ready: false,
-    target: 0
-  })));
+  const objectUrlRef = useRef(null);
   const viewportWidthRef = useRef(0);
   const viewportHeightRef = useRef(0);
   const [activeStage, setActiveStage] = useState(0);
   const [isDesktop, setIsDesktop] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
-  const [constrainedNetwork, setConstrainedNetwork] = useState(false);
-  const [panoramaReady, setPanoramaReady] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
   const currentStage = journeyStages[activeStage];
-  const clipsEnabled = isDesktop && !reducedMotion && !constrainedNetwork;
 
   useEffect(() => {
     const desktopQuery = window.matchMedia("(min-width: 768px) and (pointer: fine)");
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
     const syncPreferences = () => {
       setIsDesktop(desktopQuery.matches);
       setReducedMotion(motionQuery.matches);
-      setConstrainedNetwork(Boolean(
-        connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType || "")
-      ));
     };
     syncPreferences();
     desktopQuery.addEventListener("change", syncPreferences);
     motionQuery.addEventListener("change", syncPreferences);
-    connection?.addEventListener?.("change", syncPreferences);
     return () => {
       desktopQuery.removeEventListener("change", syncPreferences);
       motionQuery.removeEventListener("change", syncPreferences);
-      connection?.removeEventListener?.("change", syncPreferences);
     };
   }, []);
 
-  const loadClip = useCallback((index) => {
-    if (!clipsEnabled || index < 0 || index >= journeyClips.length) return;
-    const runtime = clipRuntimeRef.current[index];
-    const video = clipVideoRefs.current[index];
-    if (!runtime || !video || runtime.loading) return;
-    if (runtime.blobUrl) {
-      if (video.src !== runtime.blobUrl) {
-        runtime.ready = false;
-        runtime.painted = false;
-        video.src = runtime.blobUrl;
-        video.load();
-      }
-      return;
+  useEffect(() => {
+    if (!isDesktop || reducedMotion || !videoRef.current) {
+      setVideoReady(false);
+      return undefined;
     }
 
-    runtime.loading = true;
-    runtime.controller = new AbortController();
-    fetch(journeyClips[index], { signal: runtime.controller.signal })
-      .then((response) => {
-        if (!response.ok) throw new Error(`Falha ao carregar cena ${index + 1}`);
-        return response.blob();
-      })
-      .then((blob) => {
-        runtime.controller = null;
-        runtime.blobUrl = URL.createObjectURL(blob);
-        video.src = runtime.blobUrl;
-        video.load();
-      })
-      .catch((error) => {
-        runtime.controller = null;
-        runtime.loading = false;
-        if (error?.name === "AbortError") return;
-      });
-  }, [clipsEnabled]);
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType || "")) {
+      setVideoReady(false);
+      return undefined;
+    }
 
-  useEffect(() => {
-    if (!clipsEnabled) return undefined;
-    const indexes = [activeStage, activeStage + 1, activeStage - 1];
-    const loadNearby = () => indexes.forEach(loadClip);
-    const idleId = window.requestIdleCallback
-      ? window.requestIdleCallback(loadNearby, { timeout: 480 })
-      : window.setTimeout(loadNearby, 80);
+    const controller = new AbortController();
+    let disposed = false;
+    let idleId;
+    let fallbackId;
+    const loadVideo = () => {
+      fetch(worldVideo, { cache: "force-cache", signal: controller.signal })
+        .then((response) => {
+          if (!response.ok) throw new Error("Não foi possível carregar a animação.");
+          return response.blob();
+        })
+        .then((blob) => {
+          if (disposed || !videoRef.current) return;
+          objectUrlRef.current = URL.createObjectURL(blob);
+          videoRef.current.src = objectUrlRef.current;
+          videoRef.current.load();
+        })
+        .catch((error) => {
+          if (error.name !== "AbortError") setVideoReady(false);
+        });
+    };
+
+    if ("requestIdleCallback" in window) {
+      idleId = window.requestIdleCallback(loadVideo, { timeout: 1200 });
+    } else {
+      fallbackId = window.setTimeout(loadVideo, 450);
+    }
 
     return () => {
-      if (window.cancelIdleCallback && typeof idleId === "number") {
-        window.cancelIdleCallback(idleId);
-      } else {
-        window.clearTimeout(idleId);
-      }
+      disposed = true;
+      if (idleId != null) window.cancelIdleCallback(idleId);
+      if (fallbackId != null) window.clearTimeout(fallbackId);
+      controller.abort();
+      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
     };
-  }, [activeStage, clipsEnabled, loadClip]);
+  }, [isDesktop, reducedMotion]);
 
-  useEffect(() => () => {
-    clipRuntimeRef.current.forEach((runtime) => {
-      runtime.controller?.abort();
-      if (runtime.blobUrl) URL.revokeObjectURL(runtime.blobUrl);
-    });
+  const applyPendingSeek = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || video.seeking || pendingSeekRef.current == null) return;
+    const nextTime = pendingSeekRef.current;
+    pendingSeekRef.current = null;
+    if (Math.abs(video.currentTime - nextTime) > 0.035) video.currentTime = nextTime;
   }, []);
-
-  useEffect(() => {
-    if (!clipsEnabled) return undefined;
-    let mounted = true;
-
-    const paint = () => {
-      clipRuntimeRef.current.forEach((runtime, index) => {
-        const video = clipVideoRefs.current[index];
-        if (!runtime.ready || !video || video.seeking || !runtime.duration) return;
-        const distance = runtime.target - runtime.current;
-        if (Math.abs(distance) < 0.0008) return;
-        runtime.current += distance * 0.2;
-        const targetTime = clamp(runtime.current * (runtime.duration - 1 / 24), 0, runtime.duration);
-        if (Math.abs(video.currentTime - targetTime) > 0.018) video.currentTime = targetTime;
-      });
-      if (mounted) clipFrameRef.current = window.requestAnimationFrame(paint);
-    };
-
-    clipFrameRef.current = window.requestAnimationFrame(paint);
-    return () => {
-      mounted = false;
-      if (clipFrameRef.current != null) window.cancelAnimationFrame(clipFrameRef.current);
-      clipFrameRef.current = null;
-    };
-  }, [clipsEnabled]);
-
-  const handleClipMetadata = (index, video) => {
-    const runtime = clipRuntimeRef.current[index];
-    runtime.duration = Number.isFinite(video.duration) ? video.duration : 0;
-    runtime.ready = runtime.duration > 0;
-    runtime.loading = false;
-    if (runtime.ready && video.currentTime === 0) video.currentTime = 0.001;
-  };
-
-  const handleClipPainted = (index) => {
-    const runtime = clipRuntimeRef.current[index];
-    const layer = clipLayerRefs.current[index];
-    if (!runtime || !layer) return;
-    runtime.painted = true;
-    layer.classList.add("has-frame");
-  };
 
   const syncFromScroll = useCallback(() => {
     frameRef.current = null;
@@ -316,37 +201,22 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
     const scrollable = Math.max(section.offsetHeight - viewportHeight, 1);
     const progress = clamp(-rect.top / scrollable, 0, 1);
     const mobileCamera = getMobileCamera(progress);
-    const stagePosition = progress * journeyStages.length;
-    const stageIndex = Math.min(Math.floor(stagePosition), journeyStages.length - 1);
-    const localProgress = clamp(stagePosition - stageIndex, 0, 1);
-    const desktopCamera = getDesktopCamera(stageIndex, localProgress);
     section.style.setProperty("--bw-world-progress", progress.toFixed(4));
     section.style.setProperty("--bw-world-position", `${88 - progress * 76}%`);
-    section.style.setProperty("--bw-panorama-x", `${(-desktopCamera.x).toFixed(2)}vw`);
-    section.style.setProperty("--bw-panorama-y", `${(-desktopCamera.y).toFixed(2)}vh`);
-    section.style.setProperty("--bw-panorama-scale", desktopCamera.scale.toFixed(4));
+    section.style.setProperty("--bw-world-video-mix", clamp((progress - 0.01) / 0.04, 0, 1).toFixed(3));
     section.style.setProperty("--bw-world-mobile-x", `${mobileCamera.x.toFixed(2)}%`);
     section.style.setProperty("--bw-world-mobile-y", `${mobileCamera.y.toFixed(2)}%`);
     section.style.setProperty("--bw-world-mobile-scale", mobileCamera.scale.toFixed(3));
     section.style.setProperty("--bw-world-mobile-sheen", `${-68 + progress * 136}%`);
+    const nextStage = clamp(Math.floor(progress * journeyStages.length), 0, journeyStages.length - 1);
+    setActiveStage((current) => current === nextStage ? current : nextStage);
 
-    if (clipsEnabled) {
-      clipRuntimeRef.current.forEach((runtime, index) => {
-        runtime.target = index < stageIndex ? 1 : index === stageIndex ? localProgress : 0;
-        const layer = clipLayerRefs.current[index];
-        if (layer) layer.style.setProperty("--bw-clip-opacity", "0");
-      });
-
-      const handoff = stageIndex < journeyStages.length - 1
-        ? smoothStep((localProgress - 0.92) / 0.08)
-        : 0;
-      const currentLayer = clipLayerRefs.current[stageIndex];
-      const nextLayer = clipLayerRefs.current[stageIndex + 1];
-      if (currentLayer) currentLayer.style.setProperty("--bw-clip-opacity", String(1 - handoff));
-      if (nextLayer) nextLayer.style.setProperty("--bw-clip-opacity", String(handoff));
+    const video = videoRef.current;
+    if (videoReady && video?.duration) {
+      pendingSeekRef.current = clamp(video.duration * (0.02 + progress * 0.96), 0, video.duration - 0.03);
+      applyPendingSeek();
     }
-    setActiveStage((current) => current === stageIndex ? current : stageIndex);
-  }, [clipsEnabled, isDesktop, reducedMotion]);
+  }, [applyPendingSeek, isDesktop, reducedMotion, videoReady]);
 
   useEffect(() => {
     const onScroll = () => {
@@ -396,7 +266,7 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
   return (
     <section
       aria-labelledby="bw-world-title"
-      className={`bw-scroll-world ${panoramaReady ? "has-panorama" : ""} ${clipsEnabled ? "has-scrubbed-clips" : ""}`}
+      className={`bw-scroll-world ${videoReady ? "has-video" : ""}`}
       id="como-funciona"
       ref={sectionRef}
     >
@@ -418,48 +288,18 @@ export function FinancialJourney({ isAuthenticated, primaryTo }) {
             />
           </picture>
           {isDesktop && !reducedMotion ? (
-            <div className="bw-scroll-world__panorama">
-              {worldChapters.map((chapter, index) => (
-                <img
-                  alt=""
-                  className={`bw-scroll-world__chapter chapter-${index + 1}`}
-                  decoding="async"
-                  fetchPriority={index === 0 ? "high" : "auto"}
-                  key={chapter.id}
-                  loading="eager"
-                  onLoad={index === 0 ? () => setPanoramaReady(true) : undefined}
-                  src={chapter.src}
-                  style={{
-                    "--bw-chapter-x": `${chapter.x}vw`,
-                    "--bw-chapter-y": `${chapter.y}vh`
-                  }}
-                />
-              ))}
-            </div>
-          ) : null}
-          {clipsEnabled ? (
-            <div className="bw-scroll-world__clips">
-              {journeyStages.map((stage, index) => (
-                <div
-                  className="bw-scroll-world__clip"
-                  key={stage.id}
-                  ref={(node) => { clipLayerRefs.current[index] = node; }}
-                >
-                  <video
-                    aria-hidden="true"
-                    disablePictureInPicture
-                    muted
-                    onLoadedData={(event) => event.currentTarget.pause()}
-                    onLoadedMetadata={(event) => handleClipMetadata(index, event.currentTarget)}
-                    onSeeked={() => handleClipPainted(index)}
-                    playsInline
-                    preload="metadata"
-                    ref={(node) => { clipVideoRefs.current[index] = node; }}
-                    tabIndex={-1}
-                  />
-                </div>
-              ))}
-            </div>
+            <video
+              muted
+              onLoadedData={() => {
+                setVideoReady(true);
+                syncFromScroll();
+              }}
+              onSeeked={applyPendingSeek}
+              playsInline
+              poster={desktopPoster}
+              preload="none"
+              ref={videoRef}
+            />
           ) : null}
           <div className="bw-scroll-world__shade" />
           <div className="bw-scroll-world__grain" />
