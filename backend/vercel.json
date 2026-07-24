@@ -11,5 +11,11 @@
       "src": "/api/(.*)",
       "dest": "api/index.js"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/product-watch/run",
+      "schedule": "0 11 * * *"
+    }
   ]
 }

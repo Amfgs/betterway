@@ -1,7 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Area, AreaChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ArrowDownCircle, ArrowUpCircle, BrainCircuit, ChartNoAxesCombined, History, Pencil, Plus, Target, Trash2, WalletCards, X } from "lucide-react";
+import {
+  ArrowDownCircle,
+  ArrowUpCircle,
+  BellRing,
+  BrainCircuit,
+  ChartNoAxesCombined,
+  CheckCircle2,
+  ExternalLink,
+  History,
+  PackageSearch,
+  Pencil,
+  Plus,
+  RefreshCw,
+  ShoppingBag,
+  Tag,
+  Target,
+  Trash2,
+  WalletCards,
+  X
+} from "lucide-react";
 import { api, getErrorMessage } from "../api/client";
 import { DatePickerField } from "../components/DatePickerField";
 import { OpportunityModal } from "../components/OpportunityModal";
@@ -32,10 +51,13 @@ function createEmptyForm() {
 function createEmptyGoalForm() {
   const now = new Date();
   return {
+    mode: "money",
     name: "",
     targetAmount: "",
     currentAmount: "",
-    dueDate: inputDate(new Date(now.getFullYear(), now.getMonth() + 3, 1))
+    dueDate: inputDate(new Date(now.getFullYear(), now.getMonth() + 3, 1)),
+    productUrl: "",
+    productTargetPrice: ""
   };
 }
 
@@ -134,6 +156,40 @@ function DashboardSnapshot({ usageTone, widgets, windowLabel }) {
   );
 }
 
+function productStatus(goal) {
+  const currentPrice = Number(goal.product?.currentPrice || 0);
+  return {
+    priceReached: currentPrice > 0 && currentPrice <= Number(goal.product?.targetPrice || 0),
+    affordable: currentPrice > 0 && Number(goal.currentAmount || 0) >= currentPrice,
+    missing: Math.max(currentPrice - Number(goal.currentAmount || 0), 0)
+  };
+}
+
+function ProductPriceChart({ history }) {
+  const data = (history || []).map((point, index) => ({
+    index,
+    price: Number(point.price || 0),
+    date: shortDate(point.checkedAt)
+  }));
+  if (data.length < 2) return <p className="product-goal-history-empty">O histórico começa na próxima atualização de preço.</p>;
+  return (
+    <div className="product-goal-chart" aria-label="Histórico de preço observado">
+      <ResponsiveContainer height="100%" width="100%">
+        <AreaChart data={data} margin={{ top: 8, right: 4, bottom: 0, left: 4 }}>
+          <defs>
+            <linearGradient id="productPriceFill" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="#1fbd82" stopOpacity={0.24} />
+              <stop offset="100%" stopColor="#1fbd82" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <Tooltip formatter={(value) => currency(value)} labelFormatter={(_, payload) => payload?.[0]?.payload?.date || ""} />
+          <Area dataKey="price" fill="url(#productPriceFill)" stroke="#0d6b4f" strokeWidth={2.25} type="monotone" />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 export function DashboardPage() {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
@@ -145,6 +201,10 @@ export function DashboardPage() {
   const [goalForm, setGoalForm] = useState(() => createEmptyGoalForm());
   const [limitForm, setLimitForm] = useState(emptyLimitForm);
   const [goalActions, setGoalActions] = useState({});
+  const [productPreview, setProductPreview] = useState(null);
+  const [productError, setProductError] = useState("");
+  const [productWorking, setProductWorking] = useState("");
+  const [productTargets, setProductTargets] = useState({});
   const [goalNotice, setGoalNotice] = useState("");
   const [editingTransactionId, setEditingTransactionId] = useState(null);
   const [opportunity, setOpportunity] = useState(null);
@@ -161,6 +221,25 @@ export function DashboardPage() {
       ]);
       setSummary(summaryResponse.data);
       setTransactions(transactionsResponse.data.transactions);
+      const hasProductGoals = (summaryResponse.data.goals || []).some((goal) => goal.product?.enabled);
+      if (hasProductGoals) {
+        api.post("/goals/products/refresh").then((response) => {
+          const refreshedById = new Map((response.data.goals || []).map((goal) => [String(goal.id), goal]));
+          setSummary((current) => current ? {
+            ...current,
+            goals: (current.goals || []).map((goal) => {
+              const refreshed = refreshedById.get(String(goal.id));
+              if (!refreshed) return goal;
+              return {
+                ...refreshed,
+                progress: refreshed.targetAmount
+                  ? Math.min((Number(refreshed.currentAmount || 0) / Number(refreshed.targetAmount)) * 100, 100)
+                  : 0
+              };
+            })
+          } : current);
+        }).catch(() => {});
+      }
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -178,6 +257,14 @@ export function DashboardPage() {
 
   function updateGoalForm(key, value) {
     setGoalForm((current) => ({ ...current, [key]: value }));
+    if (key === "productUrl") {
+      setProductPreview(null);
+      setProductError("");
+    }
+    if (key === "mode") {
+      setProductPreview(null);
+      setProductError("");
+    }
   }
 
   function updateLimitForm(key, value) {
@@ -243,12 +330,91 @@ export function DashboardPage() {
   async function createGoal(event) {
     event.preventDefault();
     setError("");
+    setProductError("");
+    setProductWorking("create");
     try {
-      await api.post("/goals", goalForm);
+      const payload = goalForm.mode === "product"
+        ? {
+            name: productPreview?.name,
+            currentAmount: goalForm.currentAmount,
+            dueDate: goalForm.dueDate,
+            product: {
+              url: productPreview?.url || goalForm.productUrl,
+              targetPrice: goalForm.productTargetPrice
+            }
+          }
+        : {
+            name: goalForm.name,
+            targetAmount: goalForm.targetAmount,
+            currentAmount: goalForm.currentAmount,
+            dueDate: goalForm.dueDate
+          };
+      if (goalForm.mode === "product" && !productPreview) {
+        setProductError("Busque e confirme o produto antes de criar a caixinha.");
+        return;
+      }
+      await api.post("/goals", payload);
       setGoalForm(createEmptyGoalForm());
+      setProductPreview(null);
       await load();
     } catch (err) {
-      setError(getErrorMessage(err));
+      if (goalForm.mode === "product") setProductError(getErrorMessage(err));
+      else setError(getErrorMessage(err));
+    } finally {
+      setProductWorking("");
+    }
+  }
+
+  async function findProduct() {
+    setProductError("");
+    setProductPreview(null);
+    setProductWorking("preview");
+    try {
+      const response = await api.post("/goals/product/preview", { url: goalForm.productUrl });
+      setProductPreview(response.data.product);
+      setGoalForm((current) => ({
+        ...current,
+        name: response.data.product.name,
+        productUrl: response.data.product.url
+      }));
+    } catch (err) {
+      setProductError(getErrorMessage(err));
+    } finally {
+      setProductWorking("");
+    }
+  }
+
+  async function refreshProduct(goal) {
+    setProductWorking(`refresh:${goal.id}`);
+    setProductError("");
+    try {
+      await api.post(`/goals/${goal.id}/product/check`);
+      await load();
+    } catch (err) {
+      setProductError(getErrorMessage(err));
+      await load();
+    } finally {
+      setProductWorking("");
+    }
+  }
+
+  async function saveProductTarget(goal) {
+    setProductWorking(`target:${goal.id}`);
+    setProductError("");
+    try {
+      await api.put(`/goals/${goal.id}/product`, {
+        targetPrice: productTargets[goal.id] ?? goal.product.targetPrice
+      });
+      setProductTargets((current) => {
+        const next = { ...current };
+        delete next[goal.id];
+        return next;
+      });
+      await load();
+    } catch (err) {
+      setProductError(getErrorMessage(err));
+    } finally {
+      setProductWorking("");
     }
   }
 
@@ -510,15 +676,52 @@ export function DashboardPage() {
             </div>
           </div>
           <form className="mt-4 grid gap-3" onSubmit={createGoal}>
-            <input className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" placeholder="Nome da meta" value={goalForm.name} onChange={(event) => updateGoalForm("name", event.target.value)} required />
-            <div className="grid gap-3 sm:grid-cols-[1fr_1fr]">
-              <input className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" placeholder="Valor alvo" type="number" value={goalForm.targetAmount} onChange={(event) => updateGoalForm("targetAmount", event.target.value)} required />
-              <input className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" placeholder="Já aportado" type="number" value={goalForm.currentAmount} onChange={(event) => updateGoalForm("currentAmount", event.target.value)} />
+            <div className="goal-kind-switch" role="group" aria-label="Tipo de caixinha">
+              <button aria-pressed={goalForm.mode === "money"} onClick={() => updateGoalForm("mode", "money")} type="button"><WalletCards size={17} /> Meta em dinheiro</button>
+              <button aria-pressed={goalForm.mode === "product"} onClick={() => updateGoalForm("mode", "product")} type="button"><ShoppingBag size={17} /> Quero um produto</button>
             </div>
+
+            {goalForm.mode === "money" ? (
+              <>
+                <input className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" placeholder="Nome da meta" value={goalForm.name} onChange={(event) => updateGoalForm("name", event.target.value)} required />
+                <div className="grid gap-3 sm:grid-cols-[1fr_1fr]">
+                  <input className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" min="0.01" placeholder="Valor alvo" step="0.01" type="number" value={goalForm.targetAmount} onChange={(event) => updateGoalForm("targetAmount", event.target.value)} required />
+                  <input className="rounded-lg border border-black/10 bg-transparent px-3 py-3 dark:border-white/10" min="0" placeholder="Já aportado" step="0.01" type="number" value={goalForm.currentAmount} onChange={(event) => updateGoalForm("currentAmount", event.target.value)} />
+                </div>
+              </>
+            ) : (
+              <div className="product-goal-builder">
+                <div className="product-goal-url-row">
+                  <label>
+                    <span>Link do produto</span>
+                    <input inputMode="url" placeholder="https://loja.com.br/produto" type="url" value={goalForm.productUrl} onChange={(event) => updateGoalForm("productUrl", event.target.value)} required />
+                  </label>
+                  <button disabled={productWorking === "preview" || !goalForm.productUrl} onClick={findProduct} type="button">
+                    {productWorking === "preview" ? <RefreshCw className="animate-spin" size={17} /> : <PackageSearch size={17} />}
+                    {productWorking === "preview" ? "Buscando" : "Buscar"}
+                  </button>
+                </div>
+                <p className="product-goal-helper"><BellRing size={15} /> A BW acompanha o preço público dessa oferta e avisa quando baixar ou quando sua caixinha já puder comprá-la.</p>
+
+                {productPreview ? (
+                  <div className="product-goal-preview">
+                    {productPreview.imageUrl ? <img alt="" loading="lazy" referrerPolicy="no-referrer" src={productPreview.imageUrl} /> : <span><ShoppingBag size={24} /></span>}
+                    <div><small>{productPreview.store}</small><strong>{productPreview.name}</strong><p>Preço encontrado: {currency(productPreview.price)}</p></div>
+                    <CheckCircle2 aria-label="Produto encontrado" size={20} />
+                  </div>
+                ) : null}
+
+                <div className="product-goal-values">
+                  <label><span>Avise quando chegar a</span><input min="0.01" placeholder="Preço desejado" step="0.01" type="number" value={goalForm.productTargetPrice} onChange={(event) => updateGoalForm("productTargetPrice", event.target.value)} required /></label>
+                  <label><span>Já guardado</span><input min="0" placeholder="R$ 0,00" step="0.01" type="number" value={goalForm.currentAmount} onChange={(event) => updateGoalForm("currentAmount", event.target.value)} /></label>
+                </div>
+              </div>
+            )}
             <DatePickerField label="Prazo da meta" value={goalForm.dueDate} onChange={(value) => updateGoalForm("dueDate", value)} />
-            <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-3 font-black text-white" type="submit">
-              <Plus size={18} />
-              Criar caixinha
+            {productError ? <p className="product-goal-error" role="alert">{productError}</p> : null}
+            <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-3 font-black text-white disabled:cursor-wait disabled:opacity-60" disabled={productWorking === "create"} type="submit">
+              {productWorking === "create" ? <RefreshCw className="animate-spin" size={18} /> : <Plus size={18} />}
+              {goalForm.mode === "product" ? "Criar meta de produto" : "Criar caixinha"}
             </button>
           </form>
           {goalNotice ? <p className="mt-4 rounded-lg bg-emerald-500/10 p-3 text-sm font-bold text-emerald-700 dark:text-emerald-300">{goalNotice}</p> : null}
@@ -527,6 +730,87 @@ export function DashboardPage() {
               const action = goalActions[goal.id] || { amount: "", notes: "" };
               const latestMovement = goal.movements?.[0];
               const latestTone = latestMovement?.type === "withdraw" ? "text-red-600 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300";
+              if (goal.product?.enabled) {
+                const status = productStatus(goal);
+                const targetValue = productTargets[goal.id] ?? goal.product.targetPrice;
+                return (
+                  <article className="product-goal-card" key={goal.id}>
+                    <div className="product-goal-heading">
+                      {goal.product.imageUrl ? (
+                        <img alt="" loading="lazy" referrerPolicy="no-referrer" src={goal.product.imageUrl} />
+                      ) : (
+                        <span className="product-goal-image-fallback"><ShoppingBag size={25} /></span>
+                      )}
+                      <div>
+                        <p><ShoppingBag size={14} /> Meta de produto · {goal.product.store}</p>
+                        <h3>{goal.product.name || goal.name}</h3>
+                        <small>Prazo: {shortDate(goal.dueDate)}</small>
+                      </div>
+                      {String(goal.userId) === String(user?.id) ? (
+                        <button aria-label={`Excluir meta ${goal.name}`} className="product-goal-delete" onClick={() => deleteGoal(goal.id)} type="button"><Trash2 size={16} /></button>
+                      ) : null}
+                    </div>
+
+                    <div className="product-goal-signals">
+                      <div className={status.priceReached ? "reached" : "waiting"}>
+                        {status.priceReached ? <CheckCircle2 size={18} /> : <Tag size={18} />}
+                        <span><strong>{status.priceReached ? "Preço-alvo atingido" : "Monitorando o preço"}</strong><small>{status.priceReached ? `${currency(goal.product.currentPrice)} está dentro do seu alvo.` : `Aviso ao chegar a ${currency(goal.product.targetPrice)}.`}</small></span>
+                      </div>
+                      <div className={status.affordable ? "reached" : "waiting"}>
+                        {status.affordable ? <CheckCircle2 size={18} /> : <WalletCards size={18} />}
+                        <span><strong>{status.affordable ? "Sua caixinha já compra" : `${currency(status.missing)} para chegar lá`}</strong><small>{status.affordable ? "O montante guardado cobre o preço atual." : `${currency(goal.currentAmount)} guardados até agora.`}</small></span>
+                      </div>
+                    </div>
+
+                    <div className="product-goal-progress" aria-label={`${percent(goal.progress)} da meta acumulada`}>
+                      <span><strong>{currency(goal.currentAmount)}</strong><small>de {currency(goal.product.currentPrice)} no preço atual</small></span>
+                      <b>{percent(goal.progress)}</b>
+                      <div><i style={{ width: `${goal.progress}%` }} /></div>
+                    </div>
+
+                    <div className="product-goal-market">
+                      <div className="product-goal-prices">
+                        <span><small>Preço agora</small><strong>{currency(goal.product.currentPrice)}</strong></span>
+                        <span><small>Seu preço-alvo</small><strong>{currency(goal.product.targetPrice)}</strong></span>
+                        <span><small>Menor observado</small><strong>{currency(goal.product.lowestPrice)}</strong></span>
+                      </div>
+                      <div>
+                        <p className="product-goal-chart-label">Histórico observado pela BW</p>
+                        <ProductPriceChart history={goal.product.priceHistory} />
+                      </div>
+                    </div>
+
+                    {goal.product.status === "error" ? (
+                      <p className="product-goal-sync-error">{goal.product.lastError || "Não foi possível atualizar essa oferta agora."}</p>
+                    ) : null}
+
+                    <div className="product-goal-toolbar">
+                      <div className="product-target-editor">
+                        <label htmlFor={`product-target-${goal.id}`}>Alterar preço-alvo</label>
+                        <div>
+                          <input id={`product-target-${goal.id}`} min="0.01" step="0.01" type="number" value={targetValue} onChange={(event) => setProductTargets((current) => ({ ...current, [goal.id]: event.target.value }))} />
+                          <button disabled={productWorking === `target:${goal.id}`} onClick={() => saveProductTarget(goal)} type="button">Salvar</button>
+                        </div>
+                      </div>
+                      <div className="product-market-actions">
+                        <button disabled={productWorking === `refresh:${goal.id}`} onClick={() => refreshProduct(goal)} type="button"><RefreshCw className={productWorking === `refresh:${goal.id}` ? "animate-spin" : ""} size={16} /> Atualizar preço</button>
+                        <a href={goal.product.url} rel="noreferrer" target="_blank">Ver na loja <ExternalLink size={15} /></a>
+                      </div>
+                    </div>
+                    <p className="product-goal-updated">Última leitura: {goal.product.lastCheckedAt ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(goal.product.lastCheckedAt)) : "aguardando"}</p>
+
+                    {latestMovement ? (
+                      <p className={`product-goal-latest ${latestTone}`}>Última movimentação: {latestMovement.type === "withdraw" ? "retirada" : "entrada"} de {currency(latestMovement.amount)} em {shortDate(latestMovement.createdAt)}</p>
+                    ) : null}
+                    <div className="product-goal-movement">
+                      <input min="0.01" placeholder="Valor para a caixinha" step="0.01" type="number" value={action.amount} onChange={(event) => updateGoalAction(goal.id, "amount", event.target.value)} />
+                      <button className="add" onClick={() => moveGoal(goal, "deposit")} type="button"><ArrowUpCircle size={16} /> Adicionar</button>
+                      <button className="remove" onClick={() => moveGoal(goal, "withdraw")} type="button"><ArrowDownCircle size={16} /> Retirar</button>
+                    </div>
+                    <input className="product-goal-notes" placeholder="Observação opcional" value={action.notes} onChange={(event) => updateGoalAction(goal.id, "notes", event.target.value)} />
+                  </article>
+                );
+              }
               return (
               <div key={goal.id} className="rounded-lg border border-emerald-500/15 bg-gradient-to-br from-emerald-50 to-white p-4 shadow-sm dark:border-emerald-400/15 dark:from-emerald-500/10 dark:to-neutral-900">
                 <div className="flex items-center justify-between gap-3">

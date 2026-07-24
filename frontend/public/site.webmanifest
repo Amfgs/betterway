@@ -1,13 +1,30 @@
 {
   "name": "Better Way",
-  "short_name": "Better Way",
+  "short_name": "BW",
+  "id": "/",
   "description": "Inteligência financeira para decisões melhores, planejamento e investimentos.",
   "start_url": "/login",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "background_color": "#092a20",
   "theme_color": "#092a20",
-  "orientation": "portrait-primary",
+  "orientation": "any",
+  "categories": ["finance", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Registrar transação",
+      "short_name": "Nova transação",
+      "url": "/inicio#novo-registro",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Ver metas",
+      "short_name": "Metas",
+      "url": "/inicio#planos",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ],
   "icons": [
     {
       "src": "/icon-192.png",

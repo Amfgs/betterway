@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
   ArrowRight,
-  BarChart3,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -13,21 +11,18 @@ import {
   Newspaper,
   PlusSquare,
   Share2,
-  ShieldCheck,
   Smartphone,
   Sparkles,
   TrendingUp,
   UserRound,
   Users,
-  WalletCards,
   X
 } from "lucide-react";
-import { api, getErrorMessage } from "../api/client";
-import firstContactImage from "../assets/onboarding/bw-first-contact.webp";
+import { api } from "../api/client";
 import mobileDashboardImage from "../assets/onboarding/bw-mobile-dashboard.webp";
 import { useAuth } from "../context/AuthContext";
+import { devicePlatform, isStandaloneApp } from "../utils/pwa";
 import { AvatarOnboarding } from "./AvatarOnboarding";
-import { PluggyConnectModal } from "./PluggyConnectModal";
 
 const taskIcons = {
   avatar: UserRound,
@@ -37,18 +32,6 @@ const taskIcons = {
   news: Newspaper,
   install: Smartphone
 };
-
-function devicePlatform() {
-  const agent = navigator.userAgent || "";
-  const ios = /iPad|iPhone|iPod/.test(agent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  if (ios) return "ios";
-  if (/Android/i.test(agent)) return "android";
-  return "other";
-}
-
-function isStandaloneApp() {
-  return Boolean(window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone);
-}
 
 function SetupProgress({ expanded, onExpand, onTask, progress }) {
   if (!progress) {
@@ -84,30 +67,17 @@ function SetupProgress({ expanded, onExpand, onTask, progress }) {
   );
 }
 
-function OnboardingDots({ step }) {
-  return (
-    <div aria-label={`Etapa ${step + 1} de 3`} className="first-run-dots">
-      {[0, 1, 2].map((index) => <i className={index <= step ? "active" : ""} key={index} />)}
-    </div>
-  );
-}
-
 export function ProfileSetup() {
   const { user, updateProfile } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [progress, setProgress] = useState(null);
   const [expanded, setExpanded] = useState(false);
-  const [bankStep, setBankStep] = useState(0);
-  const [connectToken, setConnectToken] = useState("");
-  const [providerEnvironment, setProviderEnvironment] = useState("trial");
-  const [working, setWorking] = useState("");
-  const [error, setError] = useState("");
   const [installOpen, setInstallOpen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
-  const [dismissedThisVisit, setDismissedThisVisit] = useState({ avatar: false, bank: false, install: false });
-  const platform = useMemo(devicePlatform, []);
-  const standalone = useMemo(isStandaloneApp, []);
+  const [dismissedThisVisit, setDismissedThisVisit] = useState({ avatar: false, install: false });
+  const platform = useMemo(() => devicePlatform(window), []);
+  const standalone = useMemo(() => isStandaloneApp(window), []);
 
   const loadProgress = useCallback(async () => {
     try {
@@ -142,19 +112,26 @@ export function ProfileSetup() {
     return () => window.removeEventListener("beforeinstallprompt", captureInstallPrompt);
   }, []);
 
+  useEffect(() => {
+    const markInstalled = async () => {
+      setInstallPrompt(null);
+      setInstallOpen(false);
+      if (!user?.onboarding?.installCompleted) {
+        await updateProfile({ onboarding: { installCompleted: true, installPromptDismissed: true } });
+        await loadProgress();
+        window.dispatchEvent(new Event("betterway:progress-refresh"));
+      }
+    };
+    window.addEventListener("appinstalled", markInstalled);
+    if (standalone) markInstalled();
+    return () => window.removeEventListener("appinstalled", markInstalled);
+  }, [loadProgress, standalone, updateProfile, user?.onboarding?.installCompleted]);
+
   const avatarPending = Boolean(user && !user.avatarUrl && !dismissedThisVisit.avatar);
-  const bankComplete = Boolean(progress?.tasks?.find((task) => task.id === "bank")?.completed);
-  const bankPending = Boolean(
-    progress &&
-    !avatarPending &&
-    !bankComplete &&
-    !dismissedThisVisit.bank
-  );
   const installComplete = Boolean(progress?.tasks?.find((task) => task.id === "install")?.completed || standalone);
   const installPending = Boolean(
     progress &&
     !avatarPending &&
-    !bankPending &&
     platform !== "other" &&
     !installComplete &&
     !dismissedThisVisit.install
@@ -162,58 +139,19 @@ export function ProfileSetup() {
   const showInstallGuide = installOpen || installPending;
 
   useEffect(() => {
-    const modalOpen = avatarPending || bankPending || showInstallGuide || Boolean(connectToken);
+    const modalOpen = avatarPending || showInstallGuide;
     if (!modalOpen) return undefined;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [avatarPending, bankPending, connectToken, showInstallGuide]);
+  }, [avatarPending, showInstallGuide]);
 
   async function patchOnboarding(values) {
     await updateProfile({ onboarding: values });
     await loadProgress();
     window.dispatchEvent(new Event("betterway:progress-refresh"));
-  }
-
-  function dismissBankOnboarding() {
-    setError("");
-    setDismissedThisVisit((current) => ({ ...current, bank: true }));
-  }
-
-  function openDirectBankSetup() {
-    setDismissedThisVisit((current) => ({ ...current, bank: true }));
-    navigate("/perfil?tab=conexoes&method=direct");
-  }
-
-  async function startBankConnection() {
-    setWorking("token");
-    setError("");
-    try {
-      const response = await api.post("/bank-connections/pluggy/token");
-      setProviderEnvironment(response.data.providerEnvironment || "trial");
-      setConnectToken(response.data.accessToken || response.data.connectToken);
-    } catch (requestError) {
-      setError(getErrorMessage(requestError));
-    } finally {
-      setWorking("");
-    }
-  }
-
-  async function finishBankConnection({ item }) {
-    setWorking("sync");
-    setError("");
-    try {
-      await api.post("/bank-connections/pluggy/sync", { itemId: item.id });
-      setConnectToken("");
-      await loadProgress();
-      window.dispatchEvent(new Event("betterway:progress-refresh"));
-    } catch (syncError) {
-      setError(getErrorMessage(syncError));
-    } finally {
-      setWorking("");
-    }
   }
 
   function closeInstallGuide() {
@@ -256,80 +194,7 @@ export function ProfileSetup() {
         progress={progress}
       />
 
-      {bankPending ? (
-        <div aria-labelledby="first-run-title" aria-modal="true" className="first-run-backdrop" role="dialog">
-          <section className="first-run-dialog">
-            <button aria-label="Fechar apresentação" className="first-run-close" onClick={dismissBankOnboarding} type="button"><X size={19} /></button>
-            <div className="first-run-visual">
-              <img alt="Pessoa acompanhando as finanças pelo celular" src={firstContactImage} />
-              <span><ShieldCheck size={18} /> Somente leitura</span>
-            </div>
-            <div className="first-run-content">
-              <OnboardingDots step={bankStep} />
-
-              {bankStep === 0 ? (
-                <div className="first-run-step">
-                  <p className="first-run-kicker">Bem-vindo à BW</p>
-                  <h2 id="first-run-title">Seu dinheiro, mais fácil de acompanhar.</h2>
-                  <p>A BW ajuda você a monitorar suas finanças, entender seus gastos e acompanhar o que está investido em um só lugar.</p>
-                </div>
-              ) : null}
-
-              {bankStep === 1 ? (
-                <div className="first-run-step">
-                  <p className="first-run-kicker">Você decide o acesso</p>
-                  <h2 id="first-run-title">A BW apenas lê o que você autorizar.</h2>
-                  <div className="first-run-data-list">
-                    <span><WalletCards size={19} /><strong>Saldo</strong><small>Valor disponível nas contas conectadas.</small></span>
-                    <span><BarChart3 size={19} /><strong>Extrato</strong><small>Entradas e saídas atualizadas pela instituição.</small></span>
-                    <span><TrendingUp size={19} /><strong>Investimentos</strong><small>Posições e valores informados pelo banco.</small></span>
-                  </div>
-                  <p className="first-run-security"><ShieldCheck size={18} /> A BW não pode transferir, pagar, sacar ou alterar nada na sua conta.</p>
-                </div>
-              ) : null}
-
-              {bankStep === 2 ? (
-                <div className="first-run-step">
-                  <p className="first-run-kicker">Conexão segura</p>
-                  <h2 id="first-run-title">Pronto para conectar?</h2>
-                  <p>Você escolherá a instituição e dará o consentimento no ambiente seguro do Open Finance. A autorização pode ser removida depois em Perfil.</p>
-                  <div className="first-run-final-note"><Landmark size={21} /><span><strong>Leva poucos minutos</strong><small>Depois disso, seus dados passam a alimentar automaticamente o painel.</small></span></div>
-                  {error ? <p className="first-run-error" role="alert">{error}</p> : null}
-                </div>
-              ) : null}
-
-              <div className="first-run-actions">
-                <button className="first-run-secondary" onClick={bankStep === 0 ? dismissBankOnboarding : () => setBankStep((step) => step - 1)} type="button">
-                  {bankStep === 0 ? "Agora não" : <><ArrowLeft size={17} /> Voltar</>}
-                </button>
-                {bankStep < 2 ? (
-                  <button className="first-run-primary" onClick={() => setBankStep((step) => step + 1)} type="button">Próximo <ArrowRight size={17} /></button>
-                ) : (
-                  <div className="first-run-bank-actions">
-                    <button className="first-run-direct-link" onClick={openDirectBankSetup} type="button">Usar API do meu banco</button>
-                    <button className="first-run-primary" disabled={Boolean(working)} onClick={startBankConnection} type="button">
-                      <Landmark size={18} /> {working ? "Preparando..." : "Conectar Open Finance"}
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </section>
-        </div>
-      ) : null}
-
-      <PluggyConnectModal
-        connectToken={connectToken}
-        environment={providerEnvironment}
-        onClose={() => setConnectToken("")}
-        onError={(message) => {
-          setError(message);
-          setConnectToken("");
-        }}
-        onSuccess={finishBankConnection}
-      />
-
-      {showInstallGuide && !avatarPending && !bankPending ? (
+      {showInstallGuide && !avatarPending ? (
         <div aria-labelledby="install-guide-title" aria-modal="true" className="install-guide-backdrop" role="dialog">
           <section className="install-guide-dialog">
             <button aria-label="Fechar guia de instalação" className="first-run-close" onClick={closeInstallGuide} type="button"><X size={19} /></button>

@@ -227,10 +227,64 @@ async function sendGoalReachedEmail({ email, name, goalName, targetAmount }) {
   return { delivered: true };
 }
 
+async function sendProductGoalAlertEmail({ email, name, goalName, product, currentAmount, reasons }) {
+  if (!emailConfigured()) return { delivered: false };
+  const safeName = escapeHtml(name);
+  const safeGoalName = escapeHtml(goalName);
+  const safeProductName = escapeHtml(product?.name || goalName);
+  const safeStore = escapeHtml(product?.store || "loja acompanhada");
+  const priceReached = reasons.includes("price");
+  const affordable = reasons.includes("affordable");
+  const subject = priceReached && affordable
+    ? `Boa hora para decidir: ${String(product?.name || goalName).slice(0, 70)}`
+    : priceReached
+      ? `Preço-alvo atingido: ${String(product?.name || goalName).slice(0, 70)}`
+      : `Sua caixinha já compra ${String(product?.name || goalName).slice(0, 70)}`;
+  const reasonLines = [
+    ...(priceReached ? [`O preço chegou a ${currency(product.currentPrice)}, dentro do seu alvo de ${currency(product.targetPrice)}.`] : []),
+    ...(affordable ? [`Você guardou ${currency(currentAmount)}, valor suficiente para o preço atual de ${currency(product.currentPrice)}.`] : [])
+  ];
+  const text = [
+    `Olá${name ? `, ${name}` : ""}.`,
+    "",
+    `A meta "${goalName}" tem uma atualização importante:`,
+    ...reasonLines.map((line) => `- ${line}`),
+    `Menor preço observado pela BW: ${currency(product.lowestPrice)} em ${product.store || "loja acompanhada"}.`,
+    "",
+    "Abra a BW para revisar a oferta antes de comprar. Preços e disponibilidade podem mudar na loja."
+  ].join("\n");
+
+  const reasonCards = [
+    ...(priceReached ? [`<div style="border:1px solid #cce8da;border-radius:8px;padding:14px;"><strong style="display:block;color:#0d6b4f;">Preço-alvo alcançado</strong><span style="font-size:14px;">${currency(product.currentPrice)} agora, alvo de ${currency(product.targetPrice)}</span></div>`] : []),
+    ...(affordable ? [`<div style="border:1px solid #cce8da;border-radius:8px;padding:14px;"><strong style="display:block;color:#0d6b4f;">Sua caixinha já é suficiente</strong><span style="font-size:14px;">${currency(currentAmount)} guardados para um preço de ${currency(product.currentPrice)}</span></div>`] : [])
+  ].join("");
+
+  await deliverEmail({
+    email,
+    subject,
+    text,
+    html: `
+      <div style="font-family:Arial,sans-serif;line-height:1.55;color:#10221c;max-width:560px;margin:0 auto;padding:32px;">
+        <p style="color:#0d6b4f;font-size:18px;font-weight:800;margin:0 0 28px;">BW · Better Way</p>
+        <h2 style="font-size:26px;margin:0 0 12px;">${priceReached && affordable ? "Dois bons sinais para sua decisão" : priceReached ? "O preço que você esperava chegou" : "Sua meta já alcança o produto"}</h2>
+        <p>Olá${safeName ? `, ${safeName}` : ""}. A caixinha <strong>${safeGoalName}</strong> recebeu uma atualização.</p>
+        <div style="background:#edf7f2;border-radius:8px;margin:20px 0;padding:18px;">
+          <strong style="display:block;font-size:18px;">${safeProductName}</strong>
+          <span style="color:#52635b;font-size:13px;">${safeStore} · menor observado: ${currency(product.lowestPrice)}</span>
+        </div>
+        <div style="display:grid;gap:8px;">${reasonCards}</div>
+        <p style="margin-top:22px;font-size:13px;color:#52635b;">Abra a BW para conferir a oferta antes da compra. A loja pode alterar preço e disponibilidade a qualquer momento.</p>
+      </div>
+    `
+  });
+  return { delivered: true };
+}
+
 module.exports = {
   emailConfigured,
   sendEmailVerification,
   sendPasswordResetEmail,
   sendGoalReachedEmail,
-  sendLimitAlertEmail
+  sendLimitAlertEmail,
+  sendProductGoalAlertEmail
 };

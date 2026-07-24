@@ -15,6 +15,7 @@ const newsRoutes = require("./routes/newsRoutes");
 const widgetRoutes = require("./routes/widgetRoutes");
 const bankConnectionRoutes = require("./routes/bankConnectionRoutes");
 const sharedPlanRoutes = require("./routes/sharedPlanRoutes");
+const productWatchRoutes = require("./routes/productWatchRoutes");
 const { isMemoryMode } = require("./config/db");
 const { allowedOrigins, isProduction } = require("./config/security");
 
@@ -94,6 +95,7 @@ app.use("/api/simulator", simulatorRoutes);
 app.use("/api/news", newsRoutes);
 app.use("/api/widgets", widgetRoutes);
 app.use("/api/bank-connections", bankConnectionRoutes);
+app.use("/api/product-watch", productWatchRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ message: "Rota não encontrada." });

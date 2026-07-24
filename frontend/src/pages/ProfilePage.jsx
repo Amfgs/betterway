@@ -34,7 +34,7 @@ const profileTabs = [
   { id: "resumo", label: "Resumo", description: "Sua leitura financeira", icon: ChartNoAxesCombined },
   { id: "financeiro", label: "Dados financeiros", description: "Renda, teto e valor-hora", icon: WalletCards },
   { id: "conexoes", label: "Conexões", description: "Bancos e corretoras", icon: Landmark },
-  { id: "notificacoes", label: "Alertas por e-mail", description: "Limites e metas", icon: BellRing },
+  { id: "notificacoes", label: "Alertas por e-mail", description: "Limites, metas e produtos", icon: BellRing },
   { id: "conta", label: "Conta e segurança", description: "Identidade e acesso", icon: SlidersHorizontal }
 ];
 
@@ -333,7 +333,7 @@ export function ProfilePage() {
                   <input checked={notificationForm.limitAlerts} disabled={!notificationForm.emailEnabled} onChange={(event) => setNotificationForm((current) => ({ ...current, limitAlerts: event.target.checked }))} type="checkbox" />
                 </label>
                 <label className={`profile-notification-row ${!notificationForm.emailEnabled ? "disabled" : ""}`}>
-                  <span><strong>Meta atingida</strong><small>Receba um resumo quando uma caixinha chegar ao valor planejado.</small></span>
+                  <span><strong>Metas e produtos</strong><small>Avise quando uma caixinha for concluída, um preço-alvo chegar ou o valor guardado já comprar o produto.</small></span>
                   <input checked={notificationForm.goalAlerts} disabled={!notificationForm.emailEnabled} onChange={(event) => setNotificationForm((current) => ({ ...current, goalAlerts: event.target.checked }))} type="checkbox" />
                 </label>
               </div>

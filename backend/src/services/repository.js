@@ -177,6 +177,16 @@ async function listGoals(userId) {
   return goals.map(normalize);
 }
 
+async function listProductGoals(userId, limit = 40) {
+  if (!isDatabaseConnected()) return memoryStore.listProductGoals(userId, limit);
+  const query = { "product.enabled": true };
+  if (userId) query.$or = [{ userId }, { participantIds: userId }];
+  const goals = await Goal.find(query)
+    .sort({ "product.lastCheckedAt": 1, updatedAt: 1 })
+    .limit(Math.max(1, Math.min(Number(limit) || 40, 100)));
+  return goals.map(normalize);
+}
+
 async function createGoal(payload) {
   if (!isDatabaseConnected()) return memoryStore.createGoal(payload);
   return normalize(await Goal.create(payload));
@@ -186,6 +196,16 @@ async function updateGoal(userId, goalId, fields) {
   if (!isDatabaseConnected()) return memoryStore.updateGoal(userId, goalId, fields);
   return normalize(
     await Goal.findOneAndUpdate({ _id: goalId, userId }, fields, {
+      new: true,
+      runValidators: true
+    })
+  );
+}
+
+async function updateProductGoal(goalId, fields) {
+  if (!isDatabaseConnected()) return memoryStore.updateProductGoal(goalId, fields);
+  return normalize(
+    await Goal.findOneAndUpdate({ _id: goalId, "product.enabled": true }, fields, {
       new: true,
       runValidators: true
     })
@@ -202,7 +222,9 @@ async function addGoalMovement(userId, goalId, movement) {
   const amount = Math.abs(Number(movement.amount || 0));
   const nextAmount = movement.type === "withdraw"
     ? Math.max(currentAmount - amount, 0)
-    : Math.min(currentAmount + amount, Number(goal.targetAmount || currentAmount + amount));
+    : currentAmount >= Number(goal.targetAmount || 0)
+      ? currentAmount
+      : Math.min(currentAmount + amount, Number(goal.targetAmount || currentAmount + amount));
   const entry = {
     ...movement,
     amount,
@@ -562,8 +584,10 @@ module.exports = {
   claimInvestmentTransaction,
   deleteTransaction,
   listGoals,
+  listProductGoals,
   createGoal,
   updateGoal,
+  updateProductGoal,
   addGoalMovement,
   deleteGoal,
   listLimits,

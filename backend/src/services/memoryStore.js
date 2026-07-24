@@ -94,7 +94,26 @@ function normalizeState(raw) {
     ...clean,
     users: normalizeUsers(clean.users || base.users),
     transactions: clean.transactions || base.transactions,
-    goals: (clean.goals || base.goals).map((goal) => ({ participantIds: [], movements: [], ...goal })),
+    goals: (clean.goals || base.goals).map((goal) => ({
+      participantIds: [],
+      movements: [],
+      ...goal,
+      ...(goal.product
+        ? {
+            product: {
+              status: "active",
+              priceHistory: [],
+              alertState: {
+                priceReached: false,
+                affordable: false,
+                priceNotifiedAt: null,
+                affordableNotifiedAt: null
+              },
+              ...goal.product
+            }
+          }
+        : {})
+    })),
     limits: (clean.limits || base.limits).map((limit) => ({ participantIds: [], ...limit })),
     assets: clean.assets || base.assets,
     bankConnections: clean.bankConnections || base.bankConnections,
@@ -315,6 +334,12 @@ module.exports = {
   async listGoals(idToFind) {
     return clone(state.goals.filter((goal) => canAccess(goal, idToFind))).sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
   },
+  async listProductGoals(idToFind, limit = 40) {
+    return clone(state.goals
+      .filter((goal) => goal.product?.enabled && (!idToFind || canAccess(goal, idToFind)))
+      .sort((a, b) => new Date(a.product?.lastCheckedAt || 0) - new Date(b.product?.lastCheckedAt || 0))
+      .slice(0, Math.max(1, Math.min(Number(limit) || 40, 100))));
+  },
   async createGoal(payload) {
     const created = {
       id: id(),
@@ -343,6 +368,19 @@ module.exports = {
     saveState();
     return clone(state.goals[index]);
   },
+  async updateProductGoal(goalId, fields) {
+    const index = state.goals.findIndex(
+      (item) => String(item.id) === String(goalId) && item.product?.enabled
+    );
+    if (index === -1) return null;
+    state.goals[index] = {
+      ...state.goals[index],
+      ...fields,
+      updatedAt: new Date().toISOString()
+    };
+    saveState();
+    return clone(state.goals[index]);
+  },
   async addGoalMovement(userIdToFind, goalId, movement) {
     const index = state.goals.findIndex(
       (item) => canAccess(item, userIdToFind) && String(item.id) === String(goalId)
@@ -353,7 +391,9 @@ module.exports = {
     const amount = Math.abs(Number(movement.amount || 0));
     const nextAmount = movement.type === "withdraw"
       ? Math.max(currentAmount - amount, 0)
-      : Math.min(currentAmount + amount, Number(state.goals[index].targetAmount || currentAmount + amount));
+      : currentAmount >= Number(state.goals[index].targetAmount || 0)
+        ? currentAmount
+        : Math.min(currentAmount + amount, Number(state.goals[index].targetAmount || currentAmount + amount));
     const entry = {
       ...movement,
       amount,
