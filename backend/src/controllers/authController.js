@@ -38,7 +38,9 @@ const DEFAULT_ONBOARDING = {
   installPromptDismissed: false,
   installCompleted: false,
   simulatedInvestment: false,
-  viewedNews: false
+  viewedNews: false,
+  tourCompleted: false,
+  tourSkipped: false
 };
 function normalizeSessionStart(value) {
   const now = Math.floor(Date.now() / 1000);
@@ -555,8 +557,8 @@ const profileProgress = asyncHandler(async (req, res) => {
     },
     {
       id: "install",
-      title: "Adicione a BW ao celular",
-      description: "Abra a ferramenta como um app pela tela de início.",
+      title: "Instale a BW neste dispositivo",
+      description: "Abra a ferramenta como um app diretamente deste dispositivo.",
       completed: Boolean(onboarding.installCompleted),
       action: "install"
     }

@@ -9,6 +9,11 @@
     "configure:pluggy-webhook": "node scripts/configure-pluggy-webhook.js",
     "test": "node --test --test-concurrency=1"
   },
+  "nodemonConfig": {
+    "watch": ["src"],
+    "ext": "js,json",
+    "ignore": ["data/**"]
+  },
   "dependencies": {
     "axios": "^1.18.1",
     "bcryptjs": "^2.4.3",

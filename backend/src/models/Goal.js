@@ -21,7 +21,27 @@ const productSchema = new mongoose.Schema(
       type: Boolean,
       default: false
     },
+    provider: {
+      type: String,
+      enum: ["direct", "buscape"],
+      default: "direct"
+    },
+    marketSource: {
+      type: String,
+      default: "",
+      maxlength: 80
+    },
+    searchQuery: {
+      type: String,
+      default: "",
+      maxlength: 100
+    },
     url: {
+      type: String,
+      default: "",
+      maxlength: 2048
+    },
+    offerUrl: {
       type: String,
       default: "",
       maxlength: 2048
@@ -41,6 +61,16 @@ const productSchema = new mongoose.Schema(
       type: String,
       default: "",
       maxlength: 120
+    },
+    offersCount: {
+      type: Number,
+      min: 0,
+      default: 1
+    },
+    couponCode: {
+      type: String,
+      default: "",
+      maxlength: 32
     },
     currency: {
       type: String,

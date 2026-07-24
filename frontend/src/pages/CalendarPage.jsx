@@ -374,6 +374,7 @@ export function CalendarPage() {
       />
       <WorkspacePeriodControl
         description="O calendário recalcula os dias sempre que seus limites ou movimentações mudam."
+        icon={CalendarDays}
         label="Mês planejado"
         onChange={setMonth}
         stacked
@@ -383,7 +384,7 @@ export function CalendarPage() {
 
       {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p> : null}
 
-      <section className="guided-page-section" id="resumo-calendario">
+      <section className="guided-page-section" data-tour="planning-workspace" id="resumo-calendario">
         <GuidedSectionHeader
           description="O valor disponível vem dos limites ainda não utilizados, e não do saldo total da sua conta."
           icon={WalletCards}

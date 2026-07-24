@@ -38,6 +38,15 @@ function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
+function safeHttpsHref(value) {
+  try {
+    const url = new URL(String(value || ""));
+    return url.protocol === "https:" ? escapeHtml(url.href) : "";
+  } catch {
+    return "";
+  }
+}
+
 async function deliverEmail({ email, subject, text, html }) {
   const from = process.env.EMAIL_FROM || (process.env.RESEND_API_KEY ? DEFAULT_EMAIL_FROM : process.env.SMTP_USER);
 
@@ -233,6 +242,9 @@ async function sendProductGoalAlertEmail({ email, name, goalName, product, curre
   const safeGoalName = escapeHtml(goalName);
   const safeProductName = escapeHtml(product?.name || goalName);
   const safeStore = escapeHtml(product?.store || "loja acompanhada");
+  const offerUrl = safeHttpsHref(product?.offerUrl || product?.url);
+  const couponCode = String(product?.couponCode || "").replace(/[^A-Z0-9_-]/gi, "").slice(0, 32);
+  const safeCouponCode = escapeHtml(couponCode);
   const priceReached = reasons.includes("price");
   const affordable = reasons.includes("affordable");
   const subject = priceReached && affordable
@@ -250,8 +262,10 @@ async function sendProductGoalAlertEmail({ email, name, goalName, product, curre
     `A meta "${goalName}" tem uma atualização importante:`,
     ...reasonLines.map((line) => `- ${line}`),
     `Menor preço observado pela BW: ${currency(product.lowestPrice)} em ${product.store || "loja acompanhada"}.`,
+    ...(couponCode ? [`Cupom publicado na oferta: ${couponCode}`] : []),
+    ...(offerUrl ? [`Link da oferta: ${product.offerUrl || product.url}`] : []),
     "",
-    "Abra a BW para revisar a oferta antes de comprar. Preços e disponibilidade podem mudar na loja."
+    "Revise a oferta antes de comprar. Preço, cupom e disponibilidade podem mudar na loja."
   ].join("\n");
 
   const reasonCards = [
@@ -273,7 +287,9 @@ async function sendProductGoalAlertEmail({ email, name, goalName, product, curre
           <span style="color:#52635b;font-size:13px;">${safeStore} · menor observado: ${currency(product.lowestPrice)}</span>
         </div>
         <div style="display:grid;gap:8px;">${reasonCards}</div>
-        <p style="margin-top:22px;font-size:13px;color:#52635b;">Abra a BW para conferir a oferta antes da compra. A loja pode alterar preço e disponibilidade a qualquer momento.</p>
+        ${safeCouponCode ? `<div style="background:#f5f7f5;border:1px dashed #8aa99b;border-radius:8px;margin-top:18px;padding:14px;"><span style="display:block;color:#52635b;font-size:12px;">Cupom publicado na oferta</span><strong style="display:block;font-family:monospace;font-size:20px;letter-spacing:1px;margin-top:4px;">${safeCouponCode}</strong></div>` : ""}
+        ${offerUrl ? `<a href="${offerUrl}" style="background:#0d6b4f;border-radius:8px;color:#ffffff;display:inline-block;font-weight:800;margin-top:20px;padding:12px 18px;text-decoration:none;">Ver melhor oferta</a>` : ""}
+        <p style="margin-top:22px;font-size:13px;color:#52635b;">Confira a oferta antes da compra. A loja pode alterar preço, cupom e disponibilidade a qualquer momento.</p>
       </div>
     `
   });

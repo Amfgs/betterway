@@ -12,3 +12,8 @@ test("reconhece iOS e execução instalada", () => {
   assert.equal(isStandaloneApp({ navigator: {}, matchMedia: () => ({ matches: true }) }), true);
   assert.equal(isStandaloneApp({ navigator: {}, matchMedia: () => ({ matches: false }) }), false);
 });
+
+test("diferencia navegador desktop para adaptar as instruções de instalação", () => {
+  assert.equal(devicePlatform({ navigator: { userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" } }), "desktop");
+  assert.equal(devicePlatform({ navigator: { userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" } }), "desktop");
+});

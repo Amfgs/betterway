@@ -20,6 +20,7 @@ import { avatarSrc } from "../utils/avatars";
 import { readStoredValue, storageKeys } from "../utils/storageKeys";
 import { Logo } from "./Logo";
 import { ProfileSetup } from "./ProfileSetup";
+import { GuidedTour } from "./GuidedTour";
 
 const navItems = [
   { to: "/dashboard", label: "Visão geral", shortLabel: "Início", icon: LayoutDashboard },
@@ -56,6 +57,7 @@ function SidebarLink({ item, collapsed }) {
   return (
     <NavLink
       className={({ isActive }) => `sidebar-link ${isActive ? "active" : ""} ${collapsed ? "collapsed" : ""}`}
+      data-tour={item.to === "/calendario" ? "planning-nav-desktop" : undefined}
       title={collapsed ? item.label : undefined}
       to={item.to}
     >
@@ -212,6 +214,7 @@ export function Shell() {
           <div className="app-content-inner">
             <ProfileSetup />
             <Outlet />
+            <GuidedTour />
           </div>
         </main>
 
@@ -260,7 +263,7 @@ export function Shell() {
 
       <nav aria-label="Navegação móvel" className="mobile-navigation">
         {navItems.map((item) => (
-          <NavLink className={({ isActive }) => isActive ? "active" : ""} key={item.to} to={item.to}>
+          <NavLink className={({ isActive }) => isActive ? "active" : ""} data-tour={item.to === "/calendario" ? "planning-nav-mobile" : undefined} key={item.to} to={item.to}>
             <span><item.icon size={19} /></span>
             {item.shortLabel}
           </NavLink>

@@ -7,7 +7,7 @@ export function devicePlatform(environment = globalThis) {
   );
   if (ios) return "ios";
   if (/Android/i.test(agent) || /Android/i.test(hintedPlatform)) return "android";
-  return "other";
+  return "desktop";
 }
 
 export function isStandaloneApp(environment = globalThis) {

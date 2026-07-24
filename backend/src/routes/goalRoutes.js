@@ -14,6 +14,7 @@ const productLookupLimiter = rateLimit({
 
 router.use(authMiddleware);
 router.get("/", goalController.list);
+router.post("/product/search", productLookupLimiter, goalController.searchProducts);
 router.post("/product/preview", productLookupLimiter, goalController.previewProduct);
 router.post("/products/refresh", productLookupLimiter, goalController.refreshProducts);
 router.post("/", goalController.create);

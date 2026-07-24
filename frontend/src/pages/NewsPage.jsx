@@ -35,7 +35,7 @@ export function NewsPage({ embedded = false }) {
           Buscando notícias reais atualizadas...
         </p>
       ) : null}
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" data-tour="latest-news">
         {articles.map((article, index) => (
           <article key={`${article.title}-${article.publishedAt}`} className={`flex min-h-60 flex-col rounded-lg border border-black/5 bg-white p-5 shadow-soft dark:border-white/10 dark:bg-neutral-900 ${index === 0 ? "md:col-span-2 xl:col-span-2" : ""}`}>
             <div className="flex flex-wrap items-center gap-2">

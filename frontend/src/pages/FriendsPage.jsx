@@ -269,7 +269,7 @@ export function FriendsPage() {
       {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-600 dark:text-red-300" role="alert">{error}</p> : null}
       {message ? <p className="rounded-lg bg-emerald-500/10 p-3 text-sm font-medium text-emerald-700 dark:text-emerald-300" role="status">{message}</p> : null}
 
-      <section className="grid items-start gap-4 xl:grid-cols-[0.9fr_1.1fr]" id="amizades">
+      <section className="grid items-start gap-4 xl:grid-cols-[0.9fr_1.1fr]" data-tour="friends-view" id="amizades">
         <div className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900 sm:p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -437,8 +437,8 @@ export function FriendsPage() {
       </section>
 
       {addOpen ? (
-        <div aria-labelledby="add-friend-title" aria-modal="true" className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) closeAddFriend(); }} role="dialog">
-          <section className="max-h-[86dvh] w-full max-w-xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl dark:bg-neutral-900 sm:rounded-lg">
+        <div aria-labelledby="add-friend-title" aria-modal="true" className="friend-add-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeAddFriend(); }} role="dialog">
+          <section className="friend-add-dialog">
             <div className="flex items-start justify-between gap-4">
               <div><p className="text-xs font-black uppercase text-emerald-600 dark:text-emerald-400">Nova conexão</p><h2 className="mt-1 text-2xl font-black" id="add-friend-title">Adicionar amizade</h2></div>
               <button aria-label="Fechar" className="rounded-lg border border-black/10 p-2 dark:border-white/10" onClick={closeAddFriend} type="button"><X size={18} /></button>

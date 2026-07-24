@@ -33,7 +33,7 @@ const taskIcons = {
   install: Smartphone
 };
 
-function SetupProgress({ expanded, onExpand, onTask, progress }) {
+function SetupProgress({ expanded, onExpand, onTask, platform, progress }) {
   if (!progress) {
     return <div aria-hidden="true" className="profile-completion-skeleton" />;
   }
@@ -53,10 +53,15 @@ function SetupProgress({ expanded, onExpand, onTask, progress }) {
         <div className="profile-completion-details">
           {progress.tasks.map((task) => {
             const Icon = taskIcons[task.id] || Circle;
+            const visibleTask = task.id === "install"
+              ? platform === "desktop"
+                ? { ...task, title: "Instale a BW neste computador", description: "Abra a BW em uma janela própria pelo seu navegador." }
+                : { ...task, title: "Adicione a BW à tela de início", description: "Abra a BW como app diretamente do seu celular." }
+              : task;
             return (
               <button className={task.completed ? "completed" : ""} key={task.id} onClick={() => onTask(task)} type="button">
                 <span className="profile-completion-task-icon"><Icon size={18} /></span>
-                <span><strong>{task.title}</strong><small>{task.description}</small></span>
+                <span><strong>{visibleTask.title}</strong><small>{visibleTask.description}</small></span>
                 {task.completed ? <CheckCircle2 className="profile-completion-check" size={19} /> : <ArrowRight size={18} />}
               </button>
             );
@@ -75,6 +80,7 @@ export function ProfileSetup() {
   const [expanded, setExpanded] = useState(false);
   const [installOpen, setInstallOpen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
+  const [tourDecisionThisVisit, setTourDecisionThisVisit] = useState(false);
   const [dismissedThisVisit, setDismissedThisVisit] = useState({ avatar: false, install: false });
   const platform = useMemo(() => devicePlatform(window), []);
   const standalone = useMemo(() => isStandaloneApp(window), []);
@@ -132,21 +138,29 @@ export function ProfileSetup() {
   const installPending = Boolean(
     progress &&
     !avatarPending &&
-    platform !== "other" &&
+    ["ios", "android"].includes(platform) &&
     !installComplete &&
     !dismissedThisVisit.install
   );
   const showInstallGuide = installOpen || installPending;
+  const tourInvitePending = Boolean(
+    user &&
+    !avatarPending &&
+    !showInstallGuide &&
+    !tourDecisionThisVisit &&
+    !user.onboarding?.tourCompleted &&
+    !user.onboarding?.tourSkipped
+  );
 
   useEffect(() => {
-    const modalOpen = avatarPending || showInstallGuide;
+    const modalOpen = avatarPending || showInstallGuide || tourInvitePending;
     if (!modalOpen) return undefined;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [avatarPending, showInstallGuide]);
+  }, [avatarPending, showInstallGuide, tourInvitePending]);
 
   async function patchOnboarding(values) {
     await updateProfile({ onboarding: values });
@@ -179,6 +193,20 @@ export function ProfileSetup() {
     navigate(task.to);
   }
 
+  function startTour() {
+    setTourDecisionThisVisit(true);
+    window.setTimeout(() => window.dispatchEvent(new Event("betterway:tour-start")), 180);
+  }
+
+  async function skipTour() {
+    setTourDecisionThisVisit(true);
+    try {
+      await patchOnboarding({ tourSkipped: true });
+    } catch {
+      // O usuário pode sair do convite mesmo se a preferência não sincronizar agora.
+    }
+  }
+
   return (
     <>
       <AvatarOnboarding
@@ -191,6 +219,7 @@ export function ProfileSetup() {
         expanded={expanded}
         onExpand={() => setExpanded((current) => !current)}
         onTask={openTask}
+        platform={platform}
         progress={progress}
       />
 
@@ -198,15 +227,15 @@ export function ProfileSetup() {
         <div aria-labelledby="install-guide-title" aria-modal="true" className="install-guide-backdrop" role="dialog">
           <section className="install-guide-dialog">
             <button aria-label="Fechar guia de instalação" className="first-run-close" onClick={closeInstallGuide} type="button"><X size={19} /></button>
-            <div className="install-guide-preview" aria-hidden="true">
+            <div className={`install-guide-preview ${platform === "desktop" ? "desktop" : ""}`} aria-hidden="true">
               <div className="install-preview-phone">
                 <img alt="" src={mobileDashboardImage} />
               </div>
             </div>
             <div className="install-guide-content">
-              <p className="first-run-kicker">BW no seu celular</p>
+              <p className="first-run-kicker">{platform === "desktop" ? "BW no seu computador" : "BW no seu celular"}</p>
               <h2 id="install-guide-title">Abra como um app, sem procurar o link.</h2>
-              <p>Adicione a BW à tela de início. Sua sessão continua protegida e o acesso fica mais rápido.</p>
+              <p>{platform === "desktop" ? "Instale a BW pelo navegador para abrir em uma janela própria e acessar mais rápido." : "Adicione a BW à tela de início. Sua sessão continua protegida e o acesso fica mais rápido."}</p>
 
               <div className="install-guide-steps">
                 {platform === "ios" ? (
@@ -215,11 +244,17 @@ export function ProfileSetup() {
                     <span><Share2 size={19} /><strong>Toque em Compartilhar</strong><small>O ícone fica na barra inferior ou superior do navegador.</small></span>
                     <span><PlusSquare size={19} /><strong>Adicionar à Tela de Início</strong><small>Confirme o nome BW e toque em Adicionar.</small></span>
                   </>
-                ) : (
+                ) : platform === "android" ? (
                   <>
                     <span><i>1</i><strong>Abra no Chrome</strong><small>Use betterway.com.br diretamente no navegador.</small></span>
                     <span><MoreVertical size={19} /><strong>Abra o menu</strong><small>Toque nos três pontos no canto do Chrome.</small></span>
                     <span><PlusSquare size={19} /><strong>Instalar app</strong><small>Escolha Instalar ou Adicionar à tela inicial.</small></span>
+                  </>
+                ) : (
+                  <>
+                    <span><i>1</i><strong>Abra no Chrome ou Edge</strong><small>Use betterway.com.br no navegador deste computador.</small></span>
+                    <span><MoreVertical size={19} /><strong>Abra o menu do navegador</strong><small>Procure por Instalar BW ou Aplicativos.</small></span>
+                    <span><PlusSquare size={19} /><strong>Confirme a instalação</strong><small>A BW abrirá em uma janela própria, como os outros apps.</small></span>
                   </>
                 )}
               </div>
@@ -228,6 +263,21 @@ export function ProfileSetup() {
                 <button className="first-run-secondary" onClick={closeInstallGuide} type="button">Fazer depois</button>
                 <button className="first-run-primary" onClick={confirmInstalled} type="button"><Check size={18} /> {installPrompt ? "Instalar BW" : "Já adicionei"}</button>
               </div>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {tourInvitePending ? (
+        <div aria-labelledby="tour-invite-title" aria-modal="true" className="tour-invite-backdrop" role="dialog">
+          <section className="tour-invite-dialog">
+            <span className="tour-invite-icon"><Sparkles aria-hidden="true" size={25} /></span>
+            <p className="first-run-kicker">Primeiros passos</p>
+            <h2 id="tour-invite-title">Quer conhecer a BW por dentro?</h2>
+            <p>Em poucos passos, mostramos onde registrar seu dinheiro, planejar limites e metas, simular investimentos e usar amizades.</p>
+            <div className="tour-invite-actions">
+              <button className="first-run-secondary" onClick={skipTour} type="button">Pular por agora</button>
+              <button className="first-run-primary" onClick={startTour} type="button">Começar tour <ArrowRight size={18} /></button>
             </div>
           </section>
         </div>

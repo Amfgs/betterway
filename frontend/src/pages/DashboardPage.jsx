@@ -56,7 +56,7 @@ function createEmptyGoalForm() {
     targetAmount: "",
     currentAmount: "",
     dueDate: inputDate(new Date(now.getFullYear(), now.getMonth() + 3, 1)),
-    productUrl: "",
+    productQuery: "",
     productTargetPrice: ""
   };
 }
@@ -68,7 +68,7 @@ const emptyLimitForm = {
 
 function TransactionForm({ editingTransactionId, form, onCancel, onChange, onSubmit }) {
   return (
-    <form className="transaction-priority-form" id="novo-registro" onSubmit={onSubmit}>
+    <form className="transaction-priority-form" data-tour="transaction-form" id="novo-registro" onSubmit={onSubmit}>
       <div className="transaction-priority-heading">
         <div>
           <h3>{editingTransactionId ? "Editar transação" : "O que mudou no seu dinheiro?"}</h3>
@@ -127,7 +127,7 @@ function TransactionForm({ editingTransactionId, form, onCancel, onChange, onSub
 
 function DashboardSnapshot({ usageTone, widgets, windowLabel }) {
   return (
-    <div className="dashboard-snapshot">
+    <div className="dashboard-snapshot" data-tour="financial-overview">
       <div className={`dashboard-snapshot-balance ${Number(widgets.balance || 0) < 0 ? "negative" : ""}`}>
         <span>Saldo desta janela</span>
         <strong>{currency(widgets.balance)}</strong>
@@ -202,6 +202,7 @@ export function DashboardPage() {
   const [limitForm, setLimitForm] = useState(emptyLimitForm);
   const [goalActions, setGoalActions] = useState({});
   const [productPreview, setProductPreview] = useState(null);
+  const [productResults, setProductResults] = useState([]);
   const [productError, setProductError] = useState("");
   const [productWorking, setProductWorking] = useState("");
   const [productTargets, setProductTargets] = useState({});
@@ -257,12 +258,14 @@ export function DashboardPage() {
 
   function updateGoalForm(key, value) {
     setGoalForm((current) => ({ ...current, [key]: value }));
-    if (key === "productUrl") {
+    if (key === "productQuery") {
       setProductPreview(null);
+      setProductResults([]);
       setProductError("");
     }
     if (key === "mode") {
       setProductPreview(null);
+      setProductResults([]);
       setProductError("");
     }
   }
@@ -339,7 +342,9 @@ export function DashboardPage() {
             currentAmount: goalForm.currentAmount,
             dueDate: goalForm.dueDate,
             product: {
-              url: productPreview?.url || goalForm.productUrl,
+              provider: "buscape",
+              marketUrl: productPreview?.url,
+              searchQuery: goalForm.productQuery,
               targetPrice: goalForm.productTargetPrice
             }
           }
@@ -354,8 +359,13 @@ export function DashboardPage() {
         return;
       }
       await api.post("/goals", payload);
+      setGoalNotice(goalForm.mode === "product"
+        ? "Meta de produto criada. A BW já está acompanhando o menor preço e o valor guardado."
+        : "Caixinha criada com sucesso."
+      );
       setGoalForm(createEmptyGoalForm());
       setProductPreview(null);
+      setProductResults([]);
       await load();
     } catch (err) {
       if (goalForm.mode === "product") setProductError(getErrorMessage(err));
@@ -365,23 +375,25 @@ export function DashboardPage() {
     }
   }
 
-  async function findProduct() {
+  async function findProducts() {
     setProductError("");
     setProductPreview(null);
-    setProductWorking("preview");
+    setProductResults([]);
+    setProductWorking("search");
     try {
-      const response = await api.post("/goals/product/preview", { url: goalForm.productUrl });
-      setProductPreview(response.data.product);
-      setGoalForm((current) => ({
-        ...current,
-        name: response.data.product.name,
-        productUrl: response.data.product.url
-      }));
+      const response = await api.post("/goals/product/search", { query: goalForm.productQuery });
+      setProductResults(response.data.products || []);
     } catch (err) {
       setProductError(getErrorMessage(err));
     } finally {
       setProductWorking("");
     }
+  }
+
+  function selectProduct(product) {
+    setProductPreview(product);
+    setProductError("");
+    setGoalForm((current) => ({ ...current, name: product.name }));
   }
 
   async function refreshProduct(goal) {
@@ -497,6 +509,7 @@ export function DashboardPage() {
       <WorkspacePeriodControl
         controlLabel="Mês selecionado"
         description={`A leitura considera ${summary?.window?.label || "a janela financeira atual"}.`}
+        icon={ChartNoAxesCombined}
         label="Período analisado"
         onChange={setMonth}
         stacked
@@ -665,7 +678,7 @@ export function DashboardPage() {
           title="Proteja seus próximos passos"
         />
         <div className="dashboard-planning grid gap-4 xl:grid-cols-2">
-        <div className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900" id="nova-meta">
+        <div className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900" data-tour="goals-section" id="nova-meta">
           <div className="flex items-center gap-3">
             <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-300">
               <WalletCards size={20} />
@@ -691,23 +704,56 @@ export function DashboardPage() {
               </>
             ) : (
               <div className="product-goal-builder">
-                <div className="product-goal-url-row">
+                <div className="product-goal-search-row">
                   <label>
-                    <span>Link do produto</span>
-                    <input inputMode="url" placeholder="https://loja.com.br/produto" type="url" value={goalForm.productUrl} onChange={(event) => updateGoalForm("productUrl", event.target.value)} required />
+                    <span>Qual produto você quer alcançar?</span>
+                    <input
+                      autoComplete="off"
+                      onChange={(event) => updateGoalForm("productQuery", event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          if (goalForm.productQuery.trim().length >= 2) findProducts();
+                        }
+                      }}
+                      placeholder="Ex.: monitor 144 Hz, iPhone 16, cafeteira"
+                      type="search"
+                      value={goalForm.productQuery}
+                    />
                   </label>
-                  <button disabled={productWorking === "preview" || !goalForm.productUrl} onClick={findProduct} type="button">
-                    {productWorking === "preview" ? <RefreshCw className="animate-spin" size={17} /> : <PackageSearch size={17} />}
-                    {productWorking === "preview" ? "Buscando" : "Buscar"}
+                  <button disabled={productWorking === "search" || goalForm.productQuery.trim().length < 2} onClick={findProducts} type="button">
+                    {productWorking === "search" ? <RefreshCw className="animate-spin" size={17} /> : <PackageSearch size={17} />}
+                    {productWorking === "search" ? "Consultando" : "Buscar produtos"}
                   </button>
                 </div>
-                <p className="product-goal-helper"><BellRing size={15} /> A BW acompanha o preço público dessa oferta e avisa quando baixar ou quando sua caixinha já puder comprá-la.</p>
+                <p className="product-goal-helper"><BellRing size={15} /> Escolha um modelo. A BW usa a menor oferta pública encontrada como valor da meta e continua comparando o mercado.</p>
+
+                {productResults.length && !productPreview ? (
+                  <div aria-label="Produtos encontrados" className="product-search-results">
+                    <div className="product-search-results-heading">
+                      <strong>{productResults.length} modelos encontrados</strong>
+                      <small>Valores observados agora no Buscapé</small>
+                    </div>
+                    <div className="product-search-results-list">
+                      {productResults.map((product) => (
+                        <button key={product.url} onClick={() => selectProduct(product)} type="button">
+                          {product.imageUrl ? <img alt={product.name} loading="lazy" referrerPolicy="no-referrer" src={product.imageUrl} /> : <span><ShoppingBag size={22} /></span>}
+                          <span>
+                            <strong>{product.name}</strong>
+                            <small>{product.store} · {product.offersCount} {product.offersCount === 1 ? "loja" : "lojas"}</small>
+                          </span>
+                          <b>{currency(product.price)}</b>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
 
                 {productPreview ? (
                   <div className="product-goal-preview">
-                    {productPreview.imageUrl ? <img alt="" loading="lazy" referrerPolicy="no-referrer" src={productPreview.imageUrl} /> : <span><ShoppingBag size={24} /></span>}
-                    <div><small>{productPreview.store}</small><strong>{productPreview.name}</strong><p>Preço encontrado: {currency(productPreview.price)}</p></div>
-                    <CheckCircle2 aria-label="Produto encontrado" size={20} />
+                    {productPreview.imageUrl ? <img alt={productPreview.name} loading="lazy" referrerPolicy="no-referrer" src={productPreview.imageUrl} /> : <span><ShoppingBag size={24} /></span>}
+                    <div><small>Modelo selecionado · {productPreview.store}</small><strong>{productPreview.name}</strong><p>Valor automático da meta: {currency(productPreview.price)}</p></div>
+                    <button aria-label="Trocar produto selecionado" onClick={() => setProductPreview(null)} type="button">Trocar</button>
                   </div>
                 ) : null}
 
@@ -742,9 +788,9 @@ export function DashboardPage() {
                         <span className="product-goal-image-fallback"><ShoppingBag size={25} /></span>
                       )}
                       <div>
-                        <p><ShoppingBag size={14} /> Meta de produto · {goal.product.store}</p>
+                        <p><ShoppingBag size={14} /> Meta de produto · {goal.product.marketSource || goal.product.store}</p>
                         <h3>{goal.product.name || goal.name}</h3>
-                        <small>Prazo: {shortDate(goal.dueDate)}</small>
+                        <small>{goal.product.offersCount > 1 ? `Melhor oferta entre ${goal.product.offersCount} lojas` : goal.product.store} · prazo: {shortDate(goal.dueDate)}</small>
                       </div>
                       {String(goal.userId) === String(user?.id) ? (
                         <button aria-label={`Excluir meta ${goal.name}`} className="product-goal-delete" onClick={() => deleteGoal(goal.id)} type="button"><Trash2 size={16} /></button>
@@ -783,6 +829,9 @@ export function DashboardPage() {
                     {goal.product.status === "error" ? (
                       <p className="product-goal-sync-error">{goal.product.lastError || "Não foi possível atualizar essa oferta agora."}</p>
                     ) : null}
+                    {goal.product.couponCode ? (
+                      <p className="product-goal-coupon"><Tag size={15} /> Cupom publicado: <strong>{goal.product.couponCode}</strong></p>
+                    ) : null}
 
                     <div className="product-goal-toolbar">
                       <div className="product-target-editor">
@@ -794,7 +843,7 @@ export function DashboardPage() {
                       </div>
                       <div className="product-market-actions">
                         <button disabled={productWorking === `refresh:${goal.id}`} onClick={() => refreshProduct(goal)} type="button"><RefreshCw className={productWorking === `refresh:${goal.id}` ? "animate-spin" : ""} size={16} /> Atualizar preço</button>
-                        <a href={goal.product.url} rel="noreferrer" target="_blank">Ver na loja <ExternalLink size={15} /></a>
+                        <a href={goal.product.offerUrl || goal.product.url} rel="noreferrer" target="_blank">Ver melhor oferta <ExternalLink size={15} /></a>
                       </div>
                     </div>
                     <p className="product-goal-updated">Última leitura: {goal.product.lastCheckedAt ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(goal.product.lastCheckedAt)) : "aguardando"}</p>
@@ -873,7 +922,7 @@ export function DashboardPage() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900" id="novo-limite">
+        <div className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900" data-tour="limits-section" id="novo-limite">
           <h2 className="text-xl font-black">Cadastro de limites</h2>
           <form className="mt-4 grid gap-3" onSubmit={createLimit}>
             <div className="grid gap-3 sm:grid-cols-[1fr_1fr]">

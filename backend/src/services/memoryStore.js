@@ -27,7 +27,9 @@ const defaultOnboarding = {
   installPromptDismissed: false,
   installCompleted: false,
   simulatedInvestment: false,
-  viewedNews: false
+  viewedNews: false,
+  tourCompleted: false,
+  tourSkipped: false
 };
 
 function defaultState() {

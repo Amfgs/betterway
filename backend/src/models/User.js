@@ -219,6 +219,14 @@ const userSchema = new mongoose.Schema(
       viewedNews: {
         type: Boolean,
         default: false
+      },
+      tourCompleted: {
+        type: Boolean,
+        default: false
+      },
+      tourSkipped: {
+        type: Boolean,
+        default: false
       }
     }
   },

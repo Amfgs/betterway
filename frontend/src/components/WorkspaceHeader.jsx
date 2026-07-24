@@ -39,11 +39,11 @@ export function GuidedSectionHeader({ icon: Icon, title, description, className 
   );
 }
 
-export function WorkspacePeriodControl({ label, value, onChange, description, controlLabel = "Alterar mês", stacked = false, variant = "default" }) {
+export function WorkspacePeriodControl({ icon: Icon = CalendarRange, label, value, onChange, description, controlLabel = "Alterar mês", stacked = false, variant = "default" }) {
   return (
     <section aria-label={label} className={`workspace-period-strip workspace-period-${variant} ${stacked ? "workspace-period-stacked" : ""}`.trim()}>
       <div className="workspace-period-copy">
-        <span className="workspace-period-icon"><CalendarRange aria-hidden="true" size={19} /></span>
+        <span className="workspace-period-icon"><Icon aria-hidden="true" size={19} /></span>
         <span>
           <strong>{label}</strong>
           <small>{description}</small>
@@ -87,7 +87,7 @@ export function WorkspaceTabs({ tabs, active, compactMobile = false }) {
         {tabs.map((tab) => {
           const Icon = tab.icon;
           return (
-            <Link aria-current={active === tab.id ? "page" : undefined} className={active === tab.id ? "active" : ""} key={tab.id} to={tab.to}>
+            <Link aria-current={active === tab.id ? "page" : undefined} className={active === tab.id ? "active" : ""} data-tour={tab.tourId} key={tab.id} to={tab.to}>
               {Icon ? <Icon size={17} /> : null}
               <span>{tab.label}</span>
               {tab.badge ? <small>{tab.badge}</small> : null}
@@ -97,7 +97,7 @@ export function WorkspaceTabs({ tabs, active, compactMobile = false }) {
       </nav>
       {compactMobile ? (
         <div className={`workspace-view-picker ${pickerOpen ? "open" : ""}`} ref={pickerRef}>
-          <button aria-expanded={pickerOpen} aria-haspopup="menu" onClick={() => setPickerOpen((current) => !current)} type="button">
+          <button aria-expanded={pickerOpen} aria-haspopup="menu" data-tour={currentTab?.tourId} onClick={() => setPickerOpen((current) => !current)} type="button">
             <span className="workspace-view-picker-icon">{CurrentIcon ? <CurrentIcon size={18} /> : null}</span>
             <span><small>Visão de investimentos</small><strong>{currentTab?.label}</strong></span>
             <ChevronDown aria-hidden="true" size={17} />

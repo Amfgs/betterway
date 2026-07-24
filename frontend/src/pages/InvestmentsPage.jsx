@@ -99,9 +99,9 @@ const fixedIncomeTypes = new Set([
 ]);
 
 const investmentTabs = [
-  { id: "portfolio", label: "Minha carteira", to: "/investimentos", icon: BriefcaseBusiness },
-  { id: "simulator", label: "Simular futuro", to: "/investimentos?view=simulador", icon: Calculator },
-  { id: "news", label: "Mercado agora", to: "/investimentos?view=noticias", icon: Newspaper }
+  { id: "portfolio", label: "Minha carteira", to: "/investimentos", icon: BriefcaseBusiness, tourId: "portfolio-tab" },
+  { id: "simulator", label: "Simular futuro", to: "/investimentos?view=simulador", icon: Calculator, tourId: "simulator-tab" },
+  { id: "news", label: "Mercado agora", to: "/investimentos?view=noticias", icon: Newspaper, tourId: "market-view" }
 ];
 
 function createSplit(amount = "") {
@@ -392,7 +392,7 @@ export function InvestmentsPage() {
           title="Simulador de investimentos"
         />
         <WorkspaceTabs active={activeView} compactMobile tabs={investmentTabs} />
-        <section className="guided-page-section">
+        <section className="guided-page-section" data-tour="simulator-view">
           <GuidedSectionHeader
             description="Escolha o tipo de investimento, informe o aporte e compare quanto veio do seu bolso com o que foi gerado pelo rendimento."
             icon={Calculator}
@@ -413,7 +413,7 @@ export function InvestmentsPage() {
           title="Notícias do mercado"
         />
         <WorkspaceTabs active={activeView} compactMobile tabs={investmentTabs} />
-        <section className="guided-page-section">
+        <section className="guided-page-section" data-tour="market-view">
           <GuidedSectionHeader
             description="Use o feed para entender fatos que podem afetar juros, inflação e ativos, sem transformar notícia em recomendação automática."
             icon={Newspaper}
@@ -536,7 +536,7 @@ export function InvestmentsPage() {
         </button>
       ) : null}
 
-      <section className="investment-overview-stats grid gap-4 md:grid-cols-3" id="resumo-investimentos">
+      <section className="investment-overview-stats grid gap-4 md:grid-cols-3" data-tour="portfolio-view" id="resumo-investimentos">
         <GuidedSectionHeader
           className="guided-grid-span"
           description="Compare o que foi aportado com o valor atual para entender o resultado total da carteira antes de olhar cada ativo."

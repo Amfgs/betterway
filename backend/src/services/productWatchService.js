@@ -10,6 +10,10 @@ const MAX_HTML_BYTES = 2 * 1024 * 1024;
 const MAX_REDIRECTS = 3;
 const MAX_HISTORY_POINTS = 45;
 const REFRESH_INTERVAL_MS = 30 * 60 * 1000;
+const MARKET_SEARCH_CACHE_MS = 10 * 60 * 1000;
+const MARKET_SEARCH_RESULT_LIMIT = 10;
+const BUSCAPE_ORIGIN = "https://www.buscape.com.br";
+const marketSearchCache = new Map();
 
 const STORE_NAMES = new Map([
   ["amazon.com.br", "Amazon"],
@@ -31,6 +35,46 @@ function exposedError(message, status = 400, code = "PRODUCT_LOOKUP_FAILED") {
   error.code = code;
   error.expose = true;
   return error;
+}
+
+function normalizedSearchQuery(value) {
+  const query = String(value || "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+  if (query.length < 2 || query.length > 100) {
+    throw exposedError("Digite entre 2 e 100 caracteres para buscar um produto.", 400, "INVALID_PRODUCT_QUERY");
+  }
+  return query;
+}
+
+function readerHeaders(tokenBudget = 12000) {
+  return {
+    Accept: "application/json",
+    "X-Return-Format": "markdown",
+    "X-Token-Budget": String(tokenBudget),
+    "X-Timeout": "22",
+    ...(process.env.JINA_API_KEY ? { Authorization: `Bearer ${process.env.JINA_API_KEY}` } : {})
+  };
+}
+
+async function readPublicPage(pageUrl, { tokenBudget = 12000, timeout = 28000 } = {}) {
+  let response;
+  try {
+    response = await axios.get(`https://r.jina.ai/${pageUrl}`, {
+      timeout,
+      maxContentLength: 10 * 1024 * 1024,
+      headers: readerHeaders(tokenBudget)
+    });
+  } catch (error) {
+    if (error.response?.status === 429) {
+      throw exposedError("A busca de produtos está muito movimentada. Aguarde um minuto e tente novamente.", 429, "MARKET_SEARCH_BUSY");
+    }
+    throw exposedError("Não foi possível consultar o mercado agora. Tente novamente em instantes.", 502, "MARKET_SEARCH_UNAVAILABLE");
+  }
+
+  const data = response.data?.data;
+  if (!data || Number(data.httpStatus || 200) >= 400 || !String(data.content || "").trim()) {
+    throw exposedError("Não foi possível consultar o mercado agora. Tente novamente em instantes.", 502, "MARKET_SEARCH_UNAVAILABLE");
+  }
+  return data;
 }
 
 function isPrivateIp(address) {
@@ -250,6 +294,152 @@ function storeName(hostname) {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
+function canonicalBuscapeProductUrl(value) {
+  let url;
+  try {
+    url = new URL(String(value || "").trim());
+  } catch {
+    throw exposedError("O produto selecionado não possui um endereço de mercado válido.", 400, "INVALID_MARKET_PRODUCT");
+  }
+  const hostname = url.hostname.toLowerCase().replace(/^www\./, "");
+  const blockedPath = /^\/(?:busca|search|lead|conteudo|cupom-de-desconto|landing-page)(?:\/|$)/i.test(url.pathname);
+  if (url.protocol !== "https:" || hostname !== "buscape.com.br" || blockedPath || url.pathname.split("/").filter(Boolean).length < 2) {
+    throw exposedError("Selecione um dos modelos encontrados pela busca da BW.", 400, "INVALID_MARKET_PRODUCT");
+  }
+  return `${BUSCAPE_ORIGIN}${url.pathname.replace(/\/+$/, "")}`;
+}
+
+function parseMarketSearchContent(content) {
+  const products = [];
+  const seen = new Set();
+  const cardPattern = /\[!\[Image\s+\d+:\s*Imagem de\s+([^\]]+)\]\((https:\/\/[^)\s]+)\)([\s\S]*?)\]\((https:\/\/www\.buscape\.com\.br\/[^)\s]+)\)/gi;
+
+  for (const match of String(content || "").matchAll(cardPattern)) {
+    let url;
+    try {
+      url = canonicalBuscapeProductUrl(match[4]);
+    } catch {
+      continue;
+    }
+    if (seen.has(url)) continue;
+
+    const details = String(match[3] || "").replace(/\s+/g, " ");
+    const price = normalizePrice(details.match(/\*\*R\$\s*([0-9][0-9.,]*)\*\*/i)?.[1]);
+    if (!price) continue;
+
+    const rawName = he.decode(String(match[1] || "")).replace(/\s+/g, " ").trim();
+    const name = rawName.slice(0, 240);
+    if (!name) continue;
+    const store = he.decode(details.match(/\bVia\s+(.+?)\s+\*\*R\$/i)?.[1] || "Oferta pública").trim().slice(0, 120);
+    const offersCount = Number(details.match(/(?:Compare em\s+)?(\d+)\s+lojas?/i)?.[1] || 1);
+
+    seen.add(url);
+    products.push({
+      id: url.split("/").pop(),
+      provider: "buscape",
+      marketSource: "Buscapé",
+      url,
+      name,
+      imageUrl: absoluteHttpsUrl(match[2], BUSCAPE_ORIGIN),
+      store,
+      currency: "BRL",
+      price,
+      offersCount
+    });
+    if (products.length >= MARKET_SEARCH_RESULT_LIMIT) break;
+  }
+  return products;
+}
+
+function couponFromMarketContent(content) {
+  const text = String(content || "");
+  const patterns = [
+    /(?:cupom|c[oó]digo(?:\s+do\s+cupom)?)\s*(?::|-)\s*(?:\*\*|`)?([A-Z0-9][A-Z0-9_-]{3,24})(?:\*\*|`)?/gi,
+    /use\s+(?:o\s+)?cupom\s+(?:\*\*|`)([A-Z0-9][A-Z0-9_-]{3,24})(?:\*\*|`)/gi
+  ];
+  const blocked = new Set(["DESCONTO", "OFERTA", "PROMOCAO", "CASHBACK", "CUPOM"]);
+  for (const pattern of patterns) {
+    for (const match of text.matchAll(pattern)) {
+      const code = String(match[1] || "").toUpperCase();
+      if (!blocked.has(code)) return code;
+    }
+  }
+  return "";
+}
+
+function parseMarketProductContent(content, pageUrl, title = "", fallback = {}) {
+  const canonicalUrl = canonicalBuscapeProductUrl(pageUrl);
+  const markdown = String(content || "");
+  const offersStart = markdown.search(/##\s+Ofertas destacadas/i);
+  const offersEnd = markdown.search(/##\s+Hist[oó]rico de Pre[cç]os/i);
+  const offersSection = offersStart >= 0
+    ? markdown.slice(offersStart, offersEnd > offersStart ? offersEnd : offersStart + 18000)
+    : markdown.slice(0, 18000);
+  const offerPattern = /\[R\$\s*([0-9][0-9.,]*)[^\]]*\]\((https:\/\/www\.buscape\.com\.br\/lead\?[^)\s"]+)(?:\s+"Ir para ([^"]+)")?\)/gi;
+  const offers = [];
+  const seen = new Set();
+
+  for (const match of offersSection.matchAll(offerPattern)) {
+    const price = normalizePrice(match[1]);
+    const offerUrl = String(match[2] || "").slice(0, 2048);
+    if (!price || !offerUrl || seen.has(offerUrl)) continue;
+    seen.add(offerUrl);
+    offers.push({ price, offerUrl, store: he.decode(match[3] || "").trim().slice(0, 120) });
+  }
+  offers.sort((left, right) => left.price - right.price);
+  const best = offers[0];
+  if (!best) {
+    throw exposedError("O comparador não publicou uma oferta disponível para esse produto agora.", 422, "MARKET_PRODUCT_UNAVAILABLE");
+  }
+
+  const titleName = he.decode(String(title || ""))
+    .replace(/\s+em Promo[cç][aã]o.*$/i, "")
+    .replace(/\s+\|.*$/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const name = String(fallback.name || titleName).trim().slice(0, 240);
+  if (!name) throw exposedError("Não foi possível identificar esse modelo de produto.", 422, "MARKET_PRODUCT_UNAVAILABLE");
+  const offersCount = Number(markdown.match(/Compare pre[cç]os em\s+(\d+)\s+lojas?/i)?.[1] || offers.length || 1);
+
+  return {
+    provider: "buscape",
+    marketSource: "Buscapé",
+    url: canonicalUrl,
+    offerUrl: best.offerUrl,
+    name,
+    imageUrl: readerImage(offersSection, name, canonicalUrl) || fallback.imageUrl || "",
+    store: best.store || fallback.store || "Loja encontrada",
+    currency: "BRL",
+    price: best.price,
+    offersCount,
+    couponCode: couponFromMarketContent(offersSection),
+    searchQuery: String(fallback.searchQuery || "").slice(0, 100)
+  };
+}
+
+async function searchMarketProducts(value) {
+  const query = normalizedSearchQuery(value);
+  const cacheKey = query.toLocaleLowerCase("pt-BR");
+  const cached = marketSearchCache.get(cacheKey);
+  if (cached && Date.now() - cached.checkedAt < MARKET_SEARCH_CACHE_MS) return cached.products;
+
+  const path = encodeURIComponent(query).replace(/%20/g, "+");
+  const data = await readPublicPage(`${BUSCAPE_ORIGIN}/busca/${path}`, { tokenBudget: 40000, timeout: 30000 });
+  const products = parseMarketSearchContent(data.content);
+  if (!products.length) {
+    throw exposedError("Nenhum modelo com preço público foi encontrado. Tente uma busca mais específica.", 404, "PRODUCT_NOT_FOUND");
+  }
+  marketSearchCache.set(cacheKey, { checkedAt: Date.now(), products });
+  if (marketSearchCache.size > 40) marketSearchCache.delete(marketSearchCache.keys().next().value);
+  return products;
+}
+
+async function inspectMarketProductUrl(value, fallback = {}) {
+  const url = canonicalBuscapeProductUrl(value);
+  const data = await readPublicPage(url, { tokenBudget: 40000, timeout: 30000 });
+  return parseMarketProductContent(data.content, url, data.title, fallback);
+}
+
 function parseProductHtml(html, pageUrl) {
   const jsonProduct = extractJsonProduct(html);
   const meta = extractMeta(html);
@@ -309,23 +499,13 @@ function readerPrice(content, title) {
 }
 
 async function inspectWithReader(pageUrl, directError) {
-  let response;
+  let data;
   try {
-    response = await axios.get(`https://r.jina.ai/${pageUrl}`, {
-      timeout: 22000,
-      maxContentLength: 3 * 1024 * 1024,
-      headers: {
-        Accept: "application/json",
-        "X-Return-Format": "markdown",
-        "X-Token-Budget": "9000",
-        "X-Timeout": "18"
-      }
-    });
+    data = await readPublicPage(pageUrl, { tokenBudget: 9000, timeout: 22000 });
   } catch {
     throw directError;
   }
 
-  const data = response.data?.data;
   const title = String(data?.title || "").replace(/\s+/g, " ").trim().slice(0, 240);
   const content = String(data?.content || "");
   if (!data || Number(data.httpStatus || 200) >= 400 || /não é possível acessar|access denied|forbidden/i.test(title)) {
@@ -424,10 +604,16 @@ function nextProductSnapshot(goal, inspected) {
   return {
     ...goal.product,
     enabled: true,
+    provider: inspected.provider || goal.product?.provider || "direct",
+    marketSource: inspected.marketSource || goal.product?.marketSource || "",
+    searchQuery: inspected.searchQuery || goal.product?.searchQuery || "",
     url: inspected.url,
+    offerUrl: inspected.offerUrl || inspected.url,
     name: inspected.name,
     imageUrl: inspected.imageUrl || goal.product?.imageUrl || "",
     store: inspected.store,
+    offersCount: Number(inspected.offersCount || goal.product?.offersCount || 1),
+    couponCode: inspected.couponCode || "",
     currency: inspected.currency,
     previousPrice: previous,
     currentPrice: current,
@@ -447,7 +633,9 @@ async function refreshProductGoal(goal, { force = false } = {}) {
 
   let updatedGoal;
   try {
-    const inspected = await inspectProductUrl(goal.product.url);
+    const inspected = goal.product.provider === "buscape" || goal.product.marketSource === "Buscapé"
+      ? await inspectMarketProductUrl(goal.product.url, goal.product)
+      : await inspectProductUrl(goal.product.url);
     const product = nextProductSnapshot(goal, inspected);
     updatedGoal = await repository.updateProductGoal(goal.id, {
       product,
@@ -490,11 +678,16 @@ async function runScheduledProductWatch() {
 }
 
 module.exports = {
+  canonicalBuscapeProductUrl,
   evaluateProductGoalAlerts,
+  inspectMarketProductUrl,
   inspectProductUrl,
+  parseMarketProductContent,
+  parseMarketSearchContent,
   parseProductHtml,
   refreshProductGoal,
   refreshUserProductGoals,
   runScheduledProductWatch,
+  searchMarketProducts,
   validateProductUrl
 };

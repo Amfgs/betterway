@@ -3,9 +3,11 @@ const repository = require("../services/repository");
 const { maybeSendGoalReachedAlert } = require("../services/notificationService");
 const {
   evaluateProductGoalAlerts,
+  inspectMarketProductUrl,
   inspectProductUrl,
   refreshProductGoal,
-  refreshUserProductGoals
+  refreshUserProductGoals,
+  searchMarketProducts
 } = require("../services/productWatchService");
 const crypto = require("crypto");
 const { asNumber, normalizeDateForStorage } = require("../utils/financial");
@@ -28,6 +30,17 @@ const previewProduct = asyncHandler(async (req, res) => {
   return res.json({ product });
 });
 
+const searchProducts = asyncHandler(async (req, res) => {
+  const query = cleanText(req.body.query, 100);
+  const products = await searchMarketProducts(query);
+  return res.json({
+    query,
+    products,
+    source: "Buscapé",
+    notice: "Os valores são ofertas públicas observadas no comparador e podem mudar na loja."
+  });
+});
+
 const create = asyncHandler(async (req, res) => {
   const { name, targetAmount, currentAmount, dueDate, participantIds, product: requestedProduct } = req.body;
   if (Array.isArray(participantIds) && participantIds.length) {
@@ -36,8 +49,15 @@ const create = asyncHandler(async (req, res) => {
       message: "Metas conjuntas precisam ser enviadas como proposta pela página Amigos."
     });
   }
-  const isProductGoal = Boolean(requestedProduct?.url);
-  const inspectedProduct = isProductGoal ? await inspectProductUrl(requestedProduct.url) : null;
+  const isMarketProduct = Boolean(requestedProduct?.marketUrl || requestedProduct?.provider === "buscape");
+  const isProductGoal = Boolean(requestedProduct?.url || requestedProduct?.marketUrl);
+  const inspectedProduct = isProductGoal
+    ? isMarketProduct
+      ? await inspectMarketProductUrl(requestedProduct.marketUrl || requestedProduct.url, {
+          searchQuery: cleanText(requestedProduct.searchQuery, 100)
+        })
+      : await inspectProductUrl(requestedProduct.url)
+    : null;
   const cleanName = cleanText(name || inspectedProduct?.name, 120);
   const target = isProductGoal
     ? inspectedProduct.price
@@ -71,10 +91,16 @@ const create = asyncHandler(async (req, res) => {
       ? {
           product: {
             enabled: true,
+            provider: inspectedProduct.provider || "direct",
+            marketSource: inspectedProduct.marketSource || "",
+            searchQuery: inspectedProduct.searchQuery || "",
             url: inspectedProduct.url,
+            offerUrl: inspectedProduct.offerUrl || inspectedProduct.url,
             name: inspectedProduct.name,
             imageUrl: inspectedProduct.imageUrl,
             store: inspectedProduct.store,
+            offersCount: Number(inspectedProduct.offersCount || 1),
+            couponCode: inspectedProduct.couponCode || "",
             currency: inspectedProduct.currency,
             targetPrice: productTargetPrice,
             currentPrice: inspectedProduct.price,
@@ -219,6 +245,7 @@ const remove = asyncHandler(async (req, res) => {
 module.exports = {
   list,
   previewProduct,
+  searchProducts,
   create,
   update,
   updateProduct,
