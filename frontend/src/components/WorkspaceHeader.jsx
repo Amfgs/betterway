@@ -44,7 +44,7 @@ export function WorkspacePeriodControl({ icon: Icon = CalendarRange, label, valu
     <section aria-label={label} className={`workspace-period-strip workspace-period-${variant} ${stacked ? "workspace-period-stacked" : ""}`.trim()}>
       <div className="workspace-period-copy">
         <span className="workspace-period-icon"><Icon aria-hidden="true" size={19} /></span>
-        <span>
+        <span className="workspace-period-copy-content">
           <strong>{label}</strong>
           <small>{description}</small>
         </span>

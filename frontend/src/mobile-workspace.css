@@ -803,9 +803,25 @@ body.pluggy-connect-active {
   }
 
   .workspace-period-strip .workspace-period-icon {
+    display: grid !important;
     width: 34px;
     height: 34px;
     flex-basis: 34px;
+    align-self: center !important;
+    justify-self: center !important;
+    place-items: center !important;
+    margin: 0 !important;
+  }
+
+  .workspace-period-strip .workspace-period-icon > svg {
+    width: 18px;
+    height: 18px;
+    margin: 0 !important;
+  }
+
+  .workspace-period-strip .workspace-period-copy-content {
+    min-width: 0;
+    align-self: center;
   }
 
   .workspace-period-strip .workspace-period-copy strong {

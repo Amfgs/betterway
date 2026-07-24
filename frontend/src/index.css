@@ -3800,7 +3800,9 @@ html {
 
 .workspace-period-icon > svg {
   display: block;
-  margin: auto;
+  width: 19px;
+  height: 19px;
+  margin: 0;
 }
 
 .workspace-period-planning .workspace-period-icon {
@@ -3808,11 +3810,15 @@ html {
   color: #c9ff63;
 }
 
-.workspace-period-copy > span:last-child,
+.workspace-period-copy-content,
 .workspace-period-copy strong,
 .workspace-period-copy small {
   display: block;
   min-width: 0;
+}
+
+.workspace-period-copy-content {
+  align-self: center;
 }
 
 .workspace-period-copy strong {
