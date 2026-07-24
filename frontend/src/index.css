@@ -3785,6 +3785,8 @@ html {
 }
 
 .workspace-period-icon {
+  position: relative;
+  box-sizing: border-box;
   display: grid;
   width: 40px;
   height: 40px;
@@ -3799,10 +3801,14 @@ html {
 }
 
 .workspace-period-icon > svg {
+  position: absolute;
+  top: 50%;
+  left: 50%;
   display: block;
   width: 19px;
   height: 19px;
   margin: 0;
+  transform: translate(-50%, -50%);
 }
 
 .workspace-period-planning .workspace-period-icon {
@@ -11841,7 +11847,7 @@ body.quick-actions-open {
   gap: 12px;
 }
 
-.workspace-period-strip .workspace-period-copy > span:last-child {
+.workspace-period-strip .workspace-period-copy-content {
   display: block;
 }
 

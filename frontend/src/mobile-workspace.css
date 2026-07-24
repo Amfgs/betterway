@@ -817,6 +817,7 @@ body.pluggy-connect-active {
     width: 18px;
     height: 18px;
     margin: 0 !important;
+    transform: translate(-50%, -50%);
   }
 
   .workspace-period-strip .workspace-period-copy-content {
