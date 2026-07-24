@@ -3789,10 +3789,18 @@ html {
   width: 40px;
   height: 40px;
   flex: 0 0 40px;
+  align-self: center;
+  justify-self: center;
   place-items: center;
   border-radius: 8px;
   background: #e4f2ea;
   color: var(--bw-green-700, #0d6b4f);
+  line-height: 0;
+}
+
+.workspace-period-icon > svg {
+  display: block;
+  margin: auto;
 }
 
 .workspace-period-planning .workspace-period-icon {
@@ -6187,6 +6195,28 @@ html {
 
 .profile-launchpad-grid strong {
   font-size: 0.84rem;
+}
+
+.profile-launchpad-grid strong em,
+.profile-section-header h2 em {
+  display: inline-flex;
+  min-height: 20px;
+  align-items: center;
+  margin-left: 8px;
+  border-radius: 999px;
+  background: #e7f1eb;
+  padding: 0 8px;
+  color: #426052;
+  font-size: 0.57rem;
+  font-style: normal;
+  font-weight: 800;
+  vertical-align: middle;
+}
+
+.dark .profile-launchpad-grid strong em,
+.dark .profile-section-header h2 em {
+  background: rgba(255, 255, 255, 0.08);
+  color: #b9cbc2;
 }
 
 .profile-launchpad-grid small {
@@ -10297,6 +10327,20 @@ a:hover .brand-logo-mark {
   transition: background-color 180ms ease, color 180ms ease, transform 180ms ease;
 }
 
+.sidebar-link-icon {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  place-items: center;
+  line-height: 0;
+}
+
+.sidebar-link-icon > svg {
+  display: block;
+  margin: auto;
+}
+
 .sidebar-close-button:hover {
   transform: scale(1.04);
   background: rgba(255, 255, 255, 0.14);
@@ -10662,12 +10706,19 @@ a:hover .brand-logo-mark {
   font-weight: 800;
 }
 
-.mobile-navigation a > span {
+.mobile-navigation a > span,
+.mobile-navigation-icon {
   display: grid;
   width: 42px;
   height: 33px;
   place-items: center;
   border-radius: 8px;
+  line-height: 0;
+}
+
+.mobile-navigation-icon > svg {
+  display: block;
+  margin: auto;
 }
 
 .mobile-navigation a.active {
@@ -10684,6 +10735,197 @@ a:hover .brand-logo-mark {
 
 .dark .mobile-navigation a.active > span {
   background: rgba(53, 194, 139, 0.12);
+}
+
+.bank-connections-coming-soon {
+  overflow: hidden;
+  border: 1px solid rgba(16, 27, 23, 0.09);
+  border-radius: 8px;
+  background: #fff;
+  padding: 24px;
+  box-shadow: 0 14px 36px rgba(16, 38, 29, 0.06);
+}
+
+.dark .bank-connections-coming-soon {
+  border-color: rgba(255, 255, 255, 0.09);
+  background: #151d19;
+}
+
+.bank-coming-header {
+  display: flex;
+  max-width: 780px;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.bank-coming-icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  place-items: center;
+  border-radius: 8px;
+  background: #e4f2ea;
+  color: #0d6b4f;
+  line-height: 0;
+}
+
+.dark .bank-coming-icon {
+  background: rgba(53, 194, 139, 0.12);
+  color: #68d9ae;
+}
+
+.bank-coming-badge {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  background: #edf2ee;
+  padding: 0 9px;
+  color: #4c5d54;
+  font-size: 0.62rem;
+  font-weight: 830;
+}
+
+.dark .bank-coming-badge {
+  background: rgba(255, 255, 255, 0.07);
+  color: #bac9c1;
+}
+
+.bank-coming-header h2,
+.bank-coming-header p {
+  margin: 0;
+}
+
+.bank-coming-header h2 {
+  margin-top: 8px;
+  font-size: 1.45rem;
+  line-height: 1.2;
+}
+
+.bank-coming-header p {
+  max-width: 68ch;
+  margin-top: 6px;
+  color: #66736d;
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
+.dark .bank-coming-header p {
+  color: #9fb0a7;
+}
+
+.bank-coming-capabilities {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 24px;
+  overflow: hidden;
+  border: 1px solid rgba(16, 27, 23, 0.08);
+  border-radius: 8px;
+}
+
+.dark .bank-coming-capabilities {
+  border-color: rgba(255, 255, 255, 0.09);
+}
+
+.bank-coming-capabilities > div {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 15px;
+  border-left: 1px solid rgba(16, 27, 23, 0.08);
+}
+
+.bank-coming-capabilities > div:first-child {
+  border-left: 0;
+}
+
+.dark .bank-coming-capabilities > div {
+  border-color: rgba(255, 255, 255, 0.09);
+}
+
+.bank-coming-capabilities > div > span {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 8px;
+  background: #f0f5f2;
+  color: #52655b;
+}
+
+.dark .bank-coming-capabilities > div > span {
+  background: rgba(255, 255, 255, 0.055);
+  color: #a9bbb1;
+}
+
+.bank-coming-capabilities strong,
+.bank-coming-capabilities small {
+  display: block;
+}
+
+.bank-coming-capabilities strong {
+  font-size: 0.76rem;
+}
+
+.bank-coming-capabilities small {
+  margin-top: 3px;
+  color: #738078;
+  font-size: 0.64rem;
+  line-height: 1.4;
+}
+
+.bank-coming-capabilities > div > svg {
+  color: #9aa69f;
+}
+
+.bank-coming-assurance {
+  display: flex;
+  max-width: 850px;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 18px;
+  color: #4f6157;
+}
+
+.bank-coming-assurance > svg {
+  flex: 0 0 auto;
+  color: #0d6b4f;
+}
+
+.bank-coming-assurance p {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.55;
+}
+
+.dark .bank-coming-assurance {
+  color: #aebeb6;
+}
+
+.bank-coming-action {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 20px;
+  border-radius: 8px;
+  background: #e8eeea;
+  padding: 0 16px;
+  color: #738078;
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.dark .bank-coming-action {
+  background: rgba(255, 255, 255, 0.07);
+  color: #9caaa3;
 }
 
 .workspace-page {

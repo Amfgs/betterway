@@ -23,7 +23,6 @@ const defaultNotificationState = {
 
 const defaultOnboarding = {
   avatarPromptDismissed: false,
-  bankPromptDismissed: false,
   installPromptDismissed: false,
   installCompleted: false,
   simulatedInvestment: false,

@@ -34,7 +34,6 @@ const DEFAULT_NOTIFICATION_PREFERENCES = {
 };
 const DEFAULT_ONBOARDING = {
   avatarPromptDismissed: false,
-  bankPromptDismissed: false,
   installPromptDismissed: false,
   installCompleted: false,
   simulatedInvestment: false,
@@ -512,10 +511,7 @@ const me = asyncHandler(async (req, res) => {
 });
 
 const profileProgress = asyncHandler(async (req, res) => {
-  const [connections, friendships] = await Promise.all([
-    repository.listBankConnections(req.user.id),
-    repository.listFriendships(req.user.id)
-  ]);
+  const friendships = await repository.listFriendships(req.user.id);
   const onboarding = { ...DEFAULT_ONBOARDING, ...(req.user.onboarding || {}) };
   const tasks = [
     {
@@ -526,13 +522,11 @@ const profileProgress = asyncHandler(async (req, res) => {
       to: "/perfil?tab=conta&edit=avatar"
     },
     {
-      id: "bank",
-      title: "Conecte uma instituição",
-      description: "Atualize saldo, extrato e investimentos automaticamente.",
-      completed: connections.some((connection) =>
-        connection.syncStatus === "active" && ["pluggy", "direct_api"].includes(connection.provider)
-      ),
-      to: "/perfil?tab=conexoes"
+      id: "tour",
+      title: "Faça o tutorial da BW",
+      description: "Conheça as áreas principais e os próximos passos.",
+      completed: Boolean(onboarding.tourCompleted),
+      action: "tour"
     },
     {
       id: "friend",

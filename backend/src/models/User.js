@@ -200,10 +200,6 @@ const userSchema = new mongoose.Schema(
         type: Boolean,
         default: false
       },
-      bankPromptDismissed: {
-        type: Boolean,
-        default: false
-      },
       installPromptDismissed: {
         type: Boolean,
         default: false

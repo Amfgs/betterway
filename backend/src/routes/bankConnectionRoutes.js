@@ -21,13 +21,21 @@ const webhookLimiter = rateLimit({
   legacyHeaders: false
 });
 
+function requireBankConnectionsEnabled(req, res, next) {
+  if (process.env.BANK_CONNECTIONS_ENABLED === "true") return next();
+  return res.status(503).json({
+    code: "BANK_CONNECTIONS_COMING_SOON",
+    message: "A conexão com instituições estará disponível em breve."
+  });
+}
+
 router.post("/pluggy/webhook", webhookLimiter, webhookController.receive);
 router.use(authMiddleware);
 router.get("/", controller.list);
-router.post("/pluggy/token", providerActionLimiter, controller.createConnectToken);
-router.post("/pluggy/sync", providerActionLimiter, controller.syncPluggy);
-router.post("/direct/request", providerActionLimiter, controller.requestDirectConnection);
-router.post("/refresh", providerActionLimiter, controller.refresh);
-router.delete("/:id", controller.remove);
+router.post("/pluggy/token", requireBankConnectionsEnabled, providerActionLimiter, controller.createConnectToken);
+router.post("/pluggy/sync", requireBankConnectionsEnabled, providerActionLimiter, controller.syncPluggy);
+router.post("/direct/request", requireBankConnectionsEnabled, providerActionLimiter, controller.requestDirectConnection);
+router.post("/refresh", requireBankConnectionsEnabled, providerActionLimiter, controller.refresh);
+router.delete("/:id", requireBankConnectionsEnabled, controller.remove);
 
 module.exports = router;

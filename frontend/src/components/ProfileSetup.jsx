@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   ChevronDown,
   Circle,
-  Landmark,
   MoreVertical,
   Newspaper,
   PlusSquare,
@@ -26,7 +25,7 @@ import { AvatarOnboarding } from "./AvatarOnboarding";
 
 const taskIcons = {
   avatar: UserRound,
-  bank: Landmark,
+  tour: Sparkles,
   friend: Users,
   simulation: TrendingUp,
   news: Newspaper,
@@ -188,6 +187,10 @@ export function ProfileSetup() {
     setExpanded(false);
     if (task.action === "install") {
       setInstallOpen(true);
+      return;
+    }
+    if (task.action === "tour") {
+      startTour();
       return;
     }
     navigate(task.to);

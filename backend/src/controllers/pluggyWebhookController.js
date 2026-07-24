@@ -54,6 +54,9 @@ async function receive(req, res, next) {
     if (!supportedEvents.has(event) || !eventId || eventId.length > 200) {
       return res.status(400).json({ message: "Evento Pluggy inválido." });
     }
+    if (process.env.BANK_CONNECTIONS_ENABLED !== "true") {
+      return res.status(202).json({ received: true });
+    }
 
     const accepted = await repository.enqueuePluggyWebhook({
       eventId,

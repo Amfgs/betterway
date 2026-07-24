@@ -19,6 +19,7 @@ delete process.env.SMTP_PASS;
 delete process.env.RESEND_API_KEY;
 delete process.env.PLUGGY_CLIENT_ID;
 delete process.env.PLUGGY_CLIENT_SECRET;
+delete process.env.BANK_CONNECTIONS_ENABLED;
 process.env.PLUGGY_WEBHOOK_SECRET = "pluggy-test-webhook-secret";
 delete process.env.GOOGLE_CLIENT_ID;
 
@@ -83,6 +84,7 @@ async function createVerifiedUser(baseUrl, suffix, overrides = {}) {
 test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", async (t) => {
   const { server, baseUrl } = await startServer();
   t.after(async () => {
+    delete process.env.BANK_CONNECTIONS_ENABLED;
     await new Promise((resolve) => server.close(resolve));
     fs.rmSync(storePath, { force: true });
   });
@@ -157,7 +159,8 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
   assert.equal(initialProfileProgress.data.total, 6);
   assert.equal(initialProfileProgress.data.completed, 0);
   assert.equal(initialProfileProgress.data.percent, 0);
-  assert.equal(initialProfileProgress.data.tasks.some((task) => task.id === "bank" && task.completed), false);
+  assert.equal(initialProfileProgress.data.tasks.some((task) => task.id === "bank"), false);
+  assert.equal(initialProfileProgress.data.tasks.some((task) => task.id === "tour" && !task.completed), true);
   assert.equal(initialProfileProgress.data.tasks.find((task) => task.id === "avatar").to, "/perfil?tab=conta&edit=avatar");
 
   const invalidNotificationThreshold = await api(baseUrl, "/auth/me", {
@@ -485,6 +488,20 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
   assert.ok(bankConnections.data.directBankCatalog.some((provider) => provider.id === "inter"));
   assert.equal(bankConnections.data.totals.accountBalance, 0);
 
+  const disabledBankConnection = await api(baseUrl, "/bank-connections/direct/request", {
+    method: "POST",
+    token: passwordChange.data.token,
+    body: {
+      bankId: "inter",
+      accountType: "business",
+      scopes: ["balance"],
+      acceptedReadOnlyTerms: true
+    }
+  });
+  assert.equal(disabledBankConnection.status, 503);
+  assert.equal(disabledBankConnection.data.code, "BANK_CONNECTIONS_COMING_SOON");
+  process.env.BANK_CONNECTIONS_ENABLED = "true";
+
   const rejectedBankSecret = await api(baseUrl, "/bank-connections/direct/request", {
     method: "POST",
     token: passwordChange.data.token,
@@ -561,6 +578,7 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
   });
   assert.equal(acceptedWebhook.status, 202);
   assert.deepEqual(acceptedWebhook.data, { received: true });
+  delete process.env.BANK_CONNECTIONS_ENABLED;
 
   const malformedJson = await api(baseUrl, "/auth/login", {
     method: "POST",

@@ -278,6 +278,19 @@
     height: 30px !important;
   }
 
+  .mobile-navigation-icon,
+  .sidebar-link-icon,
+  .workspace-period-icon {
+    line-height: 0;
+  }
+
+  .mobile-navigation-icon > svg,
+  .sidebar-link-icon > svg,
+  .workspace-period-icon > svg {
+    display: block;
+    margin: auto;
+  }
+
   .app-content section.rounded-lg,
   .app-content form.rounded-lg,
   .app-content article.rounded-lg,
@@ -563,6 +576,51 @@ body.pluggy-connect-active {
     align-items: stretch;
     flex-direction: column;
     gap: 12px;
+  }
+
+  .bank-connections-coming-soon {
+    padding: 16px !important;
+  }
+
+  .bank-coming-header {
+    gap: 11px;
+  }
+
+  .bank-coming-icon {
+    width: 40px;
+    height: 40px;
+    flex-basis: 40px;
+  }
+
+  .bank-coming-header h2 {
+    font-size: 1.16rem;
+  }
+
+  .bank-coming-header p {
+    font-size: 0.69rem;
+  }
+
+  .bank-coming-capabilities {
+    grid-template-columns: 1fr;
+    margin-top: 18px;
+  }
+
+  .bank-coming-capabilities > div {
+    border-top: 1px solid rgba(16, 27, 23, 0.08);
+    border-left: 0;
+    padding: 12px;
+  }
+
+  .bank-coming-capabilities > div:first-child {
+    border-top: 0;
+  }
+
+  .dark .bank-coming-capabilities > div {
+    border-color: rgba(255, 255, 255, 0.09);
+  }
+
+  .bank-coming-action {
+    width: 100%;
   }
 
   .bank-panel-title > span {

@@ -61,7 +61,7 @@ function SidebarLink({ item, collapsed }) {
       title={collapsed ? item.label : undefined}
       to={item.to}
     >
-      <item.icon aria-hidden="true" size={19} />
+      <span className="sidebar-link-icon"><item.icon aria-hidden="true" size={19} /></span>
       {!collapsed ? <span>{item.label}</span> : null}
     </NavLink>
   );
@@ -264,7 +264,7 @@ export function Shell() {
       <nav aria-label="Navegação móvel" className="mobile-navigation">
         {navItems.map((item) => (
           <NavLink className={({ isActive }) => isActive ? "active" : ""} data-tour={item.to === "/calendario" ? "planning-nav-mobile" : undefined} key={item.to} to={item.to}>
-            <span><item.icon size={19} /></span>
+            <span className="mobile-navigation-icon"><item.icon aria-hidden="true" size={19} /></span>
             {item.shortLabel}
           </NavLink>
         ))}

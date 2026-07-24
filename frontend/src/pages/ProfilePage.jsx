@@ -33,7 +33,7 @@ import { currency, percent } from "../utils/formatters";
 const profileTabs = [
   { id: "resumo", label: "Resumo", description: "Sua leitura financeira", icon: ChartNoAxesCombined },
   { id: "financeiro", label: "Dados financeiros", description: "Renda, teto e valor-hora", icon: WalletCards },
-  { id: "conexoes", label: "Conexões", description: "Bancos e corretoras", icon: Landmark },
+  { id: "conexoes", label: "Conexões", description: "Integração bancária em preparação", icon: Landmark, status: "Em breve" },
   { id: "notificacoes", label: "Alertas por e-mail", description: "Limites, metas e produtos", icon: BellRing },
   { id: "conta", label: "Conta e segurança", description: "Identidade e acesso", icon: SlidersHorizontal }
 ];
@@ -53,7 +53,7 @@ function ProfileLaunchpad({ onChange, user }) {
           type="button"
         >
           <span className="profile-launchpad-icon"><tab.icon size={21} /></span>
-          <span><strong>{tab.label}</strong><small>{tab.description}</small></span>
+          <span><strong>{tab.label}{tab.status ? <em>{tab.status}</em> : null}</strong><small>{tab.description}</small></span>
           <ChevronRight size={18} />
         </button>
       ))}
@@ -69,7 +69,7 @@ function ProfileSectionHeader({ active, onBack }) {
   return (
     <div className="profile-section-header">
       <button onClick={onBack} type="button"><ChevronLeft size={18} /> Todas as opções</button>
-      <div><span className="profile-launchpad-icon"><SectionIcon size={20} /></span><div><h2>{section.label}</h2><p>{section.description}</p></div></div>
+      <div><span className="profile-launchpad-icon"><SectionIcon size={20} /></span><div><h2>{section.label}{section.status ? <em>{section.status}</em> : null}</h2><p>{section.description}</p></div></div>
     </div>
   );
 }
@@ -313,7 +313,7 @@ export function ProfilePage() {
           ) : null}
 
           {activeTab === "conexoes" ? (
-            <div className="profile-tab-panel" id="profile-panel-conexoes" role="tabpanel"><BankConnectionsPanel onChange={loadProfileData} /></div>
+            <div className="profile-tab-panel" id="profile-panel-conexoes" role="tabpanel"><BankConnectionsPanel /></div>
           ) : null}
 
           {activeTab === "notificacoes" ? (
