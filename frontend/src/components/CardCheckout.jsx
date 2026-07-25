@@ -67,6 +67,9 @@ export function CardCheckout({ publicKey, email, onReady, onError, onSubmit }) {
           },
           locale: "pt-BR"
         });
+        if (!controller) {
+          throw new Error("O formulário seguro do Mercado Pago não pôde ser inicializado.");
+        }
         if (cancelled) {
           controller?.unmount?.();
           return;
