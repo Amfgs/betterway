@@ -22,6 +22,7 @@ delete process.env.PLUGGY_CLIENT_SECRET;
 delete process.env.BANK_CONNECTIONS_ENABLED;
 process.env.PLUGGY_WEBHOOK_SECRET = "pluggy-test-webhook-secret";
 process.env.ADMIN_API_KEY = "betterway-admin-test-key-with-32-chars";
+process.env.PLUS_TRIAL_PROMOTION_END_AT = "2099-09-01T02:59:59.999Z";
 delete process.env.GOOGLE_CLIENT_ID;
 
 const app = require("../src/app");

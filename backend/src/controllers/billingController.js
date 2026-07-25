@@ -165,11 +165,17 @@ const overview = asyncHandler(async (req, res) => {
 const startTrial = asyncHandler(async (req, res) => {
   const user = await repository.findUserById(req.user.id, true);
   const current = subscriptionState(user);
-  if (!current.trialAvailable) {
-    return res.status(409).json({ code: "TRIAL_ALREADY_USED", message: "O período gratuito desta conta já foi utilizado." });
-  }
   if (current.hasPlus) {
     return res.status(409).json({ code: "PLUS_ALREADY_ACTIVE", message: "Seu BW Plus já está ativo." });
+  }
+  if (!current.trialPromotionActive) {
+    return res.status(409).json({
+      code: "TRIAL_PROMOTION_ENDED",
+      message: `A promoção de 30 dias grátis terminou em ${current.trialPromotionLabel}.`
+    });
+  }
+  if (!current.trialAvailable) {
+    return res.status(409).json({ code: "TRIAL_ALREADY_USED", message: "O período gratuito desta conta já foi utilizado." });
   }
   const subscription = nextPlusPeriod(user, { source: "trial" });
   const updated = await repository.updateUser(user.id, { subscription });

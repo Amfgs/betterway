@@ -50,6 +50,7 @@ MERCADO_PAGO_ACCESS_TOKEN=seu_access_token_de_producao
 MERCADO_PAGO_PUBLIC_KEY=sua_public_key_de_producao
 MERCADO_PAGO_WEBHOOK_SECRET=assinatura_secreta_do_webhook
 PAYMENTS_WEBHOOK_URL=https://api.betterway.com.br/api/billing/webhook
+PLUS_TRIAL_PROMOTION_END_AT=2026-09-01T02:59:59.999Z
 ADMIN_API_KEY=uma_chave_de_administracao_longa_e_aleatoria
 ```
 
@@ -59,7 +60,7 @@ Em produção, uma conexão MongoDB, `JWT_SECRET` e `CLIENT_URL` são obrigatór
 
 Marque `MONGODB_URI`, `JWT_SECRET`, `RESEND_API_KEY`, `PLUGGY_CLIENT_SECRET`, `PLUGGY_WEBHOOK_SECRET`, `BRAPI_API_KEY`, `NEWS_API_KEY`, `CPF_HASH_SECRET`, `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET`, `ADMIN_API_KEY` e credenciais SMTP como **Sensitive**. `MERCADO_PAGO_PUBLIC_KEY` pode ser pública e é entregue ao navegador pela API somente quando o checkout está configurado. Use apenas `VITE_API_URL` no frontend: toda variável iniciada por `VITE_` pode ser incorporada ao JavaScript entregue ao navegador.
 
-No projeto `betterway-api`, configure a URL `https://api.betterway.com.br/api/billing/webhook` em **Mercado Pago > Suas integrações > Webhooks**, selecione eventos de pagamento e salve para gerar a assinatura secreta. Depois de adicionar as cinco variáveis do checkout, faça redeploy da API e do frontend. A cobrança é avulsa: R$ 7,90 libera 30 dias e não cria assinatura recorrente.
+No projeto `betterway-api`, configure a URL `https://api.betterway.com.br/api/billing/webhook` em **Mercado Pago > Suas integrações > Webhooks**, selecione eventos de pagamento e salve para gerar a assinatura secreta. Depois de adicionar as variáveis do checkout, faça redeploy da API e do frontend. A cobrança é avulsa: R$ 7,90 libera 30 dias e não cria assinatura recorrente. A promoção de 30 dias grátis termina em 31/08/2026; mantenha `PLUS_TRIAL_PROMOTION_END_AT=2026-09-01T02:59:59.999Z` se quiser explicitar essa janela na Vercel.
 
 Para o login Google, use o mesmo OAuth Web Client ID em `VITE_GOOGLE_CLIENT_ID` no projeto web e `GOOGLE_CLIENT_ID` na API. O Client ID identifica o aplicativo e não é segredo; não marque-o como Sensitive. Cadastre `https://betterway.com.br` e `https://www.betterway.com.br` como origens JavaScript autorizadas no Google Cloud. A API valida assinatura, emissor, audiência, expiração e e-mail verificado antes de criar uma sessão Better Way.
 

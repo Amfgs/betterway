@@ -46,6 +46,26 @@ function dateLabel(value) {
   return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "long", year: "numeric" }).format(new Date(value));
 }
 
+function trialCopy(subscription) {
+  const promotionLabel = subscription?.trialPromotionLabel || dateLabel(subscription?.trialPromotionEndsAt) || "31 de agosto de 2026";
+  if (subscription?.trialAvailable) {
+    return {
+      status: `Teste grátis disponível até ${promotionLabel}.`,
+      note: `Promoção válida até ${promotionLabel}. Sem renovação automática.`
+    };
+  }
+  if (subscription?.trialPromotionActive === false) {
+    return {
+      status: `A promoção de 30 dias grátis terminou em ${promotionLabel}.`,
+      note: `Promoção encerrada em ${promotionLabel}. O plano pago continua sem renovação automática.`
+    };
+  }
+  return {
+    status: "Você já usou o período gratuito desta conta.",
+    note: "Sem renovação automática. Você decide quando comprar outro período."
+  };
+}
+
 export function PlansPage() {
   const { user, refreshUser } = useAuth();
   const [billing, setBilling] = useState(null);
@@ -92,6 +112,7 @@ export function PlansPage() {
 
   const subscription = billing?.subscription || user?.subscription || {};
   const currentPlus = Boolean(subscription.hasPlus);
+  const freeTrialCopy = trialCopy(subscription);
   const statusText = useMemo(() => {
     if (!currentPlus) return "Plano gratuito";
     if (subscription.status === "trialing") return `Período gratuito até ${dateLabel(subscription.currentPeriodEnd)}`;
@@ -174,7 +195,7 @@ export function PlansPage() {
       <section className="plans-current-status">
         <span><ShieldCheck size={18} /> Seu plano agora</span>
         <strong>{statusText}</strong>
-        <small>{currentPlus ? "Todos os recursos Plus estão liberados." : "Você pode continuar no Free sem prazo ou testar o Plus por 30 dias."}</small>
+        <small>{currentPlus ? "Todos os recursos Plus estão liberados." : `Você pode continuar no Free sem prazo. ${freeTrialCopy.status}`}</small>
       </section>
 
       {error ? <p className="plans-message error" role="alert">{error}</p> : null}
@@ -210,7 +231,7 @@ export function PlansPage() {
               {currentPlus ? "Plus ativo" : "Ativar por 30 dias"}
             </button>
           )}
-          <small className="plan-no-renewal">Sem renovação automática. Você decide quando comprar outro período.</small>
+          <small className="plan-no-renewal">{freeTrialCopy.note}</small>
           <ul>{comparison.map((item) => <li key={item.label}><Check size={17} /> {item.label}</li>)}</ul>
         </article>
       </section>

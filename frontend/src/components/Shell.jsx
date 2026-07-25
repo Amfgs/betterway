@@ -288,7 +288,9 @@ export function Shell() {
             <span>Recurso do BW Plus</span>
             <h2 id="plus-required-title">{requiredPlanFeature}</h2>
             <p>Tenha alertas avançados, produtos monitorados, relatórios e simulações completas por R$ 7,90 a cada 30 dias.</p>
-            <strong>Primeiros 30 dias grátis. Sem renovação automática.</strong>
+            <strong>{user?.subscription?.trialAvailable
+              ? `30 dias grátis até ${user.subscription.trialPromotionLabel || "31 de agosto de 2026"}. Sem renovação automática.`
+              : "Sem renovação automática. Você decide quando ativar outro período."}</strong>
             <div>
               <button className="secondary" onClick={() => setRequiredPlanFeature("")} type="button">Agora não</button>
               <button onClick={() => { setRequiredPlanFeature(""); navigate("/planos"); }} type="button">Ver planos</button>

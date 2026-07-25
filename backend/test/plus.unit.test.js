@@ -18,6 +18,26 @@ test("expira o Plus sem renovação automática", () => {
   assert.equal(subscriptionState({ subscription }, new Date("2026-07-31T12:00:01.000Z")).status, "expired");
 });
 
+test("limita a promoção gratuita até o fim de agosto de 2026", () => {
+  const previousEnd = process.env.PLUS_TRIAL_PROMOTION_END_AT;
+  process.env.PLUS_TRIAL_PROMOTION_END_AT = "2026-09-01T02:59:59.999Z";
+  try {
+    const beforeDeadline = subscriptionState({}, new Date("2026-09-01T02:59:59.000Z"));
+    const afterDeadline = subscriptionState({}, new Date("2026-09-01T03:00:00.000Z"));
+    const alreadyUsed = subscriptionState({ subscription: { trialUsedAt: "2026-08-20T12:00:00.000Z" } }, new Date("2026-08-21T12:00:00.000Z"));
+
+    assert.equal(beforeDeadline.trialPromotionActive, true);
+    assert.equal(beforeDeadline.trialAvailable, true);
+    assert.equal(beforeDeadline.trialPromotionLabel, "31 de agosto de 2026");
+    assert.equal(afterDeadline.trialPromotionActive, false);
+    assert.equal(afterDeadline.trialAvailable, false);
+    assert.equal(alreadyUsed.trialAvailable, false);
+  } finally {
+    if (previousEnd === undefined) delete process.env.PLUS_TRIAL_PROMOTION_END_AT;
+    else process.env.PLUS_TRIAL_PROMOTION_END_AT = previousEnd;
+  }
+});
+
 test("valida a assinatura oficial do webhook do Mercado Pago", () => {
   const previousSecret = process.env.MERCADO_PAGO_WEBHOOK_SECRET;
   const secret = "mercado-pago-webhook-test-secret";

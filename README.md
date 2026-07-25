@@ -133,7 +133,7 @@ Sem Resend ou SMTP configurado, o backend mantém o fluxo em modo desenvolviment
 
 ## BW Plus e pagamentos
 
-O BW Plus custa **R$ 7,90 por 30 dias** e não possui renovação automática. Cada conta pode ativar um primeiro período gratuito de 30 dias. O plano libera alertas avançados, monitoramento de produtos, relatórios semanais ou mensais por e-mail e o simulador completo dentro de Planejamento.
+O BW Plus custa **R$ 7,90 por 30 dias** e não possui renovação automática. Cada conta pode ativar um primeiro período gratuito de 30 dias somente durante a promoção válida até **31 de agosto de 2026**. Quem ativar dentro do prazo mantém os 30 dias completos; depois dessa data, novas contas entram pelo plano Free ou pelo pagamento avulso. O plano libera alertas avançados, monitoramento de produtos, relatórios semanais ou mensais por e-mail e o simulador completo dentro de Planejamento.
 
 O checkout usa Pix, cartão de crédito e cartão de débito pelo Mercado Pago. O formulário de cartão é o Card Payment Brick oficial: número, validade e CVV são tokenizados pelo provedor e não são armazenados pela BW. O CPF completo também não é persistido; a API guarda somente um HMAC para comparação e os quatro últimos dígitos para identificação do usuário.
 
@@ -147,6 +147,8 @@ MERCADO_PAGO_WEBHOOK_SECRET=assinatura_secreta_do_webhook
 PAYMENTS_WEBHOOK_URL=https://api.betterway.com.br/api/billing/webhook
 ADMIN_API_KEY=uma_chave_de_administracao_longa_e_aleatoria
 ```
+
+Opcionalmente, `PLUS_TRIAL_PROMOTION_END_AT` pode sobrescrever a data final da campanha em formato ISO. Sem essa variável, a API usa `2026-09-01T02:59:59.999Z`, que representa 31/08/2026 às 23:59:59 no horário de Brasília.
 
 No painel do Mercado Pago, cadastre `https://api.betterway.com.br/api/billing/webhook` como URL de produção para eventos de pagamento e copie a assinatura secreta gerada para `MERCADO_PAGO_WEBHOOK_SECRET`. A API só libera o Plus depois de consultar o pagamento diretamente no Mercado Pago e validar valor, moeda, plano e proprietário.
 

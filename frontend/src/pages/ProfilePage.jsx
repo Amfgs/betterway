@@ -78,6 +78,13 @@ function ProfileSectionHeader({ active, onBack }) {
   );
 }
 
+function subscriptionTrialText(subscription) {
+  const promotionLabel = subscription?.trialPromotionLabel || "31 de agosto de 2026";
+  if (subscription?.trialAvailable) return `Disponível até ${promotionLabel}.`;
+  if (subscription?.trialPromotionActive === false) return `Promoção encerrada em ${promotionLabel}.`;
+  return "O período gratuito desta conta já foi utilizado.";
+}
+
 export function ProfilePage() {
   const { user, session, updateProfile, logout, setSessionPersistence } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -409,7 +416,7 @@ export function ProfilePage() {
               </section>
               <section className="profile-content-card profile-subscription-details">
                 <div><h3>Renovação sob seu controle</h3><p>O BW Plus custa R$ 7,90 por 30 dias. Nenhuma renovação ou cobrança automática é criada.</p></div>
-                <div><h3>Primeiro período gratuito</h3><p>{user?.subscription?.trialAvailable ? "Seus primeiros 30 dias ainda estão disponíveis." : "O período gratuito desta conta já foi utilizado."}</p></div>
+                <div><h3>Primeiro período gratuito</h3><p>{subscriptionTrialText(user?.subscription)}</p></div>
                 <div><h3>Pagamento protegido</h3><p>Cartões são tokenizados pelo Mercado Pago. A BW nunca salva número, validade ou CVV.</p></div>
               </section>
               <button className="profile-primary-button profile-plan-button" onClick={() => navigate("/planos")} type="button"><CreditCard size={18} /> Comparar planos e pagamentos</button>
