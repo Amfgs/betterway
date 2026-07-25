@@ -180,6 +180,13 @@ export function PlansPage() {
     setMessage("Código Pix copiado.");
   }
 
+  function openCheckout(method = "pix") {
+    setCheckout(method);
+    setPix(null);
+    setMessage("");
+    window.setTimeout(() => document.getElementById("checkout")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+  }
+
   if (loading) {
     return <div className="plans-loading"><LoaderCircle className="animate-spin" size={22} /> Preparando os planos...</div>;
   }
@@ -222,13 +229,18 @@ export function PlansPage() {
           </div>
           <p>Alertas, produtos, relatórios e projeções completas em um único plano.</p>
           {!currentPlus && subscription.trialAvailable ? (
-            <button className="plan-trial-button" disabled={working === "trial"} onClick={startTrial} type="button">
-              {working === "trial" ? <LoaderCircle className="animate-spin" size={18} /> : <Sparkles size={18} />}
-              Começar 30 dias grátis
-            </button>
+            <div className="plan-action-stack">
+              <button className="plan-trial-button" disabled={working === "trial"} onClick={startTrial} type="button">
+                {working === "trial" ? <LoaderCircle className="animate-spin" size={18} /> : <Sparkles size={18} />}
+                Começar 30 dias grátis
+              </button>
+              <button className="plan-pay-now-button" onClick={() => openCheckout("pix")} type="button">
+                Pagar agora e testar Pix
+              </button>
+            </div>
           ) : (
-            <button className="plan-current-button plus" disabled={currentPlus} onClick={() => setCheckout("pix")} type="button">
-              {currentPlus ? "Plus ativo" : "Ativar por 30 dias"}
+            <button className="plan-current-button plus" disabled={false} onClick={() => openCheckout("pix")} type="button">
+              {currentPlus ? "Comprar mais 30 dias" : "Ativar por 30 dias"}
             </button>
           )}
           <small className="plan-no-renewal">{freeTrialCopy.note}</small>
@@ -236,10 +248,10 @@ export function PlansPage() {
         </article>
       </section>
 
-      {!currentPlus ? (
+      {!currentPlus || checkout ? (
         <section className="checkout-section" id="checkout">
           <div className="checkout-heading">
-            <div><span>Pagamento único</span><h2>Ativar 30 dias de BW Plus</h2><p>Escolha Pix, cartão de crédito ou débito. O valor é sempre R$ 7,90.</p></div>
+            <div><span>Pagamento único</span><h2>{currentPlus ? "Comprar mais 30 dias de BW Plus" : "Ativar 30 dias de BW Plus"}</h2><p>Escolha Pix, cartão de crédito ou débito. O valor é sempre R$ 7,90 e não cria renovação automática.</p></div>
             <LockKeyhole size={24} />
           </div>
 
@@ -252,7 +264,7 @@ export function PlansPage() {
                 <button aria-selected={checkout === "card"} className={checkout === "card" ? "active" : ""} onClick={() => setCheckout("card")} role="tab" type="button"><CreditCard size={19} /> Crédito ou débito</button>
               </div>
 
-              {!checkout ? <button className="checkout-start" onClick={() => setCheckout("pix")} type="button">Escolher forma de pagamento <ArrowRight size={18} /></button> : null}
+              {!checkout ? <button className="checkout-start" onClick={() => openCheckout("pix")} type="button">Escolher forma de pagamento <ArrowRight size={18} /></button> : null}
 
               {checkout === "pix" ? (
                 <div className="pix-checkout" role="tabpanel">
@@ -293,7 +305,11 @@ export function PlansPage() {
           )}
         </section>
       ) : (
-        <section className="plus-active-panel"><CheckCircle2 size={24} /><div><h2>Seu BW Plus está ativo</h2><p>Você pode usar todos os recursos até {dateLabel(subscription.currentPeriodEnd)}. Não existe cobrança automática agendada.</p></div></section>
+        <section className="plus-active-panel">
+          <CheckCircle2 size={24} />
+          <div><h2>Seu BW Plus está ativo</h2><p>Você pode usar todos os recursos até {dateLabel(subscription.currentPeriodEnd)}. Não existe cobrança automática agendada.</p></div>
+          <button onClick={() => openCheckout("pix")} type="button">Comprar mais 30 dias</button>
+        </section>
       )}
     </div>
   );

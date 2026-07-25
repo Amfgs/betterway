@@ -3565,6 +3565,32 @@ textarea:focus-visible {
   color: #fff;
 }
 
+.plan-action-stack {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.plan-action-stack .plan-trial-button { margin-top: 0; }
+
+.plan-pay-now-button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(13, 125, 89, 0.24);
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: #087553;
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
+.dark .plan-pay-now-button {
+  border-color: rgba(110, 231, 183, 0.24);
+  color: #6ee7b7;
+}
+
 .plan-current-button:disabled { opacity: 0.72; }
 .plan-no-renewal { margin-top: 8px; color: #68736e; font-size: 0.7rem; line-height: 1.4; }
 
@@ -3740,7 +3766,7 @@ textarea:focus-visible {
 
 .plus-active-panel {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 13px;
   border: 1px solid rgba(16, 185, 129, 0.25);
   border-radius: 8px;
@@ -3751,6 +3777,17 @@ textarea:focus-visible {
 .dark .plus-active-panel { background: rgba(16, 185, 129, 0.1); color: #6ee7b7; }
 .plus-active-panel h2 { font-size: 1.05rem; font-weight: 900; }
 .plus-active-panel p { margin-top: 3px; font-size: 0.82rem; line-height: 1.5; }
+.plus-active-panel > div { flex: 1 1 auto; min-width: 0; }
+.plus-active-panel > button {
+  min-height: 42px;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  background: #0d7d59;
+  padding: 9px 13px;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 850;
+}
 
 .profile-subscription-panel { display: grid; gap: 14px; }
 .profile-subscription-card {
@@ -3818,6 +3855,8 @@ textarea:focus-visible {
   .pix-qr { width: min(220px, 78vw); height: min(220px, 78vw); }
   .pix-result button { justify-content: center; }
   .card-checkout { max-width: 100%; overflow: hidden; }
+  .plus-active-panel { align-items: flex-start; flex-wrap: wrap; }
+  .plus-active-panel > button { width: 100%; }
 
   .profile-subscription-card { grid-template-columns: auto minmax(0, 1fr); padding: 16px; }
   .profile-subscription-card > strong { grid-column: 1 / -1; width: fit-content; }
