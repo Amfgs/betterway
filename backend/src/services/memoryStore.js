@@ -4,6 +4,7 @@ const path = require("path");
 const { normalizeDateForStorage } = require("../utils/financial");
 const { availableUsername, isValidUsername, normalizeUsername } = require("../utils/validation");
 const { normalizeAvatarValue } = require("../utils/avatars");
+const { DEFAULT_SUBSCRIPTION, subscriptionState } = require("../utils/subscription");
 
 const dataDir = path.resolve(__dirname, "../../data");
 const dataFile = process.env.LOCAL_STORE_PATH || path.join(dataDir, "store.json");
@@ -12,13 +13,20 @@ const defaultNotificationPreferences = {
   emailEnabled: true,
   limitAlerts: true,
   goalAlerts: true,
-  limitThreshold: 80
+  productAlerts: true,
+  weeklyReports: false,
+  monthlyReports: false,
+  limitThreshold: 80,
+  goalThreshold: 80
 };
 
 const defaultNotificationState = {
   limitAlertMonth: "",
   limitAlertLevel: 0,
-  goalReachedIds: []
+  goalReachedIds: [],
+  goalAlertLevels: [],
+  lastWeeklyReportKey: "",
+  lastMonthlyReportKey: ""
 };
 
 const defaultOnboarding = {
@@ -40,7 +48,8 @@ function defaultState() {
     assets: [],
     bankConnections: [],
     pluggyWebhookEvents: [],
-    sharedPlanProposals: []
+    sharedPlanProposals: [],
+    payments: []
   };
 }
 
@@ -77,8 +86,10 @@ function normalizeUsers(users) {
     normalized.notificationState = {
       ...defaultNotificationState,
       ...(user.notificationState || {}),
-      goalReachedIds: [...(user.notificationState?.goalReachedIds || [])]
+      goalReachedIds: [...(user.notificationState?.goalReachedIds || [])],
+      goalAlertLevels: [...(user.notificationState?.goalAlertLevels || [])]
     };
+    normalized.subscription = { ...DEFAULT_SUBSCRIPTION, ...(user.subscription || {}) };
     normalized.onboarding = {
       ...defaultOnboarding,
       ...(user.onboarding || {})
@@ -119,7 +130,8 @@ function normalizeState(raw) {
     assets: clean.assets || base.assets,
     bankConnections: clean.bankConnections || base.bankConnections,
     pluggyWebhookEvents: clean.pluggyWebhookEvents || base.pluggyWebhookEvents,
-    sharedPlanProposals: clean.sharedPlanProposals || base.sharedPlanProposals
+    sharedPlanProposals: clean.sharedPlanProposals || base.sharedPlanProposals,
+    payments: clean.payments || base.payments
   };
 }
 
@@ -155,6 +167,10 @@ function withoutPassword(user) {
   delete clean.emailVerificationAttempts;
   delete clean.emailVerificationSentAt;
   delete clean.googleSubject;
+  const cpfConfigured = Boolean(clean.cpfHash || clean.cpfLast4);
+  delete clean.cpfHash;
+  clean.cpfConfigured = cpfConfigured;
+  clean.subscription = subscriptionState(clean);
   clean.avatarUrl = normalizeAvatarValue(clean.avatarUrl);
   return clean;
 }
@@ -243,7 +259,8 @@ module.exports = {
         appBlockingIntent: false
       },
       notificationPreferences: { ...defaultNotificationPreferences },
-      notificationState: { ...defaultNotificationState, goalReachedIds: [] },
+      notificationState: { ...defaultNotificationState, goalReachedIds: [], goalAlertLevels: [] },
+      subscription: { ...DEFAULT_SUBSCRIPTION },
       onboarding: { ...defaultOnboarding },
       ...payload,
       username,
@@ -271,6 +288,9 @@ module.exports = {
     };
     saveState();
     return withoutPassword(state.users[index]);
+  },
+  async listUsers() {
+    return state.users.map(withoutPassword);
   },
   async listTransactions(idToFind) {
     return clone(byUser("transactions", idToFind)).sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -832,5 +852,88 @@ module.exports = {
       .filter((event) => event.status === "pending")
       .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
       .slice(0, 10));
+  },
+  async createPayment(payload) {
+    const existing = state.payments.find((payment) => payment.idempotencyKey === payload.idempotencyKey);
+    if (existing) return clone(existing);
+    const created = {
+      id: id(),
+      _id: null,
+      provider: "mercadopago",
+      currency: "BRL",
+      status: "created",
+      statusDetail: "",
+      accessGrantedAt: null,
+      expiresAt: null,
+      ...payload,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    created._id = created.id;
+    state.payments.push(created);
+    saveState();
+    return clone(created);
+  },
+  async findPaymentByIdempotencyKey(idempotencyKey) {
+    const payment = state.payments.find((item) => item.idempotencyKey === idempotencyKey);
+    return payment ? clone(payment) : null;
+  },
+  async findPaymentByProviderId(providerPaymentId) {
+    const payment = state.payments.find((item) => String(item.providerPaymentId) === String(providerPaymentId));
+    return payment ? clone(payment) : null;
+  },
+  async findPaymentForUser(userIdToFind, paymentId) {
+    const payment = state.payments.find(
+      (item) => String(item.userId) === String(userIdToFind) &&
+        (String(item.id) === String(paymentId) || String(item.providerPaymentId) === String(paymentId))
+    );
+    return payment ? clone(payment) : null;
+  },
+  async listPayments(userIdToFind, limit = 20) {
+    return clone(byUser("payments", userIdToFind))
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, Math.max(1, Math.min(Number(limit) || 20, 50)));
+  },
+  async updatePayment(paymentId, fields) {
+    const index = state.payments.findIndex(
+      (item) => String(item.id) === String(paymentId) || String(item.providerPaymentId) === String(paymentId)
+    );
+    if (index === -1) return null;
+    state.payments[index] = {
+      ...state.payments[index],
+      ...fields,
+      updatedAt: new Date().toISOString()
+    };
+    saveState();
+    return clone(state.payments[index]);
+  },
+  async claimPaymentAccess(paymentId, claimedAt) {
+    const index = state.payments.findIndex(
+      (item) => (String(item.id) === String(paymentId) || String(item.providerPaymentId) === String(paymentId)) &&
+        !item.accessGrantedAt
+    );
+    if (index === -1) return null;
+    state.payments[index] = {
+      ...state.payments[index],
+      accessGrantedAt: new Date(claimedAt).toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    saveState();
+    return clone(state.payments[index]);
+  },
+  async releasePaymentAccess(paymentId, claimedAt) {
+    const expected = new Date(claimedAt).toISOString();
+    const index = state.payments.findIndex(
+      (item) => (String(item.id) === String(paymentId) || String(item.providerPaymentId) === String(paymentId)) &&
+        new Date(item.accessGrantedAt || 0).toISOString() === expected
+    );
+    if (index === -1) return null;
+    state.payments[index] = {
+      ...state.payments[index],
+      accessGrantedAt: null,
+      updatedAt: new Date().toISOString()
+    };
+    saveState();
+    return clone(state.payments[index]);
   }
 };

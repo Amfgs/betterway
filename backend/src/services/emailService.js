@@ -236,6 +236,90 @@ async function sendGoalReachedEmail({ email, name, goalName, targetAmount }) {
   return { delivered: true };
 }
 
+async function sendGoalProgressEmail({ email, name, goalName, currentAmount, targetAmount, progress }) {
+  if (!emailConfigured()) return { delivered: false };
+  const safeName = escapeHtml(name);
+  const safeGoalName = escapeHtml(goalName);
+  const roundedProgress = Math.min(Math.round(Number(progress || 0)), 100);
+  const missing = Math.max(Number(targetAmount || 0) - Number(currentAmount || 0), 0);
+  const subject = roundedProgress >= 100
+    ? `Meta atingida: ${String(goalName || "sua meta").slice(0, 80)}`
+    : `Sua meta chegou a ${roundedProgress}%`;
+
+  await deliverEmail({
+    email,
+    subject,
+    text: [
+      `Olá${name ? `, ${name}` : ""}.`,
+      "",
+      `A meta "${goalName}" chegou a ${roundedProgress}% na BW.`,
+      roundedProgress >= 100
+        ? `Valor alcançado: ${currency(targetAmount)}.`
+        : `Você acumulou ${currency(currentAmount)} e faltam ${currency(missing)}.`,
+      "",
+      "Abra a BW para acompanhar a evolução e planejar o próximo aporte."
+    ].join("\n"),
+    html: `
+      <div style="font-family:Arial,sans-serif;line-height:1.55;color:#10221c;max-width:560px;margin:0 auto;padding:32px;">
+        <p style="color:#0d6b4f;font-size:18px;font-weight:800;margin:0 0 28px;">BW · Better Way</p>
+        <h2 style="font-size:26px;margin:0 0 12px;">${roundedProgress >= 100 ? "Meta atingida" : "Sua meta avançou"}</h2>
+        <p>Olá${safeName ? `, ${safeName}` : ""}. A meta <strong>${safeGoalName}</strong> chegou a <strong>${roundedProgress}%</strong>.</p>
+        <div style="background:#edf7f2;border:1px solid #cce8da;border-radius:8px;margin:20px 0;padding:18px;">
+          <strong style="display:block;color:#0d6b4f;font-size:22px;">${currency(currentAmount)} de ${currency(targetAmount)}</strong>
+          <span style="color:#52635b;font-size:13px;">${roundedProgress >= 100 ? "Objetivo concluído." : `Faltam ${currency(missing)} para completar.`}</span>
+        </div>
+        <a href="${safeHttpsHref(process.env.APP_WEB_URL || "https://betterway.com.br")}" style="background:#0d6b4f;border-radius:8px;color:#fff;display:inline-block;font-weight:800;padding:12px 18px;text-decoration:none;">Acompanhar na BW</a>
+      </div>
+    `
+  });
+  return { delivered: true };
+}
+
+async function sendFinancialReportEmail({ email, name, periodLabel, totals, goals, frequency }) {
+  if (!emailConfigured()) return { delivered: false };
+  const safeName = escapeHtml(name);
+  const safePeriod = escapeHtml(periodLabel);
+  const goalRows = (goals || []).slice(0, 4).map((goal) => `
+    <tr>
+      <td style="padding:9px 0;border-bottom:1px solid #e6ece8;">${escapeHtml(goal.name)}</td>
+      <td style="padding:9px 0;border-bottom:1px solid #e6ece8;text-align:right;font-weight:700;">${Math.round(goal.progress)}%</td>
+    </tr>
+  `).join("");
+  const subject = `Seu relatório ${frequency === "weekly" ? "semanal" : "mensal"} da BW`;
+  await deliverEmail({
+    email,
+    subject,
+    text: [
+      `Olá${name ? `, ${name}` : ""}.`,
+      "",
+      `Relatório ${periodLabel}:`,
+      `Entradas: ${currency(totals.income)}`,
+      `Saídas: ${currency(totals.expenses)}`,
+      `Investimentos: ${currency(totals.investments)}`,
+      `Saldo do período: ${currency(totals.balance)}`,
+      "",
+      "Abra a BW para explorar os detalhes."
+    ].join("\n"),
+    html: `
+      <div style="font-family:Arial,sans-serif;line-height:1.55;color:#10221c;max-width:600px;margin:0 auto;padding:32px;">
+        <p style="color:#0d6b4f;font-size:18px;font-weight:800;margin:0 0 28px;">BW · Better Way</p>
+        <h2 style="font-size:26px;margin:0 0 8px;">Seu relatório ${frequency === "weekly" ? "semanal" : "mensal"}</h2>
+        <p style="color:#52635b;margin-top:0;">${safePeriod}</p>
+        <p>Olá${safeName ? `, ${safeName}` : ""}. Aqui está a leitura consolidada do período.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:22px 0;">
+          <div style="background:#edf7f2;border-radius:8px;padding:15px;"><span style="display:block;color:#52635b;font-size:12px;">Entradas</span><strong style="font-size:20px;color:#0d6b4f;">${currency(totals.income)}</strong></div>
+          <div style="background:#f5f7f5;border-radius:8px;padding:15px;"><span style="display:block;color:#52635b;font-size:12px;">Saídas</span><strong style="font-size:20px;">${currency(totals.expenses)}</strong></div>
+          <div style="background:#f5f7f5;border-radius:8px;padding:15px;"><span style="display:block;color:#52635b;font-size:12px;">Investimentos</span><strong style="font-size:20px;">${currency(totals.investments)}</strong></div>
+          <div style="background:#dff5ea;border-radius:8px;padding:15px;"><span style="display:block;color:#52635b;font-size:12px;">Saldo</span><strong style="font-size:20px;color:#0d6b4f;">${currency(totals.balance)}</strong></div>
+        </div>
+        ${goalRows ? `<h3 style="font-size:17px;margin:26px 0 6px;">Metas em andamento</h3><table style="border-collapse:collapse;width:100%;">${goalRows}</table>` : ""}
+        <a href="${safeHttpsHref(process.env.APP_WEB_URL || "https://betterway.com.br")}" style="background:#0d6b4f;border-radius:8px;color:#fff;display:inline-block;font-weight:800;margin-top:22px;padding:12px 18px;text-decoration:none;">Ver análise completa</a>
+      </div>
+    `
+  });
+  return { delivered: true };
+}
+
 async function sendProductGoalAlertEmail({ email, name, goalName, product, currentAmount, reasons }) {
   if (!emailConfigured()) return { delivered: false };
   const safeName = escapeHtml(name);
@@ -300,6 +384,8 @@ module.exports = {
   emailConfigured,
   sendEmailVerification,
   sendPasswordResetEmail,
+  sendFinancialReportEmail,
+  sendGoalProgressEmail,
   sendGoalReachedEmail,
   sendLimitAlertEmail,
   sendProductGoalAlertEmail

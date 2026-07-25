@@ -10,6 +10,7 @@ const FriendsPage = lazy(() => import("./pages/FriendsPage").then((module) => ({
 const InvestmentsPage = lazy(() => import("./pages/InvestmentsPage").then((module) => ({ default: module.InvestmentsPage })));
 const LandingPage = lazy(() => import("./pages/LandingPage").then((module) => ({ default: module.LandingPage })));
 const ProfilePage = lazy(() => import("./pages/ProfilePage").then((module) => ({ default: module.ProfilePage })));
+const PlansPage = lazy(() => import("./pages/PlansPage").then((module) => ({ default: module.PlansPage })));
 
 function RouteLoading() {
   return (
@@ -32,8 +33,9 @@ export default function App() {
             <Route path="/calendario" element={<CalendarPage />} />
             <Route path="/amigos" element={<FriendsPage />} />
             <Route path="/perfil" element={<ProfilePage />} />
+            <Route path="/planos" element={<PlansPage />} />
             <Route path="/linha-do-tempo" element={<Navigate to="/dashboard?view=timeline" replace />} />
-            <Route path="/simulador" element={<Navigate to="/investimentos?view=simulador" replace />} />
+            <Route path="/simulador" element={<Navigate to="/calendario#simulador" replace />} />
             <Route path="/noticias" element={<Navigate to="/investimentos?view=noticias" replace />} />
           </Route>
         </Route>

@@ -27,6 +27,7 @@ export function AuthPage() {
     name: "",
     username: "",
     email: "",
+    cpf: "",
     password: "",
     confirmPassword: "",
     verificationToken: "",
@@ -145,6 +146,10 @@ export function AuthPage() {
         navigate(location.state?.from?.pathname || "/dashboard", { replace: true });
       } else if (mode === "register") {
         if (registerStep === 1) {
+          if (form.cpf.replace(/\D/g, "").length !== 11) {
+            setError("Informe um CPF válido com 11 dígitos.");
+            return;
+          }
           if (["invalid", "unavailable"].includes(usernameStatus.state)) {
             setError(usernameStatus.message);
             return;
@@ -386,6 +391,28 @@ export function AuthPage() {
               <label className={mode === "register" ? "auth-field-wide" : undefined}>
                 <span>E-mail</span>
                 <input autoComplete="email" className={inputClass} onChange={(event) => update("email", event.target.value)} placeholder="voce@email.com" required type="email" value={form.email} />
+              </label>
+            ) : null}
+            {mode === "register" && registerStep === 1 ? (
+              <label className="auth-field-wide">
+                <span>CPF</span>
+                <input
+                  autoComplete="off"
+                  className={inputClass}
+                  inputMode="numeric"
+                  onChange={(event) => {
+                    const digits = event.target.value.replace(/\D/g, "").slice(0, 11);
+                    const masked = digits
+                      .replace(/(\d{3})(\d)/, "$1.$2")
+                      .replace(/(\d{3})(\d)/, "$1.$2")
+                      .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+                    update("cpf", masked);
+                  }}
+                  placeholder="000.000.000-00"
+                  required
+                  value={form.cpf}
+                />
+                <small className="auth-inline-hint">Usado para validar pagamentos. A BW guarda apenas um hash seguro.</small>
               </label>
             ) : null}
             {(["login", "reset"].includes(mode) || (mode === "register" && registerStep === 2)) ? (

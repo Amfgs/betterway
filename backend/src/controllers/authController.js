@@ -19,6 +19,9 @@ const {
   numberInRange
 } = require("../utils/validation");
 const { AVATAR_VALUES } = require("../utils/avatars");
+const { cpfIdentity } = require("../utils/cpf");
+const { subscriptionState, hasPlusAccess } = require("../utils/subscription");
+const { plusRequired } = require("../middleware/plusMiddleware");
 
 const STANDARD_WORKDAYS_PER_MONTH = 22;
 const MIN_PASSWORD_LENGTH = 8;
@@ -30,7 +33,11 @@ const DEFAULT_NOTIFICATION_PREFERENCES = {
   emailEnabled: true,
   limitAlerts: true,
   goalAlerts: true,
-  limitThreshold: 80
+  productAlerts: true,
+  weeklyReports: false,
+  monthlyReports: false,
+  limitThreshold: 80,
+  goalThreshold: 80
 };
 const DEFAULT_ONBOARDING = {
   avatarPromptDismissed: false,
@@ -66,6 +73,7 @@ function signToken(user, sessionStartedAt) {
 
 function cleanUser(user) {
   const copy = { ...user };
+  const cpfConfigured = Boolean(copy.cpfHash || copy.cpfLast4);
   delete copy.passwordHash;
   delete copy.resetPasswordHash;
   delete copy.resetPasswordExpiresAt;
@@ -76,6 +84,9 @@ function cleanUser(user) {
   delete copy.emailVerificationAttempts;
   delete copy.emailVerificationSentAt;
   delete copy.googleSubject;
+  delete copy.cpfHash;
+  copy.cpfConfigured = cpfConfigured;
+  copy.subscription = subscriptionState(copy);
   return copy;
 }
 
@@ -137,13 +148,15 @@ async function issueVerificationCode(user) {
 }
 
 const register = asyncHandler(async (req, res) => {
-  const { name, username, email, password, confirmPassword, salary, monthlyLimit, hourlyRate, workHoursPerDay } = req.body;
+  const { name, username, email, cpf, password, confirmPassword, salary, monthlyLimit, hourlyRate, workHoursPerDay } = req.body;
+  const cpfData = cpfIdentity(cpf);
 
   const cleanName = cleanText(name, 120);
   const normalizedUsername = normalizeUsername(username);
-  if (!cleanName || !normalizedUsername || !email || !password || !confirmPassword) {
-    return res.status(400).json({ message: "Nome, usuário, e-mail, senha e confirmação são obrigatórios." });
+  if (!cleanName || !normalizedUsername || !email || !cpf || !password || !confirmPassword) {
+    return res.status(400).json({ message: "Nome, usuário, e-mail, CPF, senha e confirmação são obrigatórios." });
   }
+  if (!cpfData) return res.status(400).json({ message: "Informe um CPF válido." });
   if (!isValidUsername(normalizedUsername)) {
     return res.status(400).json({
       message: "O nome de usuário deve ter de 3 a 24 caracteres e usar apenas letras, números, ponto ou sublinhado."
@@ -189,6 +202,8 @@ const register = asyncHandler(async (req, res) => {
     name: cleanName,
     username: normalizedUsername,
     email: normalizedEmail,
+    cpfHash: cpfData.hash,
+    cpfLast4: cpfData.last4,
     passwordHash,
     emailVerified: false,
     emailVerifiedAt: null,
@@ -540,7 +555,7 @@ const profileProgress = asyncHandler(async (req, res) => {
       title: "Faça uma simulação",
       description: "Compare um aporte com prazo e rendimento esperados.",
       completed: Boolean(onboarding.simulatedInvestment),
-      to: "/investimentos?view=simulador"
+      to: "/calendario#simulador"
     },
     {
       id: "news",
@@ -614,12 +629,13 @@ const updateProfile = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "Selecione um avatar disponível na Better Way." });
   }
   if (req.body.notificationPreferences !== undefined) {
+    if (!hasPlusAccess(req.user)) return plusRequired(res, "Alertas e relatórios avançados");
     const requested = req.body.notificationPreferences;
     if (!requested || typeof requested !== "object" || Array.isArray(requested)) {
       return res.status(400).json({ message: "Preferências de notificação inválidas." });
     }
     const current = { ...DEFAULT_NOTIFICATION_PREFERENCES, ...(req.user.notificationPreferences || {}) };
-    for (const key of ["emailEnabled", "limitAlerts", "goalAlerts"]) {
+    for (const key of ["emailEnabled", "limitAlerts", "goalAlerts", "productAlerts", "weeklyReports", "monthlyReports"]) {
       if (requested[key] !== undefined) {
         if (typeof requested[key] !== "boolean") {
           return res.status(400).json({ message: "As preferências de e-mail precisam ser verdadeiras ou falsas." });
@@ -633,6 +649,13 @@ const updateProfile = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "O aviso de limite precisa estar entre 50% e 100%." });
       }
       current.limitThreshold = Math.round(threshold);
+    }
+    if (requested.goalThreshold !== undefined) {
+      const threshold = numberInRange(requested.goalThreshold, 50, 100);
+      if (threshold === null) {
+        return res.status(400).json({ message: "O aviso de meta precisa estar entre 50% e 100%." });
+      }
+      current.goalThreshold = Math.round(threshold);
     }
     fields.notificationPreferences = current;
   }

@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Activity,
   BellRing,
+  BadgeCheck,
+  CreditCard,
   ChartNoAxesCombined,
   ChevronLeft,
   ChevronRight,
@@ -25,6 +27,7 @@ import { api, getErrorMessage } from "../api/client";
 import { BankConnectionsPanel } from "../components/BankConnectionsPanel";
 import { StatCard } from "../components/StatCard";
 import { WorkspaceHeader } from "../components/WorkspaceHeader";
+import { PremiumGate } from "../components/PremiumFeature";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { avatarOptions, avatarSrc, normalizeAvatar } from "../utils/avatars";
@@ -35,6 +38,7 @@ const profileTabs = [
   { id: "financeiro", label: "Dados financeiros", description: "Renda, teto e valor-hora", icon: WalletCards },
   { id: "conexoes", label: "Conexões", description: "Integração bancária em preparação", icon: Landmark, status: "Em breve" },
   { id: "notificacoes", label: "Alertas por e-mail", description: "Limites, metas e produtos", icon: BellRing },
+  { id: "assinatura", label: "Plano e assinatura", description: "Free, Plus e pagamentos", icon: CreditCard },
   { id: "conta", label: "Conta e segurança", description: "Identidade e acesso", icon: SlidersHorizontal }
 ];
 
@@ -104,7 +108,11 @@ export function ProfilePage() {
     emailEnabled: user?.notificationPreferences?.emailEnabled ?? true,
     limitAlerts: user?.notificationPreferences?.limitAlerts ?? true,
     goalAlerts: user?.notificationPreferences?.goalAlerts ?? true,
-    limitThreshold: user?.notificationPreferences?.limitThreshold ?? 80
+    productAlerts: user?.notificationPreferences?.productAlerts ?? true,
+    weeklyReports: user?.notificationPreferences?.weeklyReports ?? false,
+    monthlyReports: user?.notificationPreferences?.monthlyReports ?? false,
+    limitThreshold: user?.notificationPreferences?.limitThreshold ?? 80,
+    goalThreshold: user?.notificationPreferences?.goalThreshold ?? 80
   });
   const navigate = useNavigate();
 
@@ -134,7 +142,11 @@ export function ProfilePage() {
       emailEnabled: user?.notificationPreferences?.emailEnabled ?? true,
       limitAlerts: user?.notificationPreferences?.limitAlerts ?? true,
       goalAlerts: user?.notificationPreferences?.goalAlerts ?? true,
-      limitThreshold: user?.notificationPreferences?.limitThreshold ?? 80
+      productAlerts: user?.notificationPreferences?.productAlerts ?? true,
+      weeklyReports: user?.notificationPreferences?.weeklyReports ?? false,
+      monthlyReports: user?.notificationPreferences?.monthlyReports ?? false,
+      limitThreshold: user?.notificationPreferences?.limitThreshold ?? 80,
+      goalThreshold: user?.notificationPreferences?.goalThreshold ?? 80
     });
   }, [user]);
 
@@ -317,6 +329,11 @@ export function ProfilePage() {
           ) : null}
 
           {activeTab === "notificacoes" ? (
+            <PremiumGate
+              description="Defina a distância do teto ou da meta que dispara um aviso e escolha relatórios semanais ou mensais."
+              feature="Alertas e relatórios avançados"
+              title="Acompanhamento automático por e-mail"
+            >
             <form className="profile-tab-panel profile-content-card profile-notifications" id="profile-panel-notificacoes" onSubmit={saveNotifications} role="tabpanel">
               <div className="profile-notification-heading">
                 <span><BellRing size={22} /></span>
@@ -333,8 +350,20 @@ export function ProfilePage() {
                   <input checked={notificationForm.limitAlerts} disabled={!notificationForm.emailEnabled} onChange={(event) => setNotificationForm((current) => ({ ...current, limitAlerts: event.target.checked }))} type="checkbox" />
                 </label>
                 <label className={`profile-notification-row ${!notificationForm.emailEnabled ? "disabled" : ""}`}>
-                  <span><strong>Metas e produtos</strong><small>Avise quando uma caixinha for concluída, um preço-alvo chegar ou o valor guardado já comprar o produto.</small></span>
+                  <span><strong>Progresso das metas</strong><small>Avise quando uma caixinha alcançar a porcentagem escolhida ou for concluída.</small></span>
                   <input checked={notificationForm.goalAlerts} disabled={!notificationForm.emailEnabled} onChange={(event) => setNotificationForm((current) => ({ ...current, goalAlerts: event.target.checked }))} type="checkbox" />
+                </label>
+                <label className={`profile-notification-row ${!notificationForm.emailEnabled ? "disabled" : ""}`}>
+                  <span><strong>Produtos monitorados</strong><small>Avise quando o preço-alvo chegar ou sua caixinha já puder comprar o produto, com link da oferta.</small></span>
+                  <input checked={notificationForm.productAlerts} disabled={!notificationForm.emailEnabled} onChange={(event) => setNotificationForm((current) => ({ ...current, productAlerts: event.target.checked }))} type="checkbox" />
+                </label>
+                <label className={`profile-notification-row ${!notificationForm.emailEnabled ? "disabled" : ""}`}>
+                  <span><strong>Relatório semanal</strong><small>Receba às segundas um resumo dos sete dias anteriores.</small></span>
+                  <input checked={notificationForm.weeklyReports} disabled={!notificationForm.emailEnabled} onChange={(event) => setNotificationForm((current) => ({ ...current, weeklyReports: event.target.checked }))} type="checkbox" />
+                </label>
+                <label className={`profile-notification-row ${!notificationForm.emailEnabled ? "disabled" : ""}`}>
+                  <span><strong>Relatório mensal</strong><small>Receba no primeiro dia do mês a leitura consolidada do mês anterior.</small></span>
+                  <input checked={notificationForm.monthlyReports} disabled={!notificationForm.emailEnabled} onChange={(event) => setNotificationForm((current) => ({ ...current, monthlyReports: event.target.checked }))} type="checkbox" />
                 </label>
               </div>
 
@@ -348,9 +377,43 @@ export function ProfilePage() {
                 </select>
               </label>
 
+              <label className={`profile-threshold-control ${!notificationForm.emailEnabled || !notificationForm.goalAlerts ? "disabled" : ""}`}>
+                <span><strong>Quando avisar sobre uma meta?</strong><small>O e-mail mostra quanto falta e envia outro aviso ao completar 100%.</small></span>
+                <select disabled={!notificationForm.emailEnabled || !notificationForm.goalAlerts} onChange={(event) => setNotificationForm((current) => ({ ...current, goalThreshold: Number(event.target.value) }))} value={notificationForm.goalThreshold}>
+                  <option value="50">Ao chegar em 50%</option>
+                  <option value="70">Ao chegar em 70%</option>
+                  <option value="80">Ao chegar em 80%</option>
+                  <option value="90">Ao chegar em 90%</option>
+                  <option value="100">Somente ao atingir 100%</option>
+                </select>
+              </label>
+
               <div className="profile-email-destination"><ShieldCheck size={18} /><span>Os relatórios serão enviados para <strong>{user?.email}</strong>. A BW nunca inclui senhas ou credenciais bancárias.</span></div>
               <button className="profile-primary-button" type="submit"><Save size={18} /> Salvar alertas</button>
             </form>
+            </PremiumGate>
+          ) : null}
+
+          {activeTab === "assinatura" ? (
+            <div className="profile-tab-panel profile-subscription-panel" id="profile-panel-assinatura" role="tabpanel">
+              <section className={`profile-subscription-card ${user?.subscription?.hasPlus ? "plus" : ""}`}>
+                <div className="profile-subscription-icon"><BadgeCheck size={26} /></div>
+                <div>
+                  <span>Plano atual</span>
+                  <h2>{user?.subscription?.hasPlus ? "BW Plus" : "BW Free"}</h2>
+                  <p>{user?.subscription?.hasPlus
+                    ? `Acesso liberado até ${new Date(user.subscription.currentPeriodEnd).toLocaleDateString("pt-BR")}.`
+                    : "Organização financeira essencial, sem prazo e sem cobrança."}</p>
+                </div>
+                <strong>{user?.subscription?.hasPlus ? "Ativo" : "Grátis"}</strong>
+              </section>
+              <section className="profile-content-card profile-subscription-details">
+                <div><h3>Renovação sob seu controle</h3><p>O BW Plus custa R$ 7,90 por 30 dias. Nenhuma renovação ou cobrança automática é criada.</p></div>
+                <div><h3>Primeiro período gratuito</h3><p>{user?.subscription?.trialAvailable ? "Seus primeiros 30 dias ainda estão disponíveis." : "O período gratuito desta conta já foi utilizado."}</p></div>
+                <div><h3>Pagamento protegido</h3><p>Cartões são tokenizados pelo Mercado Pago. A BW nunca salva número, validade ou CVV.</p></div>
+              </section>
+              <button className="profile-primary-button profile-plan-button" onClick={() => navigate("/planos")} type="button"><CreditCard size={18} /> Comparar planos e pagamentos</button>
+            </div>
           ) : null}
 
           {activeTab === "conta" ? (

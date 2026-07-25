@@ -81,6 +81,12 @@ SMTP_USER=
 SMTP_PASS=
 EMAIL_FROM="Better Way <no-reply@mail.betterway.com.br>"
 RESEND_API_KEY=
+CPF_HASH_SECRET=uma_chave_independente_longa_e_aleatoria
+MERCADO_PAGO_ACCESS_TOKEN=
+MERCADO_PAGO_PUBLIC_KEY=
+MERCADO_PAGO_WEBHOOK_SECRET=
+PAYMENTS_WEBHOOK_URL=http://localhost:5050/api/billing/webhook
+ADMIN_API_KEY=uma_chave_de_administracao_longa_e_aleatoria
 ```
 
 Sem `MONGO_URI` ou `MONGODB_URI`, o backend usa um arquivo local em `backend/data/store.json`. Isso preserva logins, metas, limites, amigos e transações entre reinícios do servidor.
@@ -124,6 +130,34 @@ RESEND_API_KEY=re_sua_chave
 Se `RESEND_API_KEY` estiver configurada e `EMAIL_FROM` ficar ausente, a API usa `Better Way <no-reply@mail.betterway.com.br>` como remetente padrão.
 
 Sem Resend ou SMTP configurado, o backend mantém o fluxo em modo desenvolvimento: ele imprime o token no terminal e também retorna `devResetToken` para teste local.
+
+## BW Plus e pagamentos
+
+O BW Plus custa **R$ 7,90 por 30 dias** e não possui renovação automática. Cada conta pode ativar um primeiro período gratuito de 30 dias. O plano libera alertas avançados, monitoramento de produtos, relatórios semanais ou mensais por e-mail e o simulador completo dentro de Planejamento.
+
+O checkout usa Pix e cartão pelo Mercado Pago. O formulário de cartão é o Card Payment Brick oficial: número, validade e CVV são tokenizados pelo provedor e não são armazenados pela BW. O CPF completo também não é persistido; a API guarda somente um HMAC para comparação e os quatro últimos dígitos para identificação do usuário.
+
+Para habilitar pagamentos, crie uma aplicação em **Mercado Pago > Suas integrações**, ative as credenciais de produção e configure no backend:
+
+```env
+CPF_HASH_SECRET=uma_chave_independente_longa_e_aleatoria
+MERCADO_PAGO_ACCESS_TOKEN=APP_USR-...
+MERCADO_PAGO_PUBLIC_KEY=APP_USR-...
+MERCADO_PAGO_WEBHOOK_SECRET=assinatura_secreta_do_webhook
+PAYMENTS_WEBHOOK_URL=https://api.betterway.com.br/api/billing/webhook
+ADMIN_API_KEY=uma_chave_de_administracao_longa_e_aleatoria
+```
+
+No painel do Mercado Pago, cadastre `https://api.betterway.com.br/api/billing/webhook` como URL de produção para eventos de pagamento e copie a assinatura secreta gerada para `MERCADO_PAGO_WEBHOOK_SECRET`. A API só libera o Plus depois de consultar o pagamento diretamente no Mercado Pago e validar valor, moeda, plano e proprietário.
+
+Monitoramento de preços e relatórios são processados juntos por `/api/maintenance/run`, uma vez ao dia. A Vercel autentica a rotina com `CRON_SECRET`; não exponha essa variável no frontend.
+
+Para conceder ou retirar o Plus manualmente, mantenha `ADMIN_API_KEY` apenas no backend e execute localmente:
+
+```bash
+BETTERWAY_ADMIN_API_KEY=sua_chave npm --workspace backend run plus:grant -- usuario@exemplo.com 30
+BETTERWAY_ADMIN_API_KEY=sua_chave npm --workspace backend run plus:revoke -- usuario@exemplo.com
+```
 
 ## Estrutura
 

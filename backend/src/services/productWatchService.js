@@ -5,6 +5,7 @@ const axios = require("axios");
 const he = require("he");
 const repository = require("./repository");
 const { sendProductGoalAlertEmail } = require("./emailService");
+const { hasPlusAccess } = require("../utils/subscription");
 
 const MAX_HTML_BYTES = 2 * 1024 * 1024;
 const MAX_REDIRECTS = 3;
@@ -536,7 +537,7 @@ function normalizedAlertState(product) {
 
 async function evaluateProductGoalAlerts({ goal, user }) {
   const product = goal?.product;
-  if (!product?.enabled || !user) return goal;
+  if (!product?.enabled || !user || !hasPlusAccess(user)) return goal;
 
   const currentPrice = Number(product.currentPrice || 0);
   const targetPrice = Number(product.targetPrice || 0);
@@ -551,9 +552,10 @@ async function evaluateProductGoalAlerts({ goal, user }) {
   const preferences = {
     emailEnabled: true,
     goalAlerts: true,
+    productAlerts: true,
     ...(user.notificationPreferences || {})
   };
-  if (reasons.length && preferences.emailEnabled && preferences.goalAlerts && user.email) {
+  if (reasons.length && preferences.emailEnabled && preferences.goalAlerts && preferences.productAlerts && user.email) {
     try {
       const result = await sendProductGoalAlertEmail({
         email: user.email,
@@ -662,7 +664,13 @@ async function refreshUserProductGoals(userId, { force = false, limit = 5 } = {}
 }
 
 async function runScheduledProductWatch() {
-  const goals = await repository.listProductGoals(null, 12);
+  const candidates = await repository.listProductGoals(null, 36);
+  const goals = [];
+  for (const goal of candidates) {
+    const user = await repository.findUserById(goal.userId);
+    if (hasPlusAccess(user)) goals.push(goal);
+    if (goals.length >= 12) break;
+  }
   let updated = 0;
   let failed = 0;
   for (let index = 0; index < goals.length; index += 4) {

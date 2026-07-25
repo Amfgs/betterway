@@ -1,6 +1,6 @@
 const asyncHandler = require("../utils/asyncHandler");
 const repository = require("../services/repository");
-const { maybeSendGoalReachedAlert } = require("../services/notificationService");
+const { maybeSendGoalProgressAlert } = require("../services/notificationService");
 const {
   evaluateProductGoalAlerts,
   inspectMarketProductUrl,
@@ -12,6 +12,8 @@ const {
 const crypto = require("crypto");
 const { asNumber, normalizeDateForStorage } = require("../utils/financial");
 const { cleanText, isValidDateKey, numberInRange, uniqueIds } = require("../utils/validation");
+const { hasPlusAccess } = require("../utils/subscription");
+const { plusRequired } = require("../middleware/plusMiddleware");
 
 async function authorizedParticipants(userId, participantIds) {
   const requested = uniqueIds(participantIds, userId);
@@ -51,6 +53,7 @@ const create = asyncHandler(async (req, res) => {
   }
   const isMarketProduct = Boolean(requestedProduct?.marketUrl || requestedProduct?.provider === "buscape");
   const isProductGoal = Boolean(requestedProduct?.url || requestedProduct?.marketUrl);
+  if (isProductGoal && !hasPlusAccess(req.user)) return plusRequired(res, "Monitoramento de produtos");
   const inspectedProduct = isProductGoal
     ? isMarketProduct
       ? await inspectMarketProductUrl(requestedProduct.marketUrl || requestedProduct.url, {
@@ -122,6 +125,7 @@ const create = asyncHandler(async (req, res) => {
   });
 
   if (isProductGoal) goal = await evaluateProductGoalAlerts({ goal, user: req.user });
+  else await maybeSendGoalProgressAlert({ user: req.user, goal });
 
   return res.status(201).json({ goal });
 });
@@ -164,6 +168,7 @@ const update = asyncHandler(async (req, res) => {
 
   const goal = await repository.updateGoal(req.user.id, req.params.id, fields);
   if (!goal) return res.status(404).json({ message: "Meta não encontrada ou sem permissão para editar." });
+  if (!goal.product?.enabled) await maybeSendGoalProgressAlert({ user: req.user, goal });
   return res.json({ goal });
 });
 
@@ -229,9 +234,11 @@ const movement = asyncHandler(async (req, res) => {
     Number(goal.currentAmount || 0) >= Number(goal.targetAmount || 0)
   ) {
     if (goal.product?.enabled) await evaluateProductGoalAlerts({ user: req.user, goal });
-    else await maybeSendGoalReachedAlert({ user: req.user, goal });
+    else await maybeSendGoalProgressAlert({ user: req.user, goal });
   } else if (goal.product?.enabled) {
     await evaluateProductGoalAlerts({ user: req.user, goal });
+  } else if (movementType === "deposit") {
+    await maybeSendGoalProgressAlert({ user: req.user, goal });
   }
   return res.status(201).json({ goal, movement: goal.movements?.[0] || null });
 });

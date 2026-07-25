@@ -39,6 +39,16 @@ const userSchema = new mongoose.Schema(
       sparse: true,
       select: false
     },
+    cpfHash: {
+      type: String,
+      default: "",
+      select: false
+    },
+    cpfLast4: {
+      type: String,
+      default: "",
+      maxlength: 4
+    },
     authVersion: {
       type: Number,
       min: 0,
@@ -173,7 +183,25 @@ const userSchema = new mongoose.Schema(
         type: Boolean,
         default: true
       },
+      productAlerts: {
+        type: Boolean,
+        default: true
+      },
+      weeklyReports: {
+        type: Boolean,
+        default: false
+      },
+      monthlyReports: {
+        type: Boolean,
+        default: false
+      },
       limitThreshold: {
+        type: Number,
+        min: 50,
+        max: 100,
+        default: 80
+      },
+      goalThreshold: {
         type: Number,
         min: 50,
         max: 100,
@@ -193,6 +221,65 @@ const userSchema = new mongoose.Schema(
       goalReachedIds: {
         type: [String],
         default: []
+      },
+      goalAlertLevels: {
+        type: [
+          {
+            _id: false,
+            goalId: { type: String, required: true },
+            level: { type: Number, min: 0, max: 100, default: 0 }
+          }
+        ],
+        default: []
+      },
+      lastWeeklyReportKey: {
+        type: String,
+        default: ""
+      },
+      lastMonthlyReportKey: {
+        type: String,
+        default: ""
+      }
+    },
+    subscription: {
+      plan: {
+        type: String,
+        enum: ["free", "plus"],
+        default: "free"
+      },
+      status: {
+        type: String,
+        enum: ["free", "trialing", "pending", "active", "expired", "cancelled", "granted"],
+        default: "free"
+      },
+      source: {
+        type: String,
+        enum: ["none", "trial", "mercadopago", "admin"],
+        default: "none"
+      },
+      currentPeriodStart: {
+        type: Date,
+        default: null
+      },
+      currentPeriodEnd: {
+        type: Date,
+        default: null
+      },
+      trialUsedAt: {
+        type: Date,
+        default: null
+      },
+      autoRenew: {
+        type: Boolean,
+        default: false
+      },
+      latestPaymentId: {
+        type: String,
+        default: ""
+      },
+      latestPaymentStatus: {
+        type: String,
+        default: ""
       }
     },
     onboarding: {

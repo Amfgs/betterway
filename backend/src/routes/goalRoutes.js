@@ -2,6 +2,7 @@ const express = require("express");
 const rateLimit = require("express-rate-limit");
 const goalController = require("../controllers/goalController");
 const authMiddleware = require("../middleware/authMiddleware");
+const { requirePlus } = require("../middleware/plusMiddleware");
 
 const router = express.Router();
 const productLookupLimiter = rateLimit({
@@ -14,13 +15,13 @@ const productLookupLimiter = rateLimit({
 
 router.use(authMiddleware);
 router.get("/", goalController.list);
-router.post("/product/search", productLookupLimiter, goalController.searchProducts);
-router.post("/product/preview", productLookupLimiter, goalController.previewProduct);
-router.post("/products/refresh", productLookupLimiter, goalController.refreshProducts);
+router.post("/product/search", requirePlus("Monitoramento de produtos"), productLookupLimiter, goalController.searchProducts);
+router.post("/product/preview", requirePlus("Monitoramento de produtos"), productLookupLimiter, goalController.previewProduct);
+router.post("/products/refresh", requirePlus("Monitoramento de produtos"), productLookupLimiter, goalController.refreshProducts);
 router.post("/", goalController.create);
 router.post("/:id/movements", goalController.movement);
-router.post("/:id/product/check", productLookupLimiter, goalController.checkProduct);
-router.put("/:id/product", goalController.updateProduct);
+router.post("/:id/product/check", requirePlus("Monitoramento de produtos"), productLookupLimiter, goalController.checkProduct);
+router.put("/:id/product", requirePlus("Monitoramento de produtos"), goalController.updateProduct);
 router.put("/:id", goalController.update);
 router.delete("/:id", goalController.remove);
 

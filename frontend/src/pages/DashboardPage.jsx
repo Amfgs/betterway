@@ -26,6 +26,7 @@ import { DatePickerField } from "../components/DatePickerField";
 import { OpportunityModal } from "../components/OpportunityModal";
 import { StatCard } from "../components/StatCard";
 import { GuidedSectionHeader, WorkspaceHeader, WorkspacePeriodControl } from "../components/WorkspaceHeader";
+import { PremiumLock, requestPlan } from "../components/PremiumFeature";
 import { useAuth } from "../context/AuthContext";
 import { categoryLabel, categoryOptions, currency, monthInputValue, percent, shortDate } from "../utils/formatters";
 import { TimelinePage } from "./TimelinePage";
@@ -691,7 +692,8 @@ export function DashboardPage() {
           <form className="mt-4 grid gap-3" onSubmit={createGoal}>
             <div className="goal-kind-switch" role="group" aria-label="Tipo de caixinha">
               <button aria-pressed={goalForm.mode === "money"} onClick={() => updateGoalForm("mode", "money")} type="button"><WalletCards size={17} /> Meta em dinheiro</button>
-              <button aria-pressed={goalForm.mode === "product"} onClick={() => updateGoalForm("mode", "product")} type="button"><ShoppingBag size={17} /> Quero um produto</button>
+              <button aria-pressed={goalForm.mode === "product"} onClick={() => user?.subscription?.hasPlus ? updateGoalForm("mode", "product") : requestPlan("Monitoramento de produtos")} type="button"><ShoppingBag size={17} /> Quero um produto</button>
+              <PremiumLock feature="Monitoramento de produtos" />
             </div>
 
             {goalForm.mode === "money" ? (
@@ -788,7 +790,7 @@ export function DashboardPage() {
                         <span className="product-goal-image-fallback"><ShoppingBag size={25} /></span>
                       )}
                       <div>
-                        <p><ShoppingBag size={14} /> Meta de produto · {goal.product.marketSource || goal.product.store}</p>
+                        <p><ShoppingBag size={14} /> Meta de produto · {goal.product.marketSource || goal.product.store} <PremiumLock feature="Monitoramento de produtos" /></p>
                         <h3>{goal.product.name || goal.name}</h3>
                         <small>{goal.product.offersCount > 1 ? `Melhor oferta entre ${goal.product.offersCount} lojas` : goal.product.store} · prazo: {shortDate(goal.dueDate)}</small>
                       </div>

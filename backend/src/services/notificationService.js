@@ -1,12 +1,17 @@
 const repository = require("./repository");
-const { sendGoalReachedEmail, sendLimitAlertEmail } = require("./emailService");
+const { sendGoalProgressEmail, sendGoalReachedEmail, sendLimitAlertEmail } = require("./emailService");
+const { hasPlusAccess } = require("../utils/subscription");
 
 function preferences(user) {
   return {
     emailEnabled: true,
     limitAlerts: true,
     goalAlerts: true,
+    productAlerts: true,
+    weeklyReports: false,
+    monthlyReports: false,
     limitThreshold: 80,
+    goalThreshold: 80,
     ...(user.notificationPreferences || {})
   };
 }
@@ -16,13 +21,16 @@ function state(user) {
     limitAlertMonth: "",
     limitAlertLevel: 0,
     goalReachedIds: [],
+    goalAlertLevels: [],
+    lastWeeklyReportKey: "",
+    lastMonthlyReportKey: "",
     ...(user.notificationState || {})
   };
 }
 
 async function maybeSendLimitAlert({ user, month, spent, limit }) {
   const prefs = preferences(user);
-  if (!prefs.emailEnabled || !prefs.limitAlerts || !user.email || Number(limit || 0) <= 0) return false;
+  if (!hasPlusAccess(user) || !prefs.emailEnabled || !prefs.limitAlerts || !user.email || Number(limit || 0) <= 0) return false;
 
   const usagePercent = (Number(spent || 0) / Number(limit)) * 100;
   const threshold = Math.max(50, Math.min(Number(prefs.limitThreshold || 80), 100));
@@ -57,7 +65,7 @@ async function maybeSendLimitAlert({ user, month, spent, limit }) {
 
 async function maybeSendGoalReachedAlert({ user, goal }) {
   const prefs = preferences(user);
-  if (!prefs.emailEnabled || !prefs.goalAlerts || !user.email || !goal) return false;
+  if (!hasPlusAccess(user) || !prefs.emailEnabled || !prefs.goalAlerts || !user.email || !goal) return false;
   if (Number(goal.currentAmount || 0) < Number(goal.targetAmount || 0)) return false;
 
   const currentState = state(user);
@@ -85,7 +93,53 @@ async function maybeSendGoalReachedAlert({ user, goal }) {
   }
 }
 
+async function maybeSendGoalProgressAlert({ user, goal }) {
+  const prefs = preferences(user);
+  if (!hasPlusAccess(user) || !prefs.emailEnabled || !prefs.goalAlerts || !user.email || !goal) return false;
+  const target = Number(goal.targetAmount || 0);
+  if (target <= 0) return false;
+
+  const progress = Math.min((Number(goal.currentAmount || 0) / target) * 100, 100);
+  const threshold = Math.max(50, Math.min(Number(prefs.goalThreshold || 80), 100));
+  if (progress < threshold) return false;
+  const level = progress >= 100 ? 100 : threshold;
+  const currentState = state(user);
+  const goalId = String(goal.id || goal._id || "");
+  const previous = (currentState.goalAlertLevels || []).find((entry) => entry.goalId === goalId);
+  if (!goalId || Number(previous?.level || 0) >= level) return false;
+
+  try {
+    const result = await sendGoalProgressEmail({
+      email: user.email,
+      name: user.name,
+      goalName: goal.name,
+      currentAmount: goal.currentAmount,
+      targetAmount: goal.targetAmount,
+      progress
+    });
+    if (!result.delivered) return false;
+    const nextLevels = [
+      ...(currentState.goalAlertLevels || []).filter((entry) => entry.goalId !== goalId),
+      { goalId, level }
+    ].slice(-100);
+    await repository.updateUser(user.id, {
+      notificationState: {
+        ...currentState,
+        goalAlertLevels: nextLevels,
+        goalReachedIds: level >= 100
+          ? [...new Set([...(currentState.goalReachedIds || []), goalId])].slice(-100)
+          : currentState.goalReachedIds || []
+      }
+    });
+    return true;
+  } catch (error) {
+    console.warn("Falha ao enviar alerta de progresso da meta:", error.message);
+    return false;
+  }
+}
+
 module.exports = {
   maybeSendGoalReachedAlert,
+  maybeSendGoalProgressAlert,
   maybeSendLimitAlert
 };

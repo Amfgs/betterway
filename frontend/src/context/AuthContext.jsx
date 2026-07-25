@@ -185,6 +185,7 @@ export function AuthProvider({ children }) {
       resetPassword,
       logout,
       retrySession: restoreSession,
+      refreshUser: () => restoreSession({ showLoading: false }),
       setSessionPersistence,
       updateProfile
     }),

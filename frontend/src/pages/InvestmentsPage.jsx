@@ -18,6 +18,7 @@ import { BriefcaseBusiness, Calculator, Eye, Newspaper, Plus, Trash2, TrendingUp
 import { api, getErrorMessage } from "../api/client";
 import { StatCard } from "../components/StatCard";
 import { GuidedSectionHeader, WorkspaceHeader, WorkspaceTabs } from "../components/WorkspaceHeader";
+import { PremiumGate } from "../components/PremiumFeature";
 import { useAuth } from "../context/AuthContext";
 import { currency, percent } from "../utils/formatters";
 import { readScopedStoredValue, removeStoredValue, scopedStorageKey, storageKeys } from "../utils/storageKeys";
@@ -398,7 +399,13 @@ export function InvestmentsPage() {
             icon={Calculator}
             title="Transforme uma intenção em cenário"
           />
-          <SimulatorPage embedded />
+          <PremiumGate
+            description="O simulador completo agora também faz parte da área Planejamento, junto das decisões do seu mês."
+            feature="Simulações completas"
+            title="Projeções avançadas de investimento"
+          >
+            <SimulatorPage embedded />
+          </PremiumGate>
         </section>
       </div>
     );

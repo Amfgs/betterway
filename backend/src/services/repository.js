@@ -7,9 +7,11 @@ const Asset = require("../models/Asset");
 const BankConnection = require("../models/BankConnection");
 const PluggyWebhookEvent = require("../models/PluggyWebhookEvent");
 const SharedPlanProposal = require("../models/SharedPlanProposal");
+const Payment = require("../models/Payment");
 const { isDatabaseConnected } = require("../config/db");
 const { financialWindow, isInsideFinancialWindow } = require("../utils/financial");
 const { normalizeAvatarValue } = require("../utils/avatars");
+const { subscriptionState } = require("../utils/subscription");
 const memoryStore = require("./memoryStore");
 
 function normalize(doc) {
@@ -26,6 +28,7 @@ function normalize(doc) {
 function safeUser(doc) {
   const user = normalize(doc);
   if (!user) return null;
+  const cpfConfigured = Boolean(user.cpfHash || user.cpfLast4);
   delete user.passwordHash;
   delete user.resetPasswordHash;
   delete user.resetPasswordExpiresAt;
@@ -36,12 +39,15 @@ function safeUser(doc) {
   delete user.emailVerificationAttempts;
   delete user.emailVerificationSentAt;
   delete user.googleSubject;
+  delete user.cpfHash;
+  user.cpfConfigured = cpfConfigured;
+  user.subscription = subscriptionState(user);
   user.avatarUrl = normalizeAvatarValue(user.avatarUrl);
   return user;
 }
 
 const privateUserSelection =
-  "+passwordHash +googleSubject +resetPasswordHash +resetPasswordExpiresAt +resetPasswordAttempts +resetPasswordSentAt +emailVerificationHash +emailVerificationExpiresAt +emailVerificationAttempts +emailVerificationSentAt";
+  "+passwordHash +googleSubject +cpfHash +resetPasswordHash +resetPasswordExpiresAt +resetPasswordAttempts +resetPasswordSentAt +emailVerificationHash +emailVerificationExpiresAt +emailVerificationAttempts +emailVerificationSentAt";
 
 function publicUser(doc) {
   const user = normalize(doc);
@@ -107,6 +113,12 @@ async function updateUser(id, fields) {
   if (!isDatabaseConnected()) return memoryStore.updateUser(id, fields);
   const user = await User.findByIdAndUpdate(id, fields, { new: true, runValidators: true });
   return safeUser(user);
+}
+
+async function listUsers() {
+  if (!isDatabaseConnected()) return memoryStore.listUsers();
+  const users = await User.find({});
+  return users.map(safeUser);
 }
 
 async function listTransactions(userId, filters = {}) {
@@ -571,6 +583,72 @@ async function listPendingPluggyWebhooks() {
   return events.map(normalize);
 }
 
+async function createPayment(payload) {
+  if (!isDatabaseConnected()) return memoryStore.createPayment(payload);
+  try {
+    return normalize(await Payment.create(payload));
+  } catch (error) {
+    if (error.code === 11000 && error.keyPattern?.idempotencyKey) {
+      return normalize(await Payment.findOne({ idempotencyKey: payload.idempotencyKey }));
+    }
+    throw error;
+  }
+}
+
+async function findPaymentByIdempotencyKey(idempotencyKey) {
+  if (!isDatabaseConnected()) return memoryStore.findPaymentByIdempotencyKey(idempotencyKey);
+  return normalize(await Payment.findOne({ idempotencyKey }));
+}
+
+async function findPaymentByProviderId(providerPaymentId) {
+  if (!isDatabaseConnected()) return memoryStore.findPaymentByProviderId(providerPaymentId);
+  return normalize(await Payment.findOne({ providerPaymentId: String(providerPaymentId) }));
+}
+
+async function findPaymentForUser(userId, paymentId) {
+  if (!isDatabaseConnected()) return memoryStore.findPaymentForUser(userId, paymentId);
+  return normalize(await Payment.findOne({
+    userId,
+    $or: [{ _id: mongoose.isValidObjectId(paymentId) ? paymentId : null }, { providerPaymentId: String(paymentId) }]
+  }));
+}
+
+async function listPayments(userId, limit = 20) {
+  if (!isDatabaseConnected()) return memoryStore.listPayments(userId, limit);
+  const payments = await Payment.find({ userId })
+    .sort({ createdAt: -1 })
+    .limit(Math.max(1, Math.min(Number(limit) || 20, 50)));
+  return payments.map(normalize);
+}
+
+async function updatePayment(paymentId, fields) {
+  if (!isDatabaseConnected()) return memoryStore.updatePayment(paymentId, fields);
+  const query = mongoose.isValidObjectId(paymentId)
+    ? { $or: [{ _id: paymentId }, { providerPaymentId: String(paymentId) }] }
+    : { providerPaymentId: String(paymentId) };
+  return normalize(await Payment.findOneAndUpdate(query, fields, { new: true, runValidators: true }));
+}
+
+async function claimPaymentAccess(paymentId, claimedAt) {
+  if (!isDatabaseConnected()) return memoryStore.claimPaymentAccess(paymentId, claimedAt);
+  const query = mongoose.isValidObjectId(paymentId)
+    ? { _id: paymentId, accessGrantedAt: null }
+    : { providerPaymentId: String(paymentId), accessGrantedAt: null };
+  return normalize(await Payment.findOneAndUpdate(
+    query,
+    { accessGrantedAt: claimedAt },
+    { new: true, runValidators: true }
+  ));
+}
+
+async function releasePaymentAccess(paymentId, claimedAt) {
+  if (!isDatabaseConnected()) return memoryStore.releasePaymentAccess(paymentId, claimedAt);
+  const query = mongoose.isValidObjectId(paymentId)
+    ? { _id: paymentId, accessGrantedAt: claimedAt }
+    : { providerPaymentId: String(paymentId), accessGrantedAt: claimedAt };
+  return normalize(await Payment.findOneAndUpdate(query, { accessGrantedAt: null }, { new: true }));
+}
+
 module.exports = {
   findUserByEmail,
   findUserByUsername,
@@ -578,6 +656,7 @@ module.exports = {
   findUserByGoogleSubject,
   createUser,
   updateUser,
+  listUsers,
   listTransactions,
   createTransaction,
   updateTransaction,
@@ -617,5 +696,13 @@ module.exports = {
   markBankConnectionError,
   enqueuePluggyWebhook,
   completePluggyWebhook,
-  listPendingPluggyWebhooks
+  listPendingPluggyWebhooks,
+  createPayment,
+  findPaymentByIdempotencyKey,
+  findPaymentByProviderId,
+  findPaymentForUser,
+  listPayments,
+  updatePayment,
+  claimPaymentAccess,
+  releasePaymentAccess
 };

@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Plus,
   Search,
+  Sparkles,
   Target,
   TrendingUp,
   UserRound,
@@ -35,7 +36,8 @@ const pageMeta = {
   "/calendario": { title: "Planejamento", description: "Distribua seus limites pelos dias que realmente importam." },
   "/investimentos": { title: "Investimentos", description: "Carteira, projeções e mercado no mesmo espaço." },
   "/amigos": { title: "Amigos", description: "Construa metas e limites com pessoas próximas." },
-  "/perfil": { title: "Perfil", description: "Preferências, segurança e comportamento financeiro." }
+  "/perfil": { title: "Perfil", description: "Preferências, segurança e comportamento financeiro." },
+  "/planos": { title: "Planos", description: "Compare o Free e o Plus e gerencie seu acesso." }
 };
 
 const dashboardQuickActions = {
@@ -76,10 +78,17 @@ export function Shell() {
   );
   const [query, setQuery] = useState("");
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
+  const [requiredPlanFeature, setRequiredPlanFeature] = useState("");
   const currentMeta = pageMeta[location.pathname] || pageMeta["/dashboard"];
   const isDashboard = location.pathname === "/dashboard";
   const isTimeline = isDashboard && new URLSearchParams(location.search).get("view") === "timeline";
   const quickActions = dashboardQuickActions[isTimeline ? "timeline" : "overview"];
+
+  useEffect(() => {
+    const showPlan = (event) => setRequiredPlanFeature(event.detail?.feature || "Este recurso");
+    window.addEventListener("betterway:plan-required", showPlan);
+    return () => window.removeEventListener("betterway:plan-required", showPlan);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(storageKeys.sidebarCollapsed, String(collapsed));
@@ -269,6 +278,24 @@ export function Shell() {
           </NavLink>
         ))}
       </nav>
+
+      {requiredPlanFeature ? (
+        <div aria-labelledby="plus-required-title" aria-modal="true" className="plan-required-dialog" role="dialog">
+          <button aria-label="Fechar" className="plan-required-backdrop" onClick={() => setRequiredPlanFeature("")} type="button" />
+          <section>
+            <button aria-label="Fechar" className="plan-required-close" onClick={() => setRequiredPlanFeature("")} type="button"><X size={19} /></button>
+            <div className="plan-required-icon"><Sparkles size={23} /></div>
+            <span>Recurso do BW Plus</span>
+            <h2 id="plus-required-title">{requiredPlanFeature}</h2>
+            <p>Tenha alertas avançados, produtos monitorados, relatórios e simulações completas por R$ 7,90 a cada 30 dias.</p>
+            <strong>Primeiros 30 dias grátis. Sem renovação automática.</strong>
+            <div>
+              <button className="secondary" onClick={() => setRequiredPlanFeature("")} type="button">Agora não</button>
+              <button onClick={() => { setRequiredPlanFeature(""); navigate("/planos"); }} type="button">Ver planos</button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

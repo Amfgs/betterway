@@ -7,12 +7,18 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "configure:pluggy-webhook": "node scripts/configure-pluggy-webhook.js",
+    "plus:grant": "node scripts/manage-plus.js grant",
+    "plus:revoke": "node scripts/manage-plus.js revoke",
     "test": "node --test --test-concurrency=1"
   },
   "nodemonConfig": {
-    "watch": ["src"],
+    "watch": [
+      "src"
+    ],
     "ext": "js,json",
-    "ignore": ["data/**"]
+    "ignore": [
+      "data/**"
+    ]
   },
   "dependencies": {
     "axios": "^1.18.1",
@@ -27,6 +33,7 @@
     "he": "^1.2.0",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
+    "mercadopago": "^3.2.1",
     "mongoose": "^8.9.5",
     "morgan": "^1.10.0",
     "nodemailer": "^9.0.3",

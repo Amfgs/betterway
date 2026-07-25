@@ -1,6 +1,6 @@
 # Segurança da Better Way
 
-Última revisão: 19 de julho de 2026.
+Última revisão: 24 de julho de 2026.
 
 Nenhuma auditoria consegue prometer risco zero. Esta revisão cobre o código, dependências, configuração versionada e metadados visíveis da Vercel; não substitui pentest independente nem a configuração das contas do Registro.br, Resend e MongoDB Atlas.
 
@@ -20,10 +20,14 @@ Nenhuma auditoria consegue prometer risco zero. Esta revisão cobre o código, d
 - O repositório ignora `.env`, `.vercel`, dados locais e artefatos. A varredura do código e do histórico não encontrou chave real versionada.
 - O GitHub está com Secret Scanning, Push Protection, alertas de vulnerabilidade e atualizações de segurança do Dependabot ativos.
 - Não há Supabase, Firebase ou acesso direto do navegador ao banco. O frontend conversa apenas com a API autenticada.
+- O CPF completo não é persistido. A API guarda um HMAC com segredo independente e somente os quatro últimos dígitos; pagamentos com outro CPF são recusados.
+- Cartões são coletados pelo Card Payment Brick do Mercado Pago. A BW recebe apenas o token temporário necessário para criar a cobrança e não salva PAN, validade ou CVV.
+- A ativação do Plus exige pagamento aprovado consultado no provedor, valor e moeda exatos, metadados do plano, vínculo com o usuário e uma concessão atômica por pagamento. Webhooks sem assinatura válida são rejeitados.
+- A administração manual do Plus usa uma chave exclusiva, comparação em tempo constante e rotas separadas das sessões de usuário.
 
 ## Dependências
 
-- Todos os workspaces: nenhuma vulnerabilidade conhecida pelo `npm audit --omit=dev`.
+- A auditoria de dependências deve ser executada antes de cada publicação. Alertas transitivos do Expo/React Native e do modo RSC do React Router são acompanhados separadamente; a aplicação web é SPA Vite e não habilita React Server Components.
 - Frontend e backend possuem lockfiles próprios para que os projetos separados da Vercel instalem exatamente as versões auditadas.
 - As dependências transitivas `postcss` e `uuid` do ferramental Expo foram fixadas em versões corrigidas por overrides de escopo restrito, mantendo o SDK 54.
 - A compatibilidade do mobile é verificada com Expo Doctor e exportação do bundle iOS antes da publicação.
@@ -32,7 +36,7 @@ Nenhuma auditoria consegue prometer risco zero. Esta revisão cobre o código, d
 
 1. Rotacione a chave da Resend que foi compartilhada durante a configuração. Primeiro publique a nova chave na Vercel e faça redeploy; depois revogue a antiga.
 2. Rotacione também o `PLUGGY_CLIENT_SECRET` compartilhado durante a configuração e revogue qualquer API Key temporária copiada fora do painel da Pluggy.
-3. Marque todos os segredos de produção como **Sensitive** na Vercel. Em especial: `MONGODB_URI`, `JWT_SECRET`, `RESEND_API_KEY` e `PLUGGY_CLIENT_SECRET`.
+3. Marque todos os segredos de produção como **Sensitive** na Vercel. Em especial: `MONGODB_URI`, `JWT_SECRET`, `RESEND_API_KEY`, `PLUGGY_CLIENT_SECRET`, `CPF_HASH_SECRET`, `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET` e `ADMIN_API_KEY`.
 4. No Atlas, use um usuário exclusivo do aplicativo com acesso somente ao banco da Better Way, senha aleatória forte e autenticação SCRAM-SHA-256.
 5. Revise a lista de IPs do Atlas. A Vercel usa saída dinâmica por padrão; para remover `0.0.0.0/0`, use Static IPs na Vercel e permita somente esses endereços, ou adote uma rede privada compatível.
 6. Ative autenticação em dois fatores nas contas GitHub, Vercel, MongoDB Atlas, Resend, Pluggy e Registro.br. Remova colaboradores que não precisem de acesso.

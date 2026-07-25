@@ -57,6 +57,7 @@ async function createVerifiedUser(baseUrl, suffix, overrides = {}) {
       name: `Usuário ${suffix}`,
       username,
       email,
+      cpf: "529.982.247-25",
       password,
       confirmPassword: password,
       salary: 2000,
@@ -139,6 +140,9 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
   assert.equal(googleWithoutProvider.data.credential, undefined);
 
   const userA = await createVerifiedUser(baseUrl, "a", { username: availableUsername });
+  assert.equal(userA.user.cpfConfigured, true);
+  assert.equal(userA.user.cpfLast4, "4725");
+  assert.equal(userA.user.cpfHash, undefined);
   const availableAfterRegistration = await api(
     baseUrl,
     `/auth/username-availability?username=${encodeURIComponent(availableUsername.toUpperCase())}`
@@ -162,6 +166,70 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
   assert.equal(initialProfileProgress.data.tasks.some((task) => task.id === "bank"), false);
   assert.equal(initialProfileProgress.data.tasks.some((task) => task.id === "tour" && !task.completed), true);
   assert.equal(initialProfileProgress.data.tasks.find((task) => task.id === "avatar").to, "/perfil?tab=conta&edit=avatar");
+
+  const lockedSimulation = await api(baseUrl, "/simulator/compound", {
+    method: "POST",
+    token: userA.token,
+    body: { initialAmount: 1000, recurringContribution: 100, annualRate: 12, months: 24 }
+  });
+  assert.equal(lockedSimulation.status, 402);
+  assert.equal(lockedSimulation.data.code, "PLUS_REQUIRED");
+
+  const lockedNotifications = await api(baseUrl, "/auth/me", {
+    method: "PUT",
+    token: userA.token,
+    body: { notificationPreferences: { limitThreshold: 80 } }
+  });
+  assert.equal(lockedNotifications.status, 402);
+
+  const trial = await api(baseUrl, "/billing/trial", { method: "POST", token: userA.token });
+  assert.equal(trial.status, 201);
+  assert.equal(trial.data.subscription.hasPlus, true);
+  assert.equal(trial.data.subscription.autoRenew, false);
+  const secondTrial = await api(baseUrl, "/billing/trial", { method: "POST", token: userA.token });
+  assert.equal(secondTrial.status, 409);
+
+  const billingOverview = await api(baseUrl, "/billing/overview", { token: userA.token });
+  assert.equal(billingOverview.status, 200);
+  assert.equal(billingOverview.data.plan.price, 7.9);
+  assert.equal(billingOverview.data.checkout.configured, false);
+  assert.equal(billingOverview.data.checkout.publicKey, "");
+
+  const plusSimulation = await api(baseUrl, "/simulator/compound", {
+    method: "POST",
+    token: userA.token,
+    body: { initialAmount: 1000, recurringContribution: 100, annualRate: 12, months: 24 }
+  });
+  assert.equal(plusSimulation.status, 200);
+  assert.ok(plusSimulation.data.projection.finalAmount > 0);
+  assert.equal(plusSimulation.data.projection.series.length, 25);
+
+  const reportPreview = await api(baseUrl, "/reports/preview?frequency=weekly", { token: userA.token });
+  assert.equal(reportPreview.status, 200);
+  assert.equal(reportPreview.data.report.frequency, "weekly");
+
+  const paymentForAtomicGrant = await repository.createPayment({
+    userId: userA.user.id,
+    idempotencyKey: `atomic-${Date.now()}`,
+    method: "pix",
+    amount: 7.9,
+    status: "approved"
+  });
+  const claimedAt = new Date();
+  const concurrentClaims = await Promise.all([
+    repository.claimPaymentAccess(paymentForAtomicGrant.id, claimedAt),
+    repository.claimPaymentAccess(paymentForAtomicGrant.id, claimedAt)
+  ]);
+  assert.equal(concurrentClaims.filter(Boolean).length, 1);
+  await repository.releasePaymentAccess(paymentForAtomicGrant.id, claimedAt);
+
+  const mismatchedCpfPayment = await api(baseUrl, "/billing/payments/pix", {
+    method: "POST",
+    token: userA.token,
+    body: { cpf: "111.444.777-35" }
+  });
+  assert.equal(mismatchedCpfPayment.status, 403);
+  assert.equal(mismatchedCpfPayment.data.code, "CPF_MISMATCH");
 
   const invalidNotificationThreshold = await api(baseUrl, "/auth/me", {
     method: "PUT",
@@ -187,7 +255,11 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
     emailEnabled: true,
     limitAlerts: true,
     goalAlerts: false,
-    limitThreshold: 85
+    productAlerts: true,
+    weeklyReports: false,
+    monthlyReports: false,
+    limitThreshold: 85,
+    goalThreshold: 80
   });
 
   const completedSimulation = await api(baseUrl, "/auth/me", {
@@ -208,6 +280,7 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
       name: "Código bloqueado",
       username: `locked_${Date.now().toString().slice(-10)}`,
       email: lockedEmail,
+      cpf: "529.982.247-25",
       password: "StrongPass123",
       confirmPassword: "StrongPass123"
     }
@@ -232,6 +305,7 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
       name: "Nome duplicado",
       username: userA.username.toUpperCase(),
       email: `duplicate-${Date.now()}@example.com`,
+      cpf: "529.982.247-25",
       password: "StrongPass123",
       confirmPassword: "StrongPass123"
     }

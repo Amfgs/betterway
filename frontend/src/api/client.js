@@ -41,6 +41,11 @@ api.interceptors.response.use(
     const hadToken = Boolean(readAuthToken());
     const requestUrl = error?.config?.url || "";
     const isAuthRequest = /\/auth\/(login|register|verify-email|forgot-password|reset-password|me)/.test(requestUrl);
+    if (error?.response?.status === 402 && error?.response?.data?.code === "PLUS_REQUIRED") {
+      window.dispatchEvent(new CustomEvent("betterway:plan-required", {
+        detail: { feature: error.response.data.feature || "Este recurso" }
+      }));
+    }
     if (hadToken && error?.response?.status === 401 && !isAuthRequest && !error?.config?._bwSessionConfirmed) {
       const token = readAuthToken();
       const sessionState = token ? await validateStoredSession(token) : "invalid";

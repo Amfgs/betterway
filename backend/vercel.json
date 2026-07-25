@@ -14,7 +14,7 @@
   ],
   "crons": [
     {
-      "path": "/api/product-watch/run",
+      "path": "/api/maintenance/run",
       "schedule": "0 11 * * *"
     }
   ]

@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Plus, SlidersHorizontal, Trash2, WalletCards, X } from "lucide-react";
+import { CalendarDays, Plus, SlidersHorizontal, Trash2, TrendingUp, WalletCards, X } from "lucide-react";
 import { api, getErrorMessage } from "../api/client";
 import { GuidedSectionHeader, WorkspaceHeader, WorkspacePeriodControl } from "../components/WorkspaceHeader";
+import { PremiumGate } from "../components/PremiumFeature";
 import { useAuth } from "../context/AuthContext";
 import { currency, shortDate } from "../utils/formatters";
 import { readScopedStoredValue, removeStoredValue, scopedStorageKey, storageKeys } from "../utils/storageKeys";
+import { SimulatorPage } from "./SimulatorPage";
 
 const defaultWeekdays = [0, 1, 2, 3, 4, 5, 6];
 const weekdayOptions = [
@@ -577,6 +579,21 @@ export function CalendarPage() {
           </div>
           </div>
         </div>
+      </section>
+
+      <section className="guided-page-section planning-simulator-section" id="simulador">
+        <GuidedSectionHeader
+          description="Escolha um investimento, combine aportes recorrentes e extras e compare o dinheiro aplicado com os juros ao longo do tempo."
+          icon={TrendingUp}
+          title="Simule o futuro do seu planejamento"
+        />
+        <PremiumGate
+          description="Projete tipos de investimento, aportes, taxas, reajustes e prazos usando os seus dados financeiros atuais."
+          feature="Simulações completas"
+          title="Simulador completo de investimentos"
+        >
+          <SimulatorPage embedded />
+        </PremiumGate>
       </section>
     </div>
   );
