@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { CardPayment, initMercadoPago } from "@mercadopago/sdk-react";
 import {
   ArrowRight,
   Check,
@@ -15,6 +14,7 @@ import {
 } from "lucide-react";
 import { api, getErrorMessage } from "../api/client";
 import { WorkspaceHeader } from "../components/WorkspaceHeader";
+import { CardCheckout } from "../components/CardCheckout";
 import { useAuth } from "../context/AuthContext";
 
 const comparison = [
@@ -77,6 +77,8 @@ export function PlansPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [cardReady, setCardReady] = useState(false);
+  const [cardRetry, setCardRetry] = useState(0);
+  const [cardLoadingTimedOut, setCardLoadingTimedOut] = useState(false);
 
   async function loadBilling() {
     const response = await api.get("/billing/overview");
@@ -89,9 +91,10 @@ export function PlansPage() {
   }, []);
 
   useEffect(() => {
-    const key = billing?.checkout?.publicKey;
-    if (key) initMercadoPago(key, { locale: "pt-BR" });
-  }, [billing?.checkout?.publicKey]);
+    if (checkout !== "card" || cardReady) return undefined;
+    const timer = window.setTimeout(() => setCardLoadingTimedOut(true), 12000);
+    return () => window.clearTimeout(timer);
+  }, [cardReady, checkout, cardRetry]);
 
   useEffect(() => {
     if (!pix?.providerPaymentId || !["pending", "in_process"].includes(pix.status)) return undefined;
@@ -185,6 +188,7 @@ export function PlansPage() {
     setCheckout(method);
     setPix(null);
     setCardReady(false);
+    setCardLoadingTimedOut(false);
     setMessage("");
     window.setTimeout(() => document.getElementById("checkout")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
   }
@@ -268,8 +272,8 @@ export function PlansPage() {
           ) : (
             <>
               <div className="checkout-methods" role="tablist" aria-label="Forma de pagamento">
-                <button aria-selected={checkout === "pix"} className={checkout === "pix" ? "active" : ""} onClick={() => setCheckout("pix")} role="tab" type="button"><QrCode size={19} /> Pix</button>
-                <button aria-selected={checkout === "card"} className={checkout === "card" ? "active" : ""} onClick={() => setCheckout("card")} role="tab" type="button"><CreditCard size={19} /> Crédito ou débito</button>
+                <button aria-selected={checkout === "pix"} className={checkout === "pix" ? "active" : ""} onClick={() => openCheckout("pix")} role="tab" type="button"><QrCode size={19} /> Pix</button>
+                <button aria-selected={checkout === "card"} className={checkout === "card" ? "active" : ""} onClick={() => openCheckout("card")} role="tab" type="button"><CreditCard size={19} /> Crédito ou débito</button>
               </div>
 
               {!checkout ? <button className="checkout-start" onClick={() => openCheckout("pix")} type="button">Escolher forma de pagamento <ArrowRight size={18} /></button> : null}
@@ -296,20 +300,19 @@ export function PlansPage() {
               {checkout === "card" ? (
                 <div className="card-checkout" role="tabpanel">
                   <div className="card-security-note"><ShieldCheck size={19} /><p><strong>A BW não salva os dados do cartão.</strong> Crédito e débito são processados pelo Mercado Pago; número, validade e CVV são tokenizados e não passam pelo nosso servidor.</p></div>
-                  {!cardReady ? <p className="card-loading"><LoaderCircle className="animate-spin" size={17} /> Carregando formulário seguro do Mercado Pago...</p> : null}
-                  <CardPayment
-                    customization={{
-                      paymentMethods: { maxInstallments: 1 },
-                      visual: { style: { theme: "default" } }
-                    }}
-                    initialization={{ amount: 7.9, payer: { email: user?.email || "" } }}
-                    locale="pt-BR"
-                    onReady={() => setCardReady(true)}
+                  {!cardReady && !cardLoadingTimedOut ? <p className="card-loading"><LoaderCircle className="animate-spin" size={17} /> Carregando formulário seguro do Mercado Pago...</p> : null}
+                  {cardLoadingTimedOut ? <div className="card-retry" role="status"><p>O formulário demorou mais que o esperado para abrir.</p><button onClick={() => { setCardReady(false); setCardLoadingTimedOut(false); setCardRetry((value) => value + 1); }} type="button">Tentar novamente</button></div> : null}
+                  <CardCheckout
+                    email={user?.email || ""}
+                    key={cardRetry}
                     onError={(err) => {
                       setCardReady(true);
+                      setCardLoadingTimedOut(false);
                       setError(err?.message || "Não foi possível carregar o formulário seguro do cartão.");
                     }}
+                    onReady={() => { setCardReady(true); setCardLoadingTimedOut(false); }}
                     onSubmit={submitCard}
+                    publicKey={billing?.checkout?.publicKey || ""}
                   />
                   {working === "card" ? <p className="card-processing"><LoaderCircle className="animate-spin" size={17} /> Processando com segurança...</p> : null}
                 </div>

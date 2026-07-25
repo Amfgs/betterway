@@ -68,6 +68,7 @@ function normalizeUsers(users) {
       sentFriendRequestIds: [],
       receivedFriendRequestIds: [],
       authVersion: 0,
+      sessionVersion: 0,
       emailVerified: true,
       workHoursPerDay: 8,
       widgetPreferences: {
@@ -247,6 +248,7 @@ module.exports = {
       workHoursPerDay: 8,
       theme: "dark",
       authVersion: 0,
+      sessionVersion: 0,
       emailVerified: true,
       friendIds: [],
       acceptedFriendIds: [],

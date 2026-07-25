@@ -56,6 +56,19 @@ export function AuthProvider({ children }) {
   }, [restoreSession]);
 
   useEffect(() => {
+    if (!user || !session?.token) return undefined;
+    const confirmSession = () => {
+      if (document.visibilityState === "visible") restoreSession({ showLoading: false });
+    };
+    const timer = window.setInterval(confirmSession, 30000);
+    document.addEventListener("visibilitychange", confirmSession);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", confirmSession);
+    };
+  }, [restoreSession, session?.token, user?.id]);
+
+  useEffect(() => {
     const expireSession = () => {
       clearAuthSession();
       setUser(null);

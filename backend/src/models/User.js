@@ -54,6 +54,11 @@ const userSchema = new mongoose.Schema(
       min: 0,
       default: 0
     },
+    sessionVersion: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
     resetPasswordHash: {
       type: String,
       default: "",

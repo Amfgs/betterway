@@ -20,6 +20,9 @@ async function authMiddleware(req, res, next) {
     if (Number(decoded.ver || 0) !== Number(user.authVersion || 0)) {
       return res.status(401).json({ message: "Sua sessão foi encerrada após uma alteração de segurança." });
     }
+    if (Number(decoded.sv || 0) !== Number(user.sessionVersion || 0)) {
+      return res.status(401).json({ message: "Sua conta entrou em outro dispositivo. Este acesso foi encerrado." });
+    }
     if (user.emailVerified === false) {
       return res.status(403).json({
         code: "EMAIL_NOT_VERIFIED",

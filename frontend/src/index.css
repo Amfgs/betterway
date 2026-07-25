@@ -3771,6 +3771,41 @@ textarea:focus-visible {
 .card-checkout { max-width: 720px; }
 .card-loading,
 .card-processing { display: flex; align-items: center; gap: 7px; margin-top: 10px; color: #087553; font-size: 0.8rem; font-weight: 800; }
+.mercado-card-brick { min-height: 260px; margin-top: 12px; }
+.card-retry { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 12px; color: #8a4c09; font-size: 0.8rem; font-weight: 750; }
+.card-retry button { min-height: 36px; border: 1px solid rgba(138, 76, 9, 0.28); border-radius: 7px; padding: 7px 10px; color: #87500e; font-weight: 850; }
+.dark .card-retry { color: #f4c373; }
+.dark .card-retry button { border-color: rgba(244, 195, 115, 0.35); color: #f4c373; }
+
+.workspace-loader-screen {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  background: #f3f5f1;
+}
+.dark .workspace-loader-screen { background: #0a0f0d; }
+.workspace-loader {
+  position: relative;
+  display: grid;
+  width: 76px;
+  height: 76px;
+  place-items: center;
+}
+.workspace-loader > :first-child { position: relative; z-index: 1; animation: workspace-loader-pulse 1.35s ease-in-out infinite; }
+.workspace-loader-orbit {
+  position: absolute;
+  inset: 2px;
+  border: 2px solid rgba(13, 125, 89, 0.16);
+  border-top-color: #0d7d59;
+  border-radius: 50%;
+  animation: workspace-loader-spin 880ms linear infinite;
+}
+@keyframes workspace-loader-spin { to { transform: rotate(1turn); } }
+@keyframes workspace-loader-pulse { 50% { transform: scale(0.91); opacity: 0.76; } }
+@media (prefers-reduced-motion: reduce) {
+  .workspace-loader > :first-child,
+  .workspace-loader-orbit { animation: none; }
+}
 
 .plus-active-panel {
   display: flex;

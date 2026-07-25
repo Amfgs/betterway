@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { Logo } from "./components/Logo";
 
 const Shell = lazy(() => import("./components/Shell").then((module) => ({ default: module.Shell })));
 const AuthPage = lazy(() => import("./pages/AuthPage").then((module) => ({ default: module.AuthPage })));
@@ -14,8 +15,11 @@ const PlansPage = lazy(() => import("./pages/PlansPage").then((module) => ({ def
 
 function RouteLoading() {
   return (
-    <div className="grid min-h-screen place-items-center bg-[#f3f5f1] text-sm font-bold text-zinc-500 dark:bg-[#0a0f0d] dark:text-zinc-400">
-      Carregando Better Way...
+    <div className="workspace-loader-screen">
+      <div className="workspace-loader" aria-label="Carregando">
+        <Logo size={42} />
+        <span className="workspace-loader-orbit" aria-hidden="true" />
+      </div>
     </div>
   );
 }

@@ -61,6 +61,7 @@ function signToken(user, sessionStartedAt) {
     {
       sub: user.id,
       ver: Number(user.authVersion || 0),
+      sv: Number(user.sessionVersion || 0),
       sst: sessionStart,
       exp: sessionStart + SESSION_TTL_SECONDS
     },
@@ -69,6 +70,12 @@ function signToken(user, sessionStartedAt) {
       algorithm: "HS256"
     }
   );
+}
+
+async function beginExclusiveSession(user) {
+  return repository.updateUser(user.id, {
+    sessionVersion: Number(user.sessionVersion || 0) + 1
+  });
 }
 
 function cleanUser(user) {
@@ -275,10 +282,11 @@ const login = asyncHandler(async (req, res) => {
     });
   }
 
+  const sessionUser = await beginExclusiveSession(user);
   return res.json({
-    token: signToken(user),
+    token: signToken(sessionUser),
     sessionExpiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000).toISOString(),
-    user: cleanUser(user)
+    user: cleanUser(sessionUser)
   });
 });
 
@@ -366,6 +374,7 @@ const googleLogin = asyncHandler(async (req, res) => {
     });
   }
 
+  user = await beginExclusiveSession(user);
   return res.json({
     token: signToken(user),
     sessionExpiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000).toISOString(),
@@ -410,7 +419,8 @@ const verifyEmail = asyncHandler(async (req, res) => {
     emailVerificationHash: "",
     emailVerificationExpiresAt: null,
     emailVerificationAttempts: 0,
-    emailVerificationSentAt: null
+    emailVerificationSentAt: null,
+    sessionVersion: Number(user.sessionVersion || 0) + 1
   });
 
   return res.json({

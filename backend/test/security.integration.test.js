@@ -770,6 +770,17 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
   assert.deepEqual(acceptedWebhook.data, { received: true });
   delete process.env.BANK_CONNECTIONS_ENABLED;
 
+  const secondDeviceLogin = await api(baseUrl, "/auth/login", {
+    method: "POST",
+    body: { email: userB.email, password: userB.password }
+  });
+  assert.equal(secondDeviceLogin.status, 200);
+  const firstDeviceAfterSecondLogin = await api(baseUrl, "/auth/me", { token: userB.token });
+  assert.equal(firstDeviceAfterSecondLogin.status, 401);
+  assert.match(firstDeviceAfterSecondLogin.data.message, /outro dispositivo/);
+  const secondDeviceSession = await api(baseUrl, "/auth/me", { token: secondDeviceLogin.data.token });
+  assert.equal(secondDeviceSession.status, 200);
+
   const malformedJson = await api(baseUrl, "/auth/login", {
     method: "POST",
     rawBody: "{not-json"

@@ -10,7 +10,10 @@ export function ProtectedRoute() {
   if (loading) {
     return (
       <div className="grid min-h-screen place-items-center bg-stone-100 text-zinc-900 dark:bg-neutral-950 dark:text-zinc-100">
-        Carregando sua mesa financeira...
+        <div className="workspace-loader" aria-label="Carregando">
+          <Logo size={42} />
+          <span className="workspace-loader-orbit" aria-hidden="true" />
+        </div>
       </div>
     );
   }
