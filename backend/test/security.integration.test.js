@@ -21,10 +21,12 @@ delete process.env.PLUGGY_CLIENT_ID;
 delete process.env.PLUGGY_CLIENT_SECRET;
 delete process.env.BANK_CONNECTIONS_ENABLED;
 process.env.PLUGGY_WEBHOOK_SECRET = "pluggy-test-webhook-secret";
+process.env.ADMIN_API_KEY = "betterway-admin-test-key-with-32-chars";
 delete process.env.GOOGLE_CLIENT_ID;
 
 const app = require("../src/app");
 const repository = require("../src/services/repository");
+const paymentService = require("../src/services/paymentService");
 
 async function startServer() {
   const server = app.listen(0);
@@ -152,6 +154,119 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
   assert.equal(availableAfterRegistration.data.available, false);
 
   const userB = await createVerifiedUser(baseUrl, "b");
+
+  const lockedProductSearch = await api(baseUrl, "/goals/product/search", {
+    method: "POST",
+    token: userB.token,
+    body: { query: "notebook" }
+  });
+  assert.equal(lockedProductSearch.status, 402);
+  assert.equal(lockedProductSearch.data.code, "PLUS_REQUIRED");
+
+  const lockedProductGoal = await api(baseUrl, "/goals", {
+    method: "POST",
+    token: userB.token,
+    body: {
+      name: "Notebook",
+      currentAmount: 0,
+      dueDate: "2030-12-20",
+      product: { url: "https://example.com/notebook", targetPrice: 3000 }
+    }
+  });
+  assert.equal(lockedProductGoal.status, 402);
+  assert.equal(lockedProductGoal.data.code, "PLUS_REQUIRED");
+
+  const lockedReport = await api(baseUrl, "/reports/preview?frequency=monthly", { token: userB.token });
+  assert.equal(lockedReport.status, 402);
+  assert.equal(lockedReport.data.code, "PLUS_REQUIRED");
+
+  const unauthorizedGrant = await api(baseUrl, "/admin/plus-grants", {
+    method: "POST",
+    body: { email: userB.email, days: 45 }
+  });
+  assert.equal(unauthorizedGrant.status, 401);
+
+  const grantedByAdmin = await api(baseUrl, "/admin/plus-grants", {
+    method: "POST",
+    headers: { "X-Admin-Key": process.env.ADMIN_API_KEY },
+    body: { email: userB.email, days: 45 }
+  });
+  assert.equal(grantedByAdmin.status, 200);
+  assert.equal(grantedByAdmin.data.subscription.hasPlus, true);
+  assert.equal(grantedByAdmin.data.subscription.source, "admin");
+
+  const revokedByAdmin = await api(baseUrl, `/admin/plus-grants/${encodeURIComponent(userB.email)}`, {
+    method: "DELETE",
+    headers: { "X-Admin-Key": process.env.ADMIN_API_KEY }
+  });
+  assert.equal(revokedByAdmin.status, 200);
+  assert.equal(revokedByAdmin.data.subscription.hasPlus, false);
+
+  const originalValidateWebhook = paymentService.validateWebhook;
+  const originalGetProviderPayment = paymentService.getProviderPayment;
+  const providerPayments = new Map();
+  paymentService.validateWebhook = () => undefined;
+  paymentService.getProviderPayment = async (paymentId) => providerPayments.get(String(paymentId));
+  try {
+    const approvedPaymentId = `mp-approved-${Date.now()}`;
+    providerPayments.set(approvedPaymentId, {
+      id: approvedPaymentId,
+      status: "approved",
+      status_detail: "accredited",
+      transaction_amount: 7.9,
+      currency_id: "BRL",
+      payment_method_id: "pix",
+      external_reference: `bw-plus:${userB.user.id}`,
+      metadata: { user_id: userB.user.id, plan: "plus_30_days" }
+    });
+
+    const approvedWebhook = await api(baseUrl, `/billing/webhook?type=payment&data.id=${approvedPaymentId}`, {
+      method: "POST",
+      body: { type: "payment", data: { id: approvedPaymentId } }
+    });
+    assert.equal(approvedWebhook.status, 200);
+
+    const afterApprovedPayment = await api(baseUrl, "/auth/me", { token: userB.token });
+    assert.equal(afterApprovedPayment.data.user.subscription.hasPlus, true);
+    assert.equal(afterApprovedPayment.data.user.subscription.source, "mercadopago");
+    const firstPaymentEnd = afterApprovedPayment.data.user.subscription.currentPeriodEnd;
+
+    const duplicateWebhook = await api(baseUrl, `/billing/webhook?type=payment&data.id=${approvedPaymentId}`, {
+      method: "POST",
+      body: { type: "payment", data: { id: approvedPaymentId } }
+    });
+    assert.equal(duplicateWebhook.status, 200);
+    const afterDuplicatePayment = await api(baseUrl, "/auth/me", { token: userB.token });
+    assert.equal(afterDuplicatePayment.data.user.subscription.currentPeriodEnd, firstPaymentEnd);
+
+    await api(baseUrl, `/admin/plus-grants/${encodeURIComponent(userB.email)}`, {
+      method: "DELETE",
+      headers: { "X-Admin-Key": process.env.ADMIN_API_KEY }
+    });
+
+    const invalidAmountPaymentId = `mp-invalid-amount-${Date.now()}`;
+    providerPayments.set(invalidAmountPaymentId, {
+      id: invalidAmountPaymentId,
+      status: "approved",
+      status_detail: "accredited",
+      transaction_amount: 79,
+      currency_id: "BRL",
+      payment_method_id: "pix",
+      external_reference: `bw-plus:${userB.user.id}`,
+      metadata: { user_id: userB.user.id, plan: "plus_30_days" }
+    });
+    const invalidAmountWebhook = await api(baseUrl, `/billing/webhook?type=payment&data.id=${invalidAmountPaymentId}`, {
+      method: "POST",
+      body: { type: "payment", data: { id: invalidAmountPaymentId } }
+    });
+    assert.equal(invalidAmountWebhook.status, 200);
+    const afterInvalidAmount = await api(baseUrl, "/auth/me", { token: userB.token });
+    assert.equal(afterInvalidAmount.data.user.subscription.hasPlus, false);
+  } finally {
+    paymentService.validateWebhook = originalValidateWebhook;
+    paymentService.getProviderPayment = originalGetProviderPayment;
+  }
+
   const decodedToken = jwt.decode(userA.token, { complete: true });
   assert.equal(decodedToken.header.alg, "HS256");
   assert.equal(decodedToken.payload.email, undefined);

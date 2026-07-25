@@ -218,7 +218,7 @@ export function PlansPage() {
       {!currentPlus ? (
         <section className="checkout-section" id="checkout">
           <div className="checkout-heading">
-            <div><span>Pagamento único</span><h2>Ativar 30 dias de BW Plus</h2><p>Escolha Pix ou cartão. O valor é sempre R$ 7,90.</p></div>
+            <div><span>Pagamento único</span><h2>Ativar 30 dias de BW Plus</h2><p>Escolha Pix, cartão de crédito ou débito. O valor é sempre R$ 7,90.</p></div>
             <LockKeyhole size={24} />
           </div>
 
@@ -228,7 +228,7 @@ export function PlansPage() {
             <>
               <div className="checkout-methods" role="tablist" aria-label="Forma de pagamento">
                 <button aria-selected={checkout === "pix"} className={checkout === "pix" ? "active" : ""} onClick={() => setCheckout("pix")} role="tab" type="button"><QrCode size={19} /> Pix</button>
-                <button aria-selected={checkout === "card"} className={checkout === "card" ? "active" : ""} onClick={() => setCheckout("card")} role="tab" type="button"><CreditCard size={19} /> Cartão</button>
+                <button aria-selected={checkout === "card"} className={checkout === "card" ? "active" : ""} onClick={() => setCheckout("card")} role="tab" type="button"><CreditCard size={19} /> Crédito ou débito</button>
               </div>
 
               {!checkout ? <button className="checkout-start" onClick={() => setCheckout("pix")} type="button">Escolher forma de pagamento <ArrowRight size={18} /></button> : null}
@@ -254,7 +254,7 @@ export function PlansPage() {
 
               {checkout === "card" ? (
                 <div className="card-checkout" role="tabpanel">
-                  <div className="card-security-note"><ShieldCheck size={19} /><p><strong>A BW não salva os dados do cartão.</strong> Número, validade e CVV são tokenizados diretamente pelo Mercado Pago e não passam pelo nosso servidor.</p></div>
+                  <div className="card-security-note"><ShieldCheck size={19} /><p><strong>A BW não salva os dados do cartão.</strong> Crédito e débito são processados pelo Mercado Pago; número, validade e CVV são tokenizados e não passam pelo nosso servidor.</p></div>
                   <CardPayment
                     customization={{
                       paymentMethods: { maxInstallments: 1 },

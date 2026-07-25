@@ -3799,6 +3799,12 @@ textarea:focus-visible {
     gap: 5px;
     padding-bottom: 14px;
   }
+  .plans-page .workspace-header-copy > span {
+    display: block;
+    overflow: visible;
+    -webkit-box-orient: initial;
+    -webkit-line-clamp: unset;
+  }
   .plans-current-status > small { text-align: left; }
 
   .plan-cards { grid-template-columns: 1fr; }

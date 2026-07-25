@@ -135,7 +135,7 @@ Sem Resend ou SMTP configurado, o backend mantém o fluxo em modo desenvolviment
 
 O BW Plus custa **R$ 7,90 por 30 dias** e não possui renovação automática. Cada conta pode ativar um primeiro período gratuito de 30 dias. O plano libera alertas avançados, monitoramento de produtos, relatórios semanais ou mensais por e-mail e o simulador completo dentro de Planejamento.
 
-O checkout usa Pix e cartão pelo Mercado Pago. O formulário de cartão é o Card Payment Brick oficial: número, validade e CVV são tokenizados pelo provedor e não são armazenados pela BW. O CPF completo também não é persistido; a API guarda somente um HMAC para comparação e os quatro últimos dígitos para identificação do usuário.
+O checkout usa Pix, cartão de crédito e cartão de débito pelo Mercado Pago. O formulário de cartão é o Card Payment Brick oficial: número, validade e CVV são tokenizados pelo provedor e não são armazenados pela BW. O CPF completo também não é persistido; a API guarda somente um HMAC para comparação e os quatro últimos dígitos para identificação do usuário.
 
 Para habilitar pagamentos, crie uma aplicação em **Mercado Pago > Suas integrações**, ative as credenciais de produção e configure no backend:
 
