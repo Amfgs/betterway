@@ -36,7 +36,11 @@ function notificationUrl() {
 function providerError(error) {
   const status = Number(error?.status || error?.response?.status || 502);
   const detail = error?.cause?.[0]?.description || error?.message || "Falha ao processar o pagamento.";
-  const mapped = new Error(status >= 500 ? "O provedor de pagamento está indisponível. Tente novamente." : String(detail).slice(0, 220));
+  const normalizedDetail = String(detail).slice(0, 220);
+  const friendlyDetail = /financial identity use case/i.test(normalizedDetail)
+    ? "As credenciais do Mercado Pago parecem pertencer a uma aplicação de Identidade Financeira. Crie ou selecione uma aplicação de Pagamentos online/Checkout e atualize Public Key e Access Token na Vercel."
+    : normalizedDetail;
+  const mapped = new Error(status >= 500 ? "O provedor de pagamento está indisponível. Tente novamente." : friendlyDetail);
   mapped.status = status >= 400 && status < 500 ? 422 : 502;
   mapped.expose = true;
   return mapped;
