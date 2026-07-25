@@ -1,7 +1,7 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
+import { AppLoader } from "./components/AppLoader";
 import { ProtectedRoute } from "./components/ProtectedRoute";
-import { Logo } from "./components/Logo";
 
 const Shell = lazy(() => import("./components/Shell").then((module) => ({ default: module.Shell })));
 const AuthPage = lazy(() => import("./pages/AuthPage").then((module) => ({ default: module.AuthPage })));
@@ -16,10 +16,7 @@ const PlansPage = lazy(() => import("./pages/PlansPage").then((module) => ({ def
 function RouteLoading() {
   return (
     <div className="workspace-loader-screen">
-      <div className="workspace-loader" aria-label="Carregando">
-        <Logo size={42} />
-        <span className="workspace-loader-orbit" aria-hidden="true" />
-      </div>
+      <AppLoader />
     </div>
   );
 }

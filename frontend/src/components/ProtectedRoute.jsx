@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { LogIn, RefreshCw, WifiOff } from "lucide-react";
+import { AppLoader } from "./AppLoader";
 import { Logo } from "./Logo";
 import { useAuth } from "../context/AuthContext";
 
@@ -10,10 +11,7 @@ export function ProtectedRoute() {
   if (loading) {
     return (
       <div className="grid min-h-screen place-items-center bg-stone-100 text-zinc-900 dark:bg-neutral-950 dark:text-zinc-100">
-        <div className="workspace-loader" aria-label="Carregando">
-          <Logo size={42} />
-          <span className="workspace-loader-orbit" aria-hidden="true" />
-        </div>
+        <AppLoader />
       </div>
     );
   }

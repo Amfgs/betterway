@@ -2,12 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
+  Bot,
   BrainCircuit,
+  Building2,
   CalendarRange,
   Check,
   Clock3,
+  Handshake,
   Landmark,
   LockKeyhole,
+  RadioTower,
+  Sparkles,
   Target,
   TrendingUp,
   WalletCards
@@ -136,7 +141,47 @@ const productViews = [
 const landingSections = [
   { id: "como-funciona", label: "Como funciona" },
   { id: "recursos", label: "Recursos" },
-  { id: "seguranca", label: "Segurança" }
+  { id: "seguranca", label: "Segurança" },
+  { id: "proximos-passos", label: "Próximos passos" }
+];
+
+const nextSteps = [
+  {
+    icon: Bot,
+    status: "Próxima fase",
+    title: "IA que transforma dados em decisões",
+    description: "Leituras personalizadas de hábitos, cenários e oportunidades, sempre com explicações claras e controle do usuário."
+  },
+  {
+    icon: Landmark,
+    status: "Em preparação",
+    title: "Open Finance com acesso somente de leitura",
+    description: "Conectar instituições para consolidar saldo, extrato e investimentos, sem permitir movimentações pela BW."
+  },
+  {
+    icon: Sparkles,
+    status: "Em pesquisa",
+    title: "Alertas cada vez mais antecipados",
+    description: "Identificar desvios de limite, progresso de metas e mudanças de preço antes que virem uma surpresa."
+  }
+];
+
+const partnershipPaths = [
+  {
+    icon: Building2,
+    title: "Bancos e fintechs",
+    description: "Apoiar educação financeira e ampliar o acesso seguro ao Open Finance."
+  },
+  {
+    icon: RadioTower,
+    title: "Operadoras de telefonia",
+    description: "Oferecer o BW Plus como benefício em planos móveis e familiares."
+  },
+  {
+    icon: Handshake,
+    title: "Empresas e programas de benefícios",
+    description: "Levar bem-estar financeiro a colaboradores e comunidades."
+  }
 ];
 
 function Reveal({ children, className = "" }) {
@@ -374,13 +419,42 @@ export function LandingPage() {
           </Reveal>
         </section>
 
-        <section className="landing-final-cta">
-          <Reveal className="landing-container landing-final-inner">
-            <h2>Um caminho melhor para o seu dinheiro começa agora.</h2>
-            <Link to={primaryTo}>
-              {isAuthenticated ? "Abrir meu painel" : "Criar minha conta"}
-              <ArrowRight size={19} />
-            </Link>
+        <section className="landing-next-steps" id="proximos-passos">
+          <Reveal className="landing-container">
+            <div className="landing-next-heading">
+              <div>
+                <span>Próximos passos</span>
+                <h2>A BW está sendo construída para enxergar mais longe.</h2>
+              </div>
+              <p>Estas são as próximas frentes do produto. Algumas dependem de integrações reguladas e de parceiros antes de chegarem às contas dos usuários.</p>
+            </div>
+
+            <div className="landing-next-layout">
+              <ol className="landing-roadmap" aria-label="Roadmap da Better Way">
+                {nextSteps.map((step) => (
+                  <li key={step.title}>
+                    <span className="landing-roadmap-icon"><step.icon size={20} /></span>
+                    <div><small>{step.status}</small><h3>{step.title}</h3><p>{step.description}</p></div>
+                  </li>
+                ))}
+              </ol>
+
+              <aside className="landing-partners">
+                <div className="landing-partners-heading"><Handshake size={22} /><div><span>Encontrar parceiros</span><h3>Crescer com quem compartilha essa visão.</h3></div></div>
+                <p>A BW busca caminhos para tornar inteligência financeira acessível sem aumentar o peso no bolso do usuário.</p>
+                <ul>
+                  {partnershipPaths.map((partner) => (
+                    <li key={partner.title}><partner.icon size={18} /><div><strong>{partner.title}</strong><small>{partner.description}</small></div></li>
+                  ))}
+                </ul>
+                <span className="landing-partners-status"><i aria-hidden="true" /> Parcerias em prospecção</span>
+              </aside>
+            </div>
+
+            <div className="landing-next-cta">
+              <div><span>O presente já está funcionando</span><h2>Comece agora e acompanhe o que vem depois.</h2></div>
+              <Link to={primaryTo}>{isAuthenticated ? "Abrir meu painel" : "Criar minha conta"}<ArrowRight size={19} /></Link>
+            </div>
           </Reveal>
         </section>
       </main>
@@ -389,7 +463,7 @@ export function LandingPage() {
         <div className="landing-container">
           <Logo />
           <p>© 2026 Better Way. Inteligência financeira para decisões melhores.</p>
-          <div><a href="#recursos">Recursos</a><a href="#seguranca">Segurança</a><Link to="/login">Entrar</Link></div>
+          <div><a href="#recursos">Recursos</a><a href="#proximos-passos">Próximos passos</a><Link to="/login">Entrar</Link></div>
         </div>
       </footer>
     </div>

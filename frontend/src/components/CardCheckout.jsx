@@ -53,22 +53,19 @@ export function CardCheckout({ publicKey, email, onReady, onError, onSubmit }) {
 
         const mp = new MercadoPago(publicKey, { locale: "pt-BR" });
         const controller = await mp.bricks().create("cardPayment", containerId, {
-          settings: {
-            initialization: { amount: 7.9, payer: { email } },
-            customization: {
-              paymentMethods: {
-                maxInstallments: 1,
-                types: { included: ["credit_card", "debit_card", "prepaid_card"] }
-              },
-              visual: { style: { theme: "default" } }
+          initialization: { amount: 7.9, payer: { email } },
+          customization: {
+            paymentMethods: {
+              maxInstallments: 1
             },
-            callbacks: {
-              onReady: () => onReadyRef.current?.(),
-              onError: (error) => onErrorRef.current?.(error),
-              onSubmit: async (formData) => onSubmitRef.current?.(formData)
-            },
-            locale: "pt-BR"
-          }
+            visual: { style: { theme: "default" } }
+          },
+          callbacks: {
+            onReady: () => onReadyRef.current?.(),
+            onError: (error) => onErrorRef.current?.(error),
+            onSubmit: async (formData) => onSubmitRef.current?.(formData)
+          },
+          locale: "pt-BR"
         });
         if (cancelled) {
           controller?.unmount?.();
