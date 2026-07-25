@@ -76,6 +76,7 @@ export function PlansPage() {
   const [pix, setPix] = useState(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [cardReady, setCardReady] = useState(false);
 
   async function loadBilling() {
     const response = await api.get("/billing/overview");
@@ -183,6 +184,7 @@ export function PlansPage() {
   function openCheckout(method = "pix") {
     setCheckout(method);
     setPix(null);
+    setCardReady(false);
     setMessage("");
     window.setTimeout(() => document.getElementById("checkout")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
   }
@@ -234,14 +236,20 @@ export function PlansPage() {
                 {working === "trial" ? <LoaderCircle className="animate-spin" size={18} /> : <Sparkles size={18} />}
                 Começar 30 dias grátis
               </button>
-              <button className="plan-pay-now-button" onClick={() => openCheckout("pix")} type="button">
-                Pagar agora e testar Pix
-              </button>
+              <div className="plan-pay-options" aria-label="Testar pagamento agora">
+                <button className="plan-pay-now-button" onClick={() => openCheckout("pix")} type="button"><QrCode size={16} /> Pix</button>
+                <button className="plan-pay-now-button" onClick={() => openCheckout("card")} type="button"><CreditCard size={16} /> Cartão</button>
+              </div>
             </div>
           ) : (
-            <button className="plan-current-button plus" disabled={false} onClick={() => openCheckout("pix")} type="button">
-              {currentPlus ? "Comprar mais 30 dias" : "Ativar por 30 dias"}
-            </button>
+            <div className="plan-action-stack">
+              <button className="plan-current-button plus" disabled={false} onClick={() => openCheckout("pix")} type="button">
+                {currentPlus ? "Comprar com Pix" : "Ativar por Pix"}
+              </button>
+              <button className="plan-pay-now-button" onClick={() => openCheckout("card")} type="button">
+                <CreditCard size={16} /> {currentPlus ? "Comprar com cartão" : "Ativar com cartão"}
+              </button>
+            </div>
           )}
           <small className="plan-no-renewal">{freeTrialCopy.note}</small>
           <ul>{comparison.map((item) => <li key={item.label}><Check size={17} /> {item.label}</li>)}</ul>
@@ -288,6 +296,7 @@ export function PlansPage() {
               {checkout === "card" ? (
                 <div className="card-checkout" role="tabpanel">
                   <div className="card-security-note"><ShieldCheck size={19} /><p><strong>A BW não salva os dados do cartão.</strong> Crédito e débito são processados pelo Mercado Pago; número, validade e CVV são tokenizados e não passam pelo nosso servidor.</p></div>
+                  {!cardReady ? <p className="card-loading"><LoaderCircle className="animate-spin" size={17} /> Carregando formulário seguro do Mercado Pago...</p> : null}
                   <CardPayment
                     customization={{
                       paymentMethods: { maxInstallments: 1 },
@@ -295,7 +304,11 @@ export function PlansPage() {
                     }}
                     initialization={{ amount: 7.9, payer: { email: user?.email || "" } }}
                     locale="pt-BR"
-                    onError={() => setError("Não foi possível carregar o formulário seguro do cartão.")}
+                    onReady={() => setCardReady(true)}
+                    onError={(err) => {
+                      setCardReady(true);
+                      setError(err?.message || "Não foi possível carregar o formulário seguro do cartão.");
+                    }}
                     onSubmit={submitCard}
                   />
                   {working === "card" ? <p className="card-processing"><LoaderCircle className="animate-spin" size={17} /> Processando com segurança...</p> : null}
@@ -308,7 +321,10 @@ export function PlansPage() {
         <section className="plus-active-panel">
           <CheckCircle2 size={24} />
           <div><h2>Seu BW Plus está ativo</h2><p>Você pode usar todos os recursos até {dateLabel(subscription.currentPeriodEnd)}. Não existe cobrança automática agendada.</p></div>
-          <button onClick={() => openCheckout("pix")} type="button">Comprar mais 30 dias</button>
+          <div className="plus-active-actions">
+            <button onClick={() => openCheckout("pix")} type="button"><QrCode size={16} /> Pix</button>
+            <button onClick={() => openCheckout("card")} type="button"><CreditCard size={16} /> Cartão</button>
+          </div>
         </section>
       )}
     </div>

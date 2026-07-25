@@ -3573,11 +3573,18 @@ textarea:focus-visible {
 
 .plan-action-stack .plan-trial-button { margin-top: 0; }
 
+.plan-pay-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
 .plan-pay-now-button {
   display: inline-flex;
   min-height: 42px;
   align-items: center;
   justify-content: center;
+  gap: 7px;
   border: 1px solid rgba(13, 125, 89, 0.24);
   border-radius: 8px;
   padding: 9px 12px;
@@ -3762,6 +3769,7 @@ textarea:focus-visible {
 }
 
 .card-checkout { max-width: 720px; }
+.card-loading,
 .card-processing { display: flex; align-items: center; gap: 7px; margin-top: 10px; color: #087553; font-size: 0.8rem; font-weight: 800; }
 
 .plus-active-panel {
@@ -3778,9 +3786,18 @@ textarea:focus-visible {
 .plus-active-panel h2 { font-size: 1.05rem; font-weight: 900; }
 .plus-active-panel p { margin-top: 3px; font-size: 0.82rem; line-height: 1.5; }
 .plus-active-panel > div { flex: 1 1 auto; min-width: 0; }
-.plus-active-panel > button {
-  min-height: 42px;
+.plus-active-actions {
+  display: flex;
   flex: 0 0 auto;
+  gap: 8px;
+}
+
+.plus-active-actions > button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   border-radius: 8px;
   background: #0d7d59;
   padding: 9px 13px;
@@ -3856,7 +3873,8 @@ textarea:focus-visible {
   .pix-result button { justify-content: center; }
   .card-checkout { max-width: 100%; overflow: hidden; }
   .plus-active-panel { align-items: flex-start; flex-wrap: wrap; }
-  .plus-active-panel > button { width: 100%; }
+  .plus-active-actions { width: 100%; }
+  .plus-active-actions > button { flex: 1 1 0; }
 
   .profile-subscription-card { grid-template-columns: auto minmax(0, 1fr); padding: 16px; }
   .profile-subscription-card > strong { grid-column: 1 / -1; width: fit-content; }
