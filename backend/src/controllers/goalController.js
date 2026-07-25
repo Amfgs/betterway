@@ -53,7 +53,7 @@ const create = asyncHandler(async (req, res) => {
   }
   const isMarketProduct = Boolean(requestedProduct?.marketUrl || requestedProduct?.provider === "buscape");
   const isProductGoal = Boolean(requestedProduct?.url || requestedProduct?.marketUrl);
-  if (isProductGoal && !hasPlusAccess(req.user)) return plusRequired(res, "Monitoramento de produtos");
+  if (isProductGoal && !hasPlusAccess(req.user)) return plusRequired(res, "Compras como meta");
   const inspectedProduct = isProductGoal
     ? isMarketProduct
       ? await inspectMarketProductUrl(requestedProduct.marketUrl || requestedProduct.url, {
@@ -178,7 +178,7 @@ const updateProduct = asyncHandler(async (req, res) => {
   const goal = (await repository.listGoals(req.user.id)).find((item) => {
     return String(item.id) === String(req.params.id) && String(item.userId) === String(req.user.id) && item.product?.enabled;
   });
-  if (!goal) return res.status(404).json({ message: "Meta de produto não encontrada." });
+  if (!goal) return res.status(404).json({ message: "Meta de compra não encontrada." });
 
   const product = {
     ...goal.product,
@@ -198,7 +198,7 @@ const checkProduct = asyncHandler(async (req, res) => {
   const goal = (await repository.listGoals(req.user.id)).find((item) => {
     return String(item.id) === String(req.params.id) && item.product?.enabled;
   });
-  if (!goal) return res.status(404).json({ message: "Meta de produto não encontrada." });
+  if (!goal) return res.status(404).json({ message: "Meta de compra não encontrada." });
   const refreshed = await refreshProductGoal(goal, { force: true });
   return res.json({ goal: refreshed });
 });

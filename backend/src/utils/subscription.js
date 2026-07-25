@@ -4,7 +4,7 @@ const DEFAULT_TRIAL_PROMOTION_END_AT = "2026-09-01T02:59:59.999Z";
 const TRIAL_PROMOTION_LABEL = "31 de agosto de 2026";
 const PLUS_FEATURES = Object.freeze({
   advancedAlerts: "Alertas avançados",
-  productMonitoring: "Monitoramento de produtos",
+  productMonitoring: "Compras como meta",
   reports: "Relatórios financeiros",
   fullSimulator: "Simulações completas"
 });

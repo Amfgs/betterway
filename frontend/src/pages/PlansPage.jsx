@@ -23,7 +23,7 @@ const comparison = [
   { label: "Carteira, mercado e notícias", free: true, plus: true },
   { label: "Amizades e metas compartilhadas", free: true, plus: true },
   { label: "Alertas avançados de limites e metas", free: false, plus: true },
-  { label: "Monitoramento de produtos e menor preço", free: false, plus: true },
+  { label: "Compras como meta, preços e alertas", free: false, plus: true },
   { label: "Relatórios semanais e mensais por e-mail", free: false, plus: true },
   { label: "Simulações completas de investimentos", free: false, plus: true }
 ];
@@ -233,7 +233,7 @@ export function PlansPage() {
             <h2>BW Plus</h2>
             <p><strong>R$ 7,90</strong><small>a cada 30 dias</small></p>
           </div>
-          <p>Alertas, produtos, relatórios e projeções completas em um único plano.</p>
+          <p>Alertas, compras planejadas, relatórios e projeções completas em um único plano.</p>
           {!currentPlus && subscription.trialAvailable ? (
             <div className="plan-action-stack">
               <button className="plan-trial-button" disabled={working === "trial"} onClick={startTrial} type="button">

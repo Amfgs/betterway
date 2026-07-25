@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
 import { clearAuthSession, readAuthSession, storeAuthSession } from "../utils/storageKeys";
 
@@ -9,6 +9,8 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [restoreError, setRestoreError] = useState("");
+  const restorePromiseRef = useRef(null);
+  const lastSessionCheckAtRef = useRef(0);
 
   const restoreSession = useCallback(async ({ showLoading = true } = {}) => {
     const storedSession = readAuthSession();
@@ -24,21 +26,32 @@ export function AuthProvider({ children }) {
     setRestoreError("");
     if (showLoading) setLoading(true);
 
+    if (!restorePromiseRef.current) {
+      restorePromiseRef.current = (async () => {
+        try {
+          const response = await api.get("/auth/me");
+          setUser(response.data.user);
+          lastSessionCheckAtRef.current = Date.now();
+          return true;
+        } catch (error) {
+          const status = Number(error?.response?.status || 0);
+          if (status === 401 || status === 403) {
+            clearAuthSession();
+            setUser(null);
+            setSession(null);
+          } else {
+            setRestoreError("Sua sessão continua salva, mas não conseguimos confirmá-la agora.");
+          }
+          return false;
+        }
+      })();
+    }
+
+    const activeRestore = restorePromiseRef.current;
     try {
-      const response = await api.get("/auth/me");
-      setUser(response.data.user);
-      return true;
-    } catch (error) {
-      const status = Number(error?.response?.status || 0);
-      if (status === 401 || status === 403) {
-        clearAuthSession();
-        setUser(null);
-        setSession(null);
-      } else {
-        setRestoreError("Sua sessão continua salva, mas não conseguimos confirmá-la agora.");
-      }
-      return false;
+      return await activeRestore;
     } finally {
+      if (restorePromiseRef.current === activeRestore) restorePromiseRef.current = null;
       if (showLoading) setLoading(false);
     }
   }, []);
@@ -58,7 +71,10 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (!user || !session?.token) return undefined;
     const confirmSession = () => {
-      if (document.visibilityState === "visible") restoreSession({ showLoading: false });
+      const now = Date.now();
+      if (document.visibilityState !== "visible" || now - lastSessionCheckAtRef.current < 30_000) return;
+      lastSessionCheckAtRef.current = now;
+      restoreSession({ showLoading: false });
     };
     const timer = window.setInterval(confirmSession, 30000);
     document.addEventListener("visibilitychange", confirmSession);
@@ -98,6 +114,7 @@ export function AuthProvider({ children }) {
     const nextSession = storeAuthSession(response.data.token, { persistent });
     setSession(nextSession);
     setUser(response.data.user);
+    lastSessionCheckAtRef.current = Date.now();
     setRestoreError("");
     return response.data.user;
   }
@@ -107,6 +124,7 @@ export function AuthProvider({ children }) {
     const nextSession = storeAuthSession(response.data.token, { persistent });
     setSession(nextSession);
     setUser(response.data.user);
+    lastSessionCheckAtRef.current = Date.now();
     setRestoreError("");
     return response.data.user;
   }
@@ -126,6 +144,7 @@ export function AuthProvider({ children }) {
     const nextSession = storeAuthSession(response.data.token, { persistent });
     setSession(nextSession);
     setUser(response.data.user);
+    lastSessionCheckAtRef.current = Date.now();
     setRestoreError("");
     return response.data;
   }

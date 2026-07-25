@@ -15,13 +15,13 @@ const productLookupLimiter = rateLimit({
 
 router.use(authMiddleware);
 router.get("/", goalController.list);
-router.post("/product/search", requirePlus("Monitoramento de produtos"), productLookupLimiter, goalController.searchProducts);
-router.post("/product/preview", requirePlus("Monitoramento de produtos"), productLookupLimiter, goalController.previewProduct);
-router.post("/products/refresh", requirePlus("Monitoramento de produtos"), productLookupLimiter, goalController.refreshProducts);
+router.post("/product/search", requirePlus("Compras como meta"), productLookupLimiter, goalController.searchProducts);
+router.post("/product/preview", requirePlus("Compras como meta"), productLookupLimiter, goalController.previewProduct);
+router.post("/products/refresh", requirePlus("Compras como meta"), productLookupLimiter, goalController.refreshProducts);
 router.post("/", goalController.create);
 router.post("/:id/movements", goalController.movement);
-router.post("/:id/product/check", requirePlus("Monitoramento de produtos"), productLookupLimiter, goalController.checkProduct);
-router.put("/:id/product", requirePlus("Monitoramento de produtos"), goalController.updateProduct);
+router.post("/:id/product/check", requirePlus("Compras como meta"), productLookupLimiter, goalController.checkProduct);
+router.put("/:id/product", requirePlus("Compras como meta"), goalController.updateProduct);
 router.put("/:id", goalController.update);
 router.delete("/:id", goalController.remove);
 

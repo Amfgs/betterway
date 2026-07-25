@@ -37,7 +37,7 @@ const profileTabs = [
   { id: "resumo", label: "Resumo", description: "Sua leitura financeira", icon: ChartNoAxesCombined },
   { id: "financeiro", label: "Dados financeiros", description: "Renda, teto e valor-hora", icon: WalletCards },
   { id: "conexoes", label: "Conexões", description: "Integração bancária em preparação", icon: Landmark, status: "Em breve" },
-  { id: "notificacoes", label: "Alertas por e-mail", description: "Limites, metas e produtos", icon: BellRing },
+  { id: "notificacoes", label: "Alertas por e-mail", description: "Limites, metas e compras", icon: BellRing },
   { id: "assinatura", label: "Plano e assinatura", description: "Free, Plus e pagamentos", icon: CreditCard },
   { id: "conta", label: "Conta e segurança", description: "Identidade e acesso", icon: SlidersHorizontal }
 ];
@@ -361,7 +361,7 @@ export function ProfilePage() {
                   <input checked={notificationForm.goalAlerts} disabled={!notificationForm.emailEnabled} onChange={(event) => setNotificationForm((current) => ({ ...current, goalAlerts: event.target.checked }))} type="checkbox" />
                 </label>
                 <label className={`profile-notification-row ${!notificationForm.emailEnabled ? "disabled" : ""}`}>
-                  <span><strong>Produtos monitorados</strong><small>Avise quando o preço-alvo chegar ou sua caixinha já puder comprar o produto, com link da oferta.</small></span>
+                  <span><strong>Compras como meta</strong><small>Receba um aviso quando o preço desejado chegar ou quando o valor guardado já puder pagar pelo produto.</small></span>
                   <input checked={notificationForm.productAlerts} disabled={!notificationForm.emailEnabled} onChange={(event) => setNotificationForm((current) => ({ ...current, productAlerts: event.target.checked }))} type="checkbox" />
                 </label>
                 <label className={`profile-notification-row ${!notificationForm.emailEnabled ? "disabled" : ""}`}>

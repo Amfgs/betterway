@@ -269,7 +269,7 @@ export function FriendsPage() {
       {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-600 dark:text-red-300" role="alert">{error}</p> : null}
       {message ? <p className="rounded-lg bg-emerald-500/10 p-3 text-sm font-medium text-emerald-700 dark:text-emerald-300" role="status">{message}</p> : null}
 
-      <section className="grid items-start gap-4 xl:grid-cols-[0.9fr_1.1fr]" data-tour="friends-view" id="amizades">
+      <section className={`grid items-start gap-4 ${loading || friends.length ? "xl:grid-cols-[0.9fr_1.1fr]" : ""}`} data-tour="friends-view" id="amizades">
         <div className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900 sm:p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -321,7 +321,7 @@ export function FriendsPage() {
           {loading ? <p className="mt-4 text-sm text-zinc-500">Carregando amizades...</p> : null}
         </div>
 
-        <div ref={plansRef} id="planos-compartilhados">
+        {loading || friends.length ? <div ref={plansRef} id="planos-compartilhados">
           {selectedFriend ? (
             <section className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900 sm:p-5">
               <div className="flex flex-col gap-4 border-b border-black/5 pb-5 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
@@ -433,7 +433,7 @@ export function FriendsPage() {
               <div><Users className="mx-auto text-emerald-500" size={32} /><h2 className="mt-3 text-xl font-black">Escolha uma amizade</h2><p className="mx-auto mt-2 max-w-sm text-sm text-zinc-500 dark:text-zinc-400">Os planos daquela pessoa aparecerão aqui, junto com os atalhos para criar uma meta ou um limite compartilhado.</p></div>
             </section>
           )}
-        </div>
+        </div> : null}
       </section>
 
       {addOpen ? (

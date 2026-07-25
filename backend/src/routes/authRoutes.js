@@ -29,11 +29,19 @@ const usernameAvailabilityLimiter = rateLimit({
   message: { message: "Muitas consultas de nome de usuário. Aguarde alguns minutos." }
 });
 
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { message: "Muitas tentativas de acesso. Aguarde alguns minutos." }
+});
+
 router.post("/register", emailActionLimiter, authController.register);
 router.get("/username-availability", usernameAvailabilityLimiter, authController.usernameAvailability);
 router.get("/providers", authController.authProviders);
-router.post("/login", authController.login);
-router.post("/google", authController.googleLogin);
+router.post("/login", loginLimiter, authController.login);
+router.post("/google", loginLimiter, authController.googleLogin);
 router.post("/verify-email", codeAttemptLimiter, authController.verifyEmail);
 router.post("/resend-verification", emailActionLimiter, authController.resendVerification);
 router.post("/forgot-password", emailActionLimiter, authController.forgotPassword);

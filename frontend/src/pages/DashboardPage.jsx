@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   ExternalLink,
   History,
+  LockKeyhole,
   PackageSearch,
   Pencil,
   Plus,
@@ -26,7 +27,7 @@ import { DatePickerField } from "../components/DatePickerField";
 import { OpportunityModal } from "../components/OpportunityModal";
 import { StatCard } from "../components/StatCard";
 import { GuidedSectionHeader, WorkspaceHeader, WorkspacePeriodControl } from "../components/WorkspaceHeader";
-import { PremiumLock, requestPlan } from "../components/PremiumFeature";
+import { requestPlan } from "../components/PremiumFeature";
 import { useAuth } from "../context/AuthContext";
 import { categoryLabel, categoryOptions, currency, monthInputValue, percent, shortDate } from "../utils/formatters";
 import { TimelinePage } from "./TimelinePage";
@@ -361,7 +362,7 @@ export function DashboardPage() {
       }
       await api.post("/goals", payload);
       setGoalNotice(goalForm.mode === "product"
-        ? "Meta de produto criada. A BW já está acompanhando o menor preço e o valor guardado."
+        ? "Compra adicionada às suas metas. A BW já acompanha o melhor preço e o valor guardado."
         : "Caixinha criada com sucesso."
       );
       setGoalForm(createEmptyGoalForm());
@@ -674,26 +675,35 @@ export function DashboardPage() {
 
       <section className="guided-page-section" id="planos">
         <GuidedSectionHeader
-          description="Caixinhas transformam objetivos em progresso; limites avisam antes que uma categoria saia do planejado."
+          description="Guarde para o que importa, transforme compras em metas e receba avisos antes de ultrapassar seus limites."
           icon={Target}
           title="Proteja seus próximos passos"
         />
         <div className="dashboard-planning grid gap-4 xl:grid-cols-2">
         <div className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900" data-tour="goals-section" id="nova-meta">
-          <div className="flex items-center gap-3">
+          <div className="flex items-start gap-3">
             <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-300">
               <WalletCards size={20} />
             </div>
             <div>
-              <h2 className="text-xl font-black">Caixinhas de metas</h2>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">Crie uma caixinha e registre cada entrada ou retirada.</p>
+              <h2 className="text-xl font-black">Metas e compras planejadas</h2>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">Guarde por objetivo ou transforme um produto desejado em meta, acompanhando preço e valor acumulado.</p>
             </div>
           </div>
           <form className="mt-4 grid gap-3" onSubmit={createGoal}>
-            <div className="goal-kind-switch" role="group" aria-label="Tipo de caixinha">
+            <div className="goal-kind-switch" role="group" aria-label="Tipo de meta">
               <button aria-pressed={goalForm.mode === "money"} onClick={() => updateGoalForm("mode", "money")} type="button"><WalletCards size={17} /> Meta em dinheiro</button>
-              <button aria-pressed={goalForm.mode === "product"} onClick={() => user?.subscription?.hasPlus ? updateGoalForm("mode", "product") : requestPlan("Monitoramento de produtos")} type="button"><ShoppingBag size={17} /> Quero um produto</button>
-              <PremiumLock feature="Monitoramento de produtos" />
+              <button
+                aria-label={user?.subscription?.hasPlus ? "Quero um produto" : "Quero um produto, recurso do BW Plus"}
+                aria-pressed={goalForm.mode === "product"}
+                className={user?.subscription?.hasPlus ? "" : "is-premium"}
+                onClick={() => user?.subscription?.hasPlus ? updateGoalForm("mode", "product") : requestPlan("Suas compras como meta")}
+                title={user?.subscription?.hasPlus ? undefined : "Recurso do BW Plus"}
+                type="button"
+              >
+                <ShoppingBag size={17} /> Quero um produto
+                {!user?.subscription?.hasPlus ? <span className="goal-kind-lock" aria-hidden="true"><LockKeyhole size={13} /></span> : null}
+              </button>
             </div>
 
             {goalForm.mode === "money" ? (
@@ -728,7 +738,7 @@ export function DashboardPage() {
                     {productWorking === "search" ? "Consultando" : "Buscar produtos"}
                   </button>
                 </div>
-                <p className="product-goal-helper"><BellRing size={15} /> Escolha um modelo. A BW usa a menor oferta pública encontrada como valor da meta e continua comparando o mercado.</p>
+                <p className="product-goal-helper"><BellRing size={15} /> Transforme sua próxima compra em uma meta. A BW compara preços e avisa quando a oferta chegar ao valor desejado ou quando sua caixinha já puder pagar pelo produto.</p>
 
                 {productResults.length && !productPreview ? (
                   <div aria-label="Produtos encontrados" className="product-search-results">
@@ -769,7 +779,7 @@ export function DashboardPage() {
             {productError ? <p className="product-goal-error" role="alert">{productError}</p> : null}
             <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-3 font-black text-white disabled:cursor-wait disabled:opacity-60" disabled={productWorking === "create"} type="submit">
               {productWorking === "create" ? <RefreshCw className="animate-spin" size={18} /> : <Plus size={18} />}
-              {goalForm.mode === "product" ? "Criar meta de produto" : "Criar caixinha"}
+              {goalForm.mode === "product" ? "Criar meta de compra" : "Criar caixinha"}
             </button>
           </form>
           {goalNotice ? <p className="mt-4 rounded-lg bg-emerald-500/10 p-3 text-sm font-bold text-emerald-700 dark:text-emerald-300">{goalNotice}</p> : null}
@@ -790,7 +800,7 @@ export function DashboardPage() {
                         <span className="product-goal-image-fallback"><ShoppingBag size={25} /></span>
                       )}
                       <div>
-                        <p><ShoppingBag size={14} /> Meta de produto · {goal.product.marketSource || goal.product.store} <PremiumLock feature="Monitoramento de produtos" /></p>
+                        <p><ShoppingBag size={14} /> Compra como meta · {goal.product.marketSource || goal.product.store}</p>
                         <h3>{goal.product.name || goal.name}</h3>
                         <small>{goal.product.offersCount > 1 ? `Melhor oferta entre ${goal.product.offersCount} lojas` : goal.product.store} · prazo: {shortDate(goal.dueDate)}</small>
                       </div>
@@ -802,7 +812,7 @@ export function DashboardPage() {
                     <div className="product-goal-signals">
                       <div className={status.priceReached ? "reached" : "waiting"}>
                         {status.priceReached ? <CheckCircle2 size={18} /> : <Tag size={18} />}
-                        <span><strong>{status.priceReached ? "Preço-alvo atingido" : "Monitorando o preço"}</strong><small>{status.priceReached ? `${currency(goal.product.currentPrice)} está dentro do seu alvo.` : `Aviso ao chegar a ${currency(goal.product.targetPrice)}.`}</small></span>
+                        <span><strong>{status.priceReached ? "Preço-alvo atingido" : "Acompanhando o melhor preço"}</strong><small>{status.priceReached ? `${currency(goal.product.currentPrice)} está dentro do seu alvo.` : `Aviso ao chegar a ${currency(goal.product.targetPrice)}.`}</small></span>
                       </div>
                       <div className={status.affordable ? "reached" : "waiting"}>
                         {status.affordable ? <CheckCircle2 size={18} /> : <WalletCards size={18} />}
@@ -823,7 +833,7 @@ export function DashboardPage() {
                         <span><small>Menor observado</small><strong>{currency(goal.product.lowestPrice)}</strong></span>
                       </div>
                       <div>
-                        <p className="product-goal-chart-label">Histórico observado pela BW</p>
+                        <p className="product-goal-chart-label">Evolução do preço</p>
                         <ProductPriceChart history={goal.product.priceHistory} />
                       </div>
                     </div>

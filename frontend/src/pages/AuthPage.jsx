@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, LoaderCircle, LockKeyhole, ShieldCheck, X } from "lucide-react";
 import heroImage from "../assets/landing/betterway-hero.webp";
 import { getErrorMessage } from "../api/client";
+import { AppLoader } from "../components/AppLoader";
 import { GoogleSignInButton } from "../components/GoogleSignInButton";
 import { Logo } from "../components/Logo";
 import { useAuth } from "../context/AuthContext";
@@ -121,10 +122,8 @@ export function AuthPage() {
   if (!loading && session && restoreError) return <Navigate to="/dashboard" replace />;
   if (loading) {
     return (
-      <main className="auth-loading-screen">
-        <Logo size={40} />
-        <LoaderCircle aria-hidden="true" size={22} />
-        <span>Retomando seu acesso...</span>
+      <main className="workspace-loader-screen">
+        <AppLoader />
       </main>
     );
   }

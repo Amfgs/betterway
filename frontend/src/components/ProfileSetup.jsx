@@ -32,9 +32,9 @@ const taskIcons = {
   install: Smartphone
 };
 
-function SetupProgress({ expanded, onExpand, onTask, platform, progress }) {
+function SetupProgress({ expanded, loading, onExpand, onTask, platform, progress }) {
   if (!progress) {
-    return <div aria-hidden="true" className="profile-completion-skeleton" />;
+    return loading ? <div aria-hidden="true" className="profile-completion-skeleton" /> : null;
   }
 
   return (
@@ -76,6 +76,7 @@ export function ProfileSetup() {
   const location = useLocation();
   const navigate = useNavigate();
   const [progress, setProgress] = useState(null);
+  const [progressLoading, setProgressLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const [installOpen, setInstallOpen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
@@ -85,11 +86,14 @@ export function ProfileSetup() {
   const standalone = useMemo(() => isStandaloneApp(window), []);
 
   const loadProgress = useCallback(async () => {
+    setProgressLoading(true);
     try {
       const response = await api.get("/auth/profile-progress");
       setProgress(response.data);
     } catch {
-      setProgress(null);
+      // Mantém a última leitura válida e evita um bloco vazio em falhas transitórias.
+    } finally {
+      setProgressLoading(false);
     }
   }, []);
 
@@ -220,6 +224,7 @@ export function ProfileSetup() {
 
       <SetupProgress
         expanded={expanded}
+        loading={progressLoading}
         onExpand={() => setExpanded((current) => !current)}
         onTask={openTask}
         platform={platform}

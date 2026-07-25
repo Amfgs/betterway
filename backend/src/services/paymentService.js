@@ -67,7 +67,7 @@ function commonBody({ user, cpf, method }) {
       items: [{
         id: "bw-plus-30",
         title: "BW Plus por 30 dias",
-        description: "Alertas, produtos, relatórios e simulador completo",
+        description: "Alertas, compras como meta, relatórios e simulador completo",
         category_id: "services",
         quantity: 1,
         unit_price: PLUS_PRICE

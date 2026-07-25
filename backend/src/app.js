@@ -72,14 +72,6 @@ app.use(
   })
 );
 
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 40,
-  message: { message: "Muitas tentativas de autenticação. Aguarde alguns minutos." },
-  standardHeaders: "draft-7",
-  legacyHeaders: false
-});
-
 app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
@@ -88,7 +80,7 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-app.use("/api/auth", authLimiter, authRoutes);
+app.use("/api/auth", authRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/friends", friendRoutes);
 app.use("/api/shared-plans", sharedPlanRoutes);

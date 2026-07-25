@@ -10,7 +10,7 @@ export function ProtectedRoute() {
 
   if (loading) {
     return (
-      <div className="grid min-h-screen place-items-center bg-stone-100 text-zinc-900 dark:bg-neutral-950 dark:text-zinc-100">
+      <div className="workspace-loader-screen">
         <AppLoader />
       </div>
     );
