@@ -26,7 +26,7 @@ export function ProtectedRoute() {
         <button className="session-recovery-primary" onClick={() => retrySession()} type="button">
           <RefreshCw aria-hidden="true" size={17} /> Reconectar
         </button>
-        <button className="session-recovery-secondary" onClick={logout} type="button">
+        <button className="session-recovery-secondary" onClick={() => logout({ redirectTo: "/login" })} type="button">
           <LogIn aria-hidden="true" size={16} /> Usar outro acesso
         </button>
       </main>

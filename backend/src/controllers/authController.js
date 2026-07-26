@@ -30,6 +30,7 @@ const MAX_CODE_ATTEMPTS = 5;
 const EMAIL_RESEND_COOLDOWN_MS = 60 * 1000;
 const SESSION_TTL_SECONDS = 15 * 24 * 60 * 60;
 const DEFAULT_NOTIFICATION_PREFERENCES = {
+  dailyEntryReminder: true,
   emailEnabled: true,
   limitAlerts: true,
   goalAlerts: true,
@@ -639,13 +640,25 @@ const updateProfile = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "Selecione um avatar disponível na Better Way." });
   }
   if (req.body.notificationPreferences !== undefined) {
-    if (!hasPlusAccess(req.user)) return plusRequired(res, "Alertas e relatórios avançados");
     const requested = req.body.notificationPreferences;
     if (!requested || typeof requested !== "object" || Array.isArray(requested)) {
       return res.status(400).json({ message: "Preferências de notificação inválidas." });
     }
     const current = { ...DEFAULT_NOTIFICATION_PREFERENCES, ...(req.user.notificationPreferences || {}) };
-    for (const key of ["emailEnabled", "limitAlerts", "goalAlerts", "productAlerts", "weeklyReports", "monthlyReports"]) {
+    if (requested.dailyEntryReminder !== undefined) {
+      if (typeof requested.dailyEntryReminder !== "boolean") {
+        return res.status(400).json({ message: "A preferência do lembrete diário precisa ser verdadeira ou falsa." });
+      }
+      current.dailyEntryReminder = requested.dailyEntryReminder;
+    }
+    const advancedBooleanKeys = ["emailEnabled", "limitAlerts", "goalAlerts", "productAlerts", "weeklyReports", "monthlyReports"];
+    const requestsAdvancedPreferences = advancedBooleanKeys.some((key) => requested[key] !== undefined)
+      || requested.limitThreshold !== undefined
+      || requested.goalThreshold !== undefined;
+    if (requestsAdvancedPreferences && !hasPlusAccess(req.user)) {
+      return plusRequired(res, "Alertas e relatórios avançados");
+    }
+    for (const key of advancedBooleanKeys) {
       if (requested[key] !== undefined) {
         if (typeof requested[key] !== "boolean") {
           return res.status(400).json({ message: "As preferências de e-mail precisam ser verdadeiras ou falsas." });

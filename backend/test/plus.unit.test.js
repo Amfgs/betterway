@@ -82,6 +82,7 @@ test("gera alertas e relatórios sem expor dados e com link HTTPS da oferta", as
 
   delete require.cache[require.resolve("../src/services/emailService")];
   const {
+    sendDailyEntryReminderEmail,
     sendFinancialReportEmail,
     sendProductGoalAlertEmail
   } = require("../src/services/emailService");
@@ -120,6 +121,17 @@ test("gera alertas e relatórios sem expor dados e com link HTTPS da oferta", as
     assert.match(deliveries[1].body.subject, /relatório semanal/i);
     assert.match(deliveries[1].body.html, /Reserva/);
     assert.equal(deliveries[1].config.headers.Authorization, "Bearer re_test_betterway");
+
+    const reminderResult = await sendDailyEntryReminderEmail({
+      currentStreak: 4,
+      email: "cliente@example.com",
+      name: "Ana <script>"
+    });
+    assert.equal(reminderResult.delivered, true);
+    assert.match(deliveries[2].body.subject, /dia financeiro/i);
+    assert.match(deliveries[2].body.html, /4 dias em sequência/);
+    assert.match(deliveries[2].body.html, /https:\/\/betterway\.com\.br\/dashboard#novo-registro/);
+    assert.doesNotMatch(deliveries[2].body.html, /<script>/);
   } finally {
     axios.post = originalPost;
     delete require.cache[require.resolve("../src/services/emailService")];

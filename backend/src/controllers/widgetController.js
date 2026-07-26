@@ -1,6 +1,7 @@
 const asyncHandler = require("../utils/asyncHandler");
 const repository = require("../services/repository");
-const { addDaysToDateKey, asNumber, currentMonthKey, dateKey, limitStatus } = require("../utils/financial");
+const { asNumber, currentMonthKey, limitStatus } = require("../utils/financial");
+const { buildTransactionStreak } = require("../utils/streak");
 
 const defaultPreferences = {
   primaryWidgetKind: "goal",
@@ -89,22 +90,12 @@ function buildSelectedWidget(preferences, goals, limits) {
 }
 
 function buildStreak(transactions, preferences) {
-  const loggedDays = new Set(transactions.map((transaction) => dateKey(transaction.date)));
-  const today = dateKey(new Date());
-  const todayLogged = loggedDays.has(today);
-  let cursor = todayLogged ? today : addDaysToDateKey(today, -1);
-  let currentStreak = 0;
-
-  while (loggedDays.has(cursor)) {
-    currentStreak += 1;
-    cursor = addDaysToDateKey(cursor, -1);
-  }
+  const streak = buildTransactionStreak(transactions);
 
   return {
-    currentStreak,
-    todayLogged,
+    ...streak,
     reminderTime: preferences.streakReminderTime,
-    nextAction: todayLogged ? "Streak protegido hoje." : "Abra a Better Way e registre suas entradas ou saídas.",
+    nextAction: streak.todayLogged ? "Streak protegido hoje." : "Abra a Better Way e registre suas entradas ou saídas.",
     deadlineLabel: `Até ${preferences.streakReminderTime}`,
     appBlocking: {
       requested: preferences.appBlockingIntent,
@@ -142,6 +133,12 @@ async function buildWidgetState(user) {
   };
 }
 
+const streak = asyncHandler(async (req, res) => {
+  const transactions = await repository.listTransactions(req.user.id);
+  const preferences = normalizePreferences(req.user.widgetPreferences);
+  return res.json(buildStreak(transactions, preferences));
+});
+
 const state = asyncHandler(async (req, res) => {
   return res.json(await buildWidgetState(req.user));
 });
@@ -156,6 +153,7 @@ const updatePreferences = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  streak,
   state,
   updatePreferences
 };

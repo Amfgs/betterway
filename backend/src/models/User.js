@@ -176,6 +176,10 @@ const userSchema = new mongoose.Schema(
       }
     },
     notificationPreferences: {
+      dailyEntryReminder: {
+        type: Boolean,
+        default: true
+      },
       emailEnabled: {
         type: Boolean,
         default: true
@@ -214,6 +218,10 @@ const userSchema = new mongoose.Schema(
       }
     },
     notificationState: {
+      lastDailyReminderDate: {
+        type: String,
+        default: ""
+      },
       limitAlertMonth: {
         type: String,
         default: ""

@@ -37,7 +37,7 @@ const profileTabs = [
   { id: "resumo", label: "Resumo", description: "Sua leitura financeira", icon: ChartNoAxesCombined },
   { id: "financeiro", label: "Dados financeiros", description: "Renda, teto e valor-hora", icon: WalletCards },
   { id: "conexoes", label: "Conexões", description: "Integração bancária em preparação", icon: Landmark, status: "Em breve" },
-  { id: "notificacoes", label: "Alertas por e-mail", description: "Limites, metas e compras", icon: BellRing },
+  { id: "notificacoes", label: "Alertas por e-mail", description: "Lembretes, limites e metas", icon: BellRing },
   { id: "assinatura", label: "Plano e assinatura", description: "Free, Plus e pagamentos", icon: CreditCard },
   { id: "conta", label: "Conta e segurança", description: "Identidade e acesso", icon: SlidersHorizontal }
 ];
@@ -112,6 +112,7 @@ export function ProfilePage() {
   });
   const [settingsMessage, setSettingsMessage] = useState("");
   const [notificationForm, setNotificationForm] = useState({
+    dailyEntryReminder: user?.notificationPreferences?.dailyEntryReminder ?? true,
     emailEnabled: user?.notificationPreferences?.emailEnabled ?? true,
     limitAlerts: user?.notificationPreferences?.limitAlerts ?? true,
     goalAlerts: user?.notificationPreferences?.goalAlerts ?? true,
@@ -146,6 +147,7 @@ export function ProfilePage() {
     }));
     setForm((current) => ({ ...current, name: user?.name || current.name }));
     setNotificationForm({
+      dailyEntryReminder: user?.notificationPreferences?.dailyEntryReminder ?? true,
       emailEnabled: user?.notificationPreferences?.emailEnabled ?? true,
       limitAlerts: user?.notificationPreferences?.limitAlerts ?? true,
       goalAlerts: user?.notificationPreferences?.goalAlerts ?? true,
@@ -201,6 +203,20 @@ export function ProfilePage() {
     try {
       await updateProfile({ notificationPreferences: notificationForm });
       setMessage("Preferências de e-mail atualizadas.");
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  }
+
+  async function saveDailyReminder(event) {
+    event.preventDefault();
+    setError("");
+    setMessage("");
+    try {
+      await updateProfile({
+        notificationPreferences: { dailyEntryReminder: notificationForm.dailyEntryReminder }
+      });
+      setMessage("Lembrete diário atualizado.");
     } catch (err) {
       setError(getErrorMessage(err));
     }
@@ -336,15 +352,31 @@ export function ProfilePage() {
           ) : null}
 
           {activeTab === "notificacoes" ? (
+            <div className="profile-tab-panel profile-notification-sections" id="profile-panel-notificacoes" role="tabpanel">
+              <form className="profile-content-card profile-notifications profile-daily-reminder" onSubmit={saveDailyReminder}>
+                <div className="profile-notification-heading">
+                  <span><Clock3 size={22} /></span>
+                  <div><h2>Mantenha seu dia em dia</h2><p>A BW lembra você de registrar as movimentações antes de encerrar o dia.</p></div>
+                </div>
+                <div className="profile-notification-list">
+                  <label className="profile-notification-row">
+                    <span><strong>Lembrete diário de movimentações</strong><small>Se o dia ainda estiver vazio, enviaremos um e-mail por volta das 21h30. Dias já atualizados não geram lembrete.</small></span>
+                    <input checked={notificationForm.dailyEntryReminder} onChange={(event) => setNotificationForm((current) => ({ ...current, dailyEntryReminder: event.target.checked }))} type="checkbox" />
+                  </label>
+                </div>
+                <div className="profile-email-destination"><ShieldCheck size={18} /><span>O lembrete será enviado para <strong>{user?.email}</strong> e nunca inclui valores ou dados sensíveis.</span></div>
+                <button className="profile-primary-button" type="submit"><Save size={18} /> Salvar lembrete</button>
+              </form>
+
             <PremiumGate
               description="Defina a distância do teto ou da meta que dispara um aviso e escolha relatórios semanais ou mensais."
               feature="Alertas e relatórios avançados"
-              title="Acompanhamento automático por e-mail"
+              title="Alertas avançados por e-mail"
             >
-            <form className="profile-tab-panel profile-content-card profile-notifications" id="profile-panel-notificacoes" onSubmit={saveNotifications} role="tabpanel">
+            <form className="profile-content-card profile-notifications" onSubmit={saveNotifications}>
               <div className="profile-notification-heading">
                 <span><BellRing size={22} /></span>
-                <div><h2>Relatórios que chegam na hora certa</h2><p>Você controla quais eventos financeiros podem gerar um e-mail.</p></div>
+                <div><h2>Alertas e relatórios do BW Plus</h2><p>Você controla quais eventos financeiros podem gerar um e-mail.</p></div>
               </div>
 
               <div className="profile-notification-list">
@@ -399,6 +431,7 @@ export function ProfilePage() {
               <button className="profile-primary-button" type="submit"><Save size={18} /> Salvar alertas</button>
             </form>
             </PremiumGate>
+            </div>
           ) : null}
 
           {activeTab === "assinatura" ? (
@@ -433,7 +466,7 @@ export function ProfilePage() {
 
               <section className="profile-content-card">
                 <div className="flex items-center gap-3"><Moon className="text-emerald-500" size={22} /><div><h2 className="text-lg font-black">Aparência</h2><p className="text-sm text-zinc-500 dark:text-zinc-400">O tema é salvo neste navegador.</p></div></div>
-                <button aria-pressed={theme === "dark"} className="profile-theme-control mt-5" onClick={toggleTheme} type="button"><span>{theme === "dark" ? <Moon size={18} /> : <Sun size={18} />}</span><div><strong>{theme === "dark" ? "Modo escuro" : "Modo claro"}</strong><small>Toque para alternar suavemente</small></div><i aria-hidden="true" /></button>
+                <button aria-pressed={theme === "dark"} className="profile-theme-control mt-5" onClick={(event) => toggleTheme(event)} type="button"><span>{theme === "dark" ? <Moon size={18} /> : <Sun size={18} />}</span><div><strong>{theme === "dark" ? "Modo escuro" : "Modo claro"}</strong><small>Toque para alternar suavemente</small></div><i aria-hidden="true" /></button>
               </section>
 
               <section className="profile-content-card xl:col-span-2">
@@ -443,7 +476,7 @@ export function ProfilePage() {
 
               <section className="profile-danger-zone xl:col-span-2">
                 <div><h2 className="text-lg font-black">Sair da conta</h2><p>Encerra sua sessão somente neste dispositivo.</p></div>
-                <button onClick={logout} type="button"><LogOut size={18} /> Sair da conta</button>
+                <button onClick={() => logout()} type="button"><LogOut size={18} /> Sair da conta</button>
               </section>
             </div>
           ) : null}

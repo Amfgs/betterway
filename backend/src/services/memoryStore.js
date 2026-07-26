@@ -10,6 +10,7 @@ const dataDir = path.resolve(__dirname, "../../data");
 const dataFile = process.env.LOCAL_STORE_PATH || path.join(dataDir, "store.json");
 
 const defaultNotificationPreferences = {
+  dailyEntryReminder: true,
   emailEnabled: true,
   limitAlerts: true,
   goalAlerts: true,
@@ -21,6 +22,7 @@ const defaultNotificationPreferences = {
 };
 
 const defaultNotificationState = {
+  lastDailyReminderDate: "",
   limitAlertMonth: "",
   limitAlertLevel: 0,
   goalReachedIds: [],

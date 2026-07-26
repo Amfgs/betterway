@@ -299,6 +299,7 @@ export function DashboardPage() {
       setEditingTransactionId(null);
       setOpportunity(response.data.opportunity || null);
       await load();
+      window.dispatchEvent(new Event("betterway:transactions-changed"));
     } catch (err) {
       setError(getErrorMessage(err));
     }
@@ -330,6 +331,7 @@ export function DashboardPage() {
   async function deleteTransaction(id) {
     await api.delete(`/transactions/${id}`);
     await load();
+    window.dispatchEvent(new Event("betterway:transactions-changed"));
   }
 
   async function createGoal(event) {

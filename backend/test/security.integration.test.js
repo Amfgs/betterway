@@ -298,6 +298,22 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
   });
   assert.equal(lockedNotifications.status, 402);
 
+  const freeDailyReminder = await api(baseUrl, "/auth/me", {
+    method: "PUT",
+    token: userA.token,
+    body: { notificationPreferences: { dailyEntryReminder: false } }
+  });
+  assert.equal(freeDailyReminder.status, 200);
+  assert.equal(freeDailyReminder.data.user.notificationPreferences.dailyEntryReminder, false);
+
+  const restoredDailyReminder = await api(baseUrl, "/auth/me", {
+    method: "PUT",
+    token: userA.token,
+    body: { notificationPreferences: { dailyEntryReminder: true } }
+  });
+  assert.equal(restoredDailyReminder.status, 200);
+  assert.equal(restoredDailyReminder.data.user.notificationPreferences.dailyEntryReminder, true);
+
   const trial = await api(baseUrl, "/billing/trial", { method: "POST", token: userA.token });
   assert.equal(trial.status, 201);
   assert.equal(trial.data.subscription.hasPlus, true);
@@ -368,6 +384,7 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
   });
   assert.equal(notificationPreferences.status, 200);
   assert.deepEqual(notificationPreferences.data.user.notificationPreferences, {
+    dailyEntryReminder: true,
     emailEnabled: true,
     limitAlerts: true,
     goalAlerts: false,

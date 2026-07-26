@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowLeftRight,
   CalendarRange,
   ChevronRight,
+  Flame,
   History,
   LayoutDashboard,
   Plus,
@@ -17,6 +18,7 @@ import {
   X
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { api } from "../api/client";
 import { avatarSrc } from "../utils/avatars";
 import { readStoredValue, storageKeys } from "../utils/storageKeys";
 import { Logo } from "./Logo";
@@ -69,6 +71,38 @@ function SidebarLink({ item, collapsed }) {
   );
 }
 
+function streakTier(days, todayLogged) {
+  if (!days) return "idle";
+  if (days >= 14) return "peak";
+  if (days >= 7) return "blaze";
+  if (days >= 3) return "glow";
+  return todayLogged ? "ember" : "resting";
+}
+
+function StreakIndicator({ onActivate, streak, compact = false }) {
+  const days = Number(streak?.currentStreak || 0);
+  const todayLogged = Boolean(streak?.todayLogged);
+  const label = todayLogged
+    ? `${days} ${days === 1 ? "dia" : "dias"} em sequência. Registro de hoje concluído.`
+    : days
+      ? `${days} ${days === 1 ? "dia" : "dias"} em sequência. Registre seu dia para manter a chama.`
+      : "Registre uma movimentação hoje para acender sua sequência.";
+
+  return (
+    <button
+      aria-label={label}
+      className={`streak-indicator ${compact ? "compact" : ""} ${todayLogged ? "complete" : ""}`.trim()}
+      data-tier={streakTier(days, todayLogged)}
+      onClick={onActivate}
+      title={label}
+      type="button"
+    >
+      <span className="streak-flame"><Flame aria-hidden="true" fill="currentColor" size={compact ? 19 : 20} /></span>
+      <small>{days}</small>
+    </button>
+  );
+}
+
 export function Shell() {
   const { user } = useAuth();
   const location = useLocation();
@@ -79,10 +113,34 @@ export function Shell() {
   const [query, setQuery] = useState("");
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const [requiredPlanFeature, setRequiredPlanFeature] = useState("");
+  const [streak, setStreak] = useState(null);
   const currentMeta = pageMeta[location.pathname] || pageMeta["/dashboard"];
   const isDashboard = location.pathname === "/dashboard";
   const isTimeline = isDashboard && new URLSearchParams(location.search).get("view") === "timeline";
   const quickActions = dashboardQuickActions[isTimeline ? "timeline" : "overview"];
+
+  const loadStreak = useCallback(async () => {
+    try {
+      const response = await api.get("/widgets/streak");
+      setStreak(response.data);
+    } catch {
+      setStreak((current) => current || { currentStreak: 0, todayLogged: false });
+    }
+  }, []);
+
+  useEffect(() => {
+    loadStreak();
+    const refresh = () => loadStreak();
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") loadStreak();
+    };
+    window.addEventListener("betterway:transactions-changed", refresh);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.removeEventListener("betterway:transactions-changed", refresh);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [loadStreak, location.pathname, user?.id]);
 
   useEffect(() => {
     const showPlan = (event) => setRequiredPlanFeature(event.detail?.feature || "Este recurso");
@@ -130,6 +188,11 @@ export function Shell() {
       const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
       document.getElementById(targetId)?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
     }, 120);
+  }
+
+  function openDailyEntry() {
+    if (!isDashboard) navigate("/dashboard#novo-registro");
+    window.setTimeout(() => focusDashboardTarget("novo-registro"), isDashboard ? 20 : 180);
   }
 
   return (
@@ -210,13 +273,17 @@ export function Shell() {
                 </div>
               ) : null}
             </form>
+            <StreakIndicator onActivate={openDailyEntry} streak={streak} />
           </div>
         </header>
 
         <header className="mobile-topbar">
           <Link aria-label="Ir para Visão Geral" to="/dashboard"><Logo size={34} withWordmark={false} /></Link>
           <strong className="mobile-topbar-title">{currentMeta.title}</strong>
-          <Link aria-label="Abrir perfil" className="mobile-topbar-profile" to="/perfil"><img alt="Avatar do usuário" src={avatarSrc(user?.avatarUrl)} /></Link>
+          <div className="mobile-topbar-actions">
+            <StreakIndicator compact onActivate={openDailyEntry} streak={streak} />
+            <Link aria-label="Abrir perfil" className="mobile-topbar-profile" to="/perfil"><img alt="Avatar do usuário" src={avatarSrc(user?.avatarUrl)} /></Link>
+          </div>
         </header>
 
         <main className="app-content">

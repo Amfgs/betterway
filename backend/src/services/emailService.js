@@ -275,6 +275,43 @@ async function sendGoalProgressEmail({ email, name, goalName, currentAmount, tar
   return { delivered: true };
 }
 
+async function sendDailyEntryReminderEmail({ email, name, currentStreak = 0 }) {
+  if (!emailConfigured()) return { delivered: false };
+  const safeName = escapeHtml(name);
+  const streak = Math.max(Number(currentStreak || 0), 0);
+  const appUrl = safeHttpsHref(`${String(process.env.APP_WEB_URL || "https://betterway.com.br").replace(/\/$/, "")}/dashboard#novo-registro`);
+  const streakText = streak > 0
+    ? `Sua sequência atual é de ${streak} ${streak === 1 ? "dia" : "dias"}. Um registro hoje mantém essa chama acesa.`
+    : "Um registro hoje é suficiente para começar sua sequência na BW.";
+
+  await deliverEmail({
+    email,
+    subject: "Seu dia financeiro está em dia?",
+    text: [
+      `Olá${name ? `, ${name}` : ""}.`,
+      "",
+      "Ainda não encontramos entradas ou saídas registradas por você hoje.",
+      streakText,
+      "",
+      "Abra a BW e atualize seu dia. Se não houve movimentações, você pode ignorar este lembrete."
+    ].join("\n"),
+    html: `
+      <div style="font-family:Arial,sans-serif;line-height:1.55;color:#10221c;max-width:560px;margin:0 auto;padding:32px;">
+        <p style="color:#0d6b4f;font-size:18px;font-weight:800;margin:0 0 28px;">BW · Better Way</p>
+        <h2 style="font-size:26px;margin:0 0 12px;">Seu dia financeiro está em dia?</h2>
+        <p>Olá${safeName ? `, ${safeName}` : ""}. Ainda não encontramos entradas ou saídas registradas por você hoje.</p>
+        <div style="background:#edf7f2;border:1px solid #cce8da;border-radius:8px;margin:20px 0;padding:18px;">
+          <strong style="display:block;color:#0d6b4f;font-size:18px;">${streak > 0 ? `🔥 ${streak} ${streak === 1 ? "dia" : "dias"} em sequência` : "Comece sua sequência hoje"}</strong>
+          <span style="color:#52635b;font-size:13px;">${escapeHtml(streakText)}</span>
+        </div>
+        <a href="${appUrl}" style="background:#0d6b4f;border-radius:8px;color:#fff;display:inline-block;font-weight:800;padding:12px 18px;text-decoration:none;">Registrar meu dia</a>
+        <p style="margin-top:22px;color:#52635b;font-size:13px;">Se não houve movimentações, ignore este lembrete. Você pode desativá-lo em Perfil → Alertas por e-mail.</p>
+      </div>
+    `
+  });
+  return { delivered: true };
+}
+
 async function sendFinancialReportEmail({ email, name, periodLabel, totals, goals, frequency }) {
   if (!emailConfigured()) return { delivered: false };
   const safeName = escapeHtml(name);
@@ -382,6 +419,7 @@ async function sendProductGoalAlertEmail({ email, name, goalName, product, curre
 
 module.exports = {
   emailConfigured,
+  sendDailyEntryReminderEmail,
   sendEmailVerification,
   sendPasswordResetEmail,
   sendFinancialReportEmail,

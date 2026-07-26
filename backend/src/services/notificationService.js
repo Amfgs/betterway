@@ -4,6 +4,7 @@ const { hasPlusAccess } = require("../utils/subscription");
 
 function preferences(user) {
   return {
+    dailyEntryReminder: true,
     emailEnabled: true,
     limitAlerts: true,
     goalAlerts: true,
@@ -18,6 +19,7 @@ function preferences(user) {
 
 function state(user) {
   return {
+    lastDailyReminderDate: "",
     limitAlertMonth: "",
     limitAlertLevel: 0,
     goalReachedIds: [],

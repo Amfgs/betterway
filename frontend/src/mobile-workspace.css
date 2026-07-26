@@ -299,6 +299,66 @@
   }
 }
 
+@media (max-width: 767px) {
+  .mobile-topbar {
+    display: grid !important;
+    grid-template-columns: 82px minmax(0, 1fr) 82px !important;
+  }
+
+  .mobile-topbar > a:first-child {
+    justify-self: start;
+  }
+
+  .mobile-topbar-title {
+    min-width: 0;
+    overflow: hidden;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-topbar > .mobile-topbar-actions {
+    display: flex !important;
+    width: 82px !important;
+    flex: 0 0 82px !important;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px !important;
+  }
+
+  .mobile-topbar .streak-indicator.compact {
+    min-width: 40px;
+    width: 40px;
+    height: 34px;
+    gap: 1px;
+    border-color: rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .mobile-topbar .streak-indicator.compact small {
+    min-width: 8px;
+    font-size: 0.61rem;
+  }
+
+  .mobile-topbar .streak-indicator[data-tier="idle"] {
+    color: #a8b6af;
+  }
+
+  .mobile-topbar .streak-indicator[data-tier="ember"],
+  .mobile-topbar .streak-indicator[data-tier="glow"],
+  .mobile-topbar .streak-indicator[data-tier="blaze"] {
+    background: rgba(232, 91, 44, 0.14);
+  }
+
+  .profile-notification-row {
+    gap: 12px;
+  }
+
+  .profile-notification-row small {
+    max-width: 38ch;
+  }
+}
+
 html.pluggy-connect-active .mobile-topbar,
 html.pluggy-connect-active .mobile-navigation {
   visibility: hidden;

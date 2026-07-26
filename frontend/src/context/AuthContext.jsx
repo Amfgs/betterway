@@ -164,11 +164,12 @@ export function AuthProvider({ children }) {
     return response.data;
   }
 
-  function logout() {
+  function logout({ redirectTo = "/" } = {}) {
     clearAuthSession();
     setUser(null);
     setSession(null);
     setRestoreError("");
+    if (redirectTo && window.location.pathname !== redirectTo) window.location.replace(redirectTo);
   }
 
   function setSessionPersistence(persistent) {
