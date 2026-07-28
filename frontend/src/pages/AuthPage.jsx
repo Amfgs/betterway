@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, LoaderCircle, LockKeyhole, ShieldCheck, X } from "lucide-react";
 import heroImage from "../assets/landing/betterway-hero.webp";
 import { getErrorMessage } from "../api/client";
@@ -306,7 +306,7 @@ export function AuthPage() {
       <aside className="auth-visual">
         <img alt="Pessoa planejando a vida financeira" src={heroImage} />
         <div className="auth-visual-shade" />
-        <Link className="auth-back-link" to="/"><ArrowLeft size={16} /> Voltar ao início</Link>
+        <a className="auth-back-link" href="/"><ArrowLeft size={16} /> Voltar ao início</a>
         <div className="auth-visual-copy">
           <Logo className="auth-visual-logo" size={42} />
           <p>Uma relação mais inteligente com o dinheiro.</p>
@@ -321,7 +321,7 @@ export function AuthPage() {
 
       <main className="auth-panel">
         <div className="auth-panel-top">
-          <Link aria-label="Better Way início" className="auth-mobile-logo" to="/"><Logo size={36} /></Link>
+          <a aria-label="Better Way início" className="auth-mobile-logo" href="/"><Logo size={36} /></a>
         </div>
 
         <div className={`auth-form-wrap auth-form-wrap-${mode}`}>

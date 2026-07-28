@@ -2089,6 +2089,12 @@ textarea:focus-visible {
   color: rgba(255, 255, 255, 0.78);
   font-size: 0.78rem;
   font-weight: 750;
+  transition: color 180ms ease, background-color 180ms ease;
+}
+
+.auth-back-link:hover,
+.auth-back-link:focus-visible {
+  color: #ffffff;
 }
 
 .auth-visual-copy {
@@ -9571,8 +9577,14 @@ html {
 
   .auth-back-link {
     top: calc(12px + env(safe-area-inset-top));
-    left: 16px;
-    min-height: 36px;
+    left: 8px;
+    min-height: 44px;
+    padding: 0 8px;
+    border-radius: 8px;
+  }
+
+  .auth-back-link:active {
+    background: rgba(255, 255, 255, 0.1);
   }
 
   .auth-visual-copy {
