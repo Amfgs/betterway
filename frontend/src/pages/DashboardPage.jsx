@@ -29,10 +29,20 @@ import { StatCard } from "../components/StatCard";
 import { GuidedSectionHeader, WorkspaceHeader, WorkspacePeriodControl } from "../components/WorkspaceHeader";
 import { requestPlan } from "../components/PremiumFeature";
 import { useAuth } from "../context/AuthContext";
+import { buildFinancialEvolution, evolutionRangeOptions } from "../utils/evolution";
 import { categoryLabel, categoryOptions, currency, monthInputValue, percent, shortDate } from "../utils/formatters";
 import { TimelinePage } from "./TimelinePage";
 
 const pieColors = ["#10b981", "#f59e0b", "#ef4444", "#14b8a6", "#71717a", "#84cc16", "#f97316"];
+
+function compactCurrency(value) {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    notation: "compact",
+    maximumFractionDigits: 1
+  }).format(Number(value || 0));
+}
 
 function inputDate(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -221,6 +231,7 @@ export function DashboardPage() {
   const [editingTransactionId, setEditingTransactionId] = useState(null);
   const [opportunity, setOpportunity] = useState(null);
   const [transactionNotice, setTransactionNotice] = useState("");
+  const [evolutionRange, setEvolutionRange] = useState("week");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -501,6 +512,14 @@ export function DashboardPage() {
     [summary]
   );
   const recentTransactions = useMemo(() => transactions.slice(0, 5), [transactions]);
+  const evolution = useMemo(
+    () => buildFinancialEvolution(transactions, evolutionRange),
+    [transactions, evolutionRange]
+  );
+  const reduceChartMotion = useMemo(
+    () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
+    []
+  );
   const selectedMonthLabel = useMemo(() => {
     const [year, monthNumber] = month.split("-").map(Number);
     return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(new Date(year, monthNumber - 1, 1));
@@ -580,29 +599,96 @@ export function DashboardPage() {
 
       <section className="guided-page-section" id="analises-financeiras">
         <GuidedSectionHeader
-          description="O primeiro gráfico compara o que entrou e saiu; o segundo revela quais categorias mais consumiram seu orçamento."
+          description="Alterne o fluxo entre 7 dias, 30 dias e 1 ano; depois compare com as categorias que mais consumiram seu orçamento."
           icon={ChartNoAxesCombined}
           title="Veja como o dinheiro se move"
         />
         <div className="dashboard-charts grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-lg border border-black/5 bg-white p-4 shadow-soft dark:border-white/10 dark:bg-neutral-900">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-black">Evolução da janela</h2>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">{summary?.window?.rule || "Análise financeira de 30 dias"}</p>
+        <div className="financial-evolution-card">
+          <div className="financial-evolution-head">
+            <div className="financial-evolution-copy">
+              <h2>Evolução financeira</h2>
+              <p>{evolution.periodLabel}</p>
+              <small>Esta seleção altera somente este gráfico.</small>
+            </div>
+            <div className="evolution-range-switch" aria-label="Período da evolução financeira" role="group">
+              {evolutionRangeOptions.map((option) => (
+                <button
+                  aria-pressed={evolutionRange === option.id}
+                  key={option.id}
+                  onClick={() => setEvolutionRange(option.id)}
+                  title={option.description}
+                  type="button"
+                >
+                  {option.label}
+                </button>
+              ))}
             </div>
           </div>
-          <div className="mt-4 h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={summary?.trend || []}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                <XAxis dataKey="label" minTickGap={18} />
-                <YAxis />
-                <Tooltip formatter={(value) => currency(value)} />
-                <Area dataKey="income" stroke="#10b981" fill="#10b981" fillOpacity={0.18} name="Entradas" />
-                <Area dataKey="expense" stroke="#ef4444" fill="#ef4444" fillOpacity={0.14} name="Saídas" />
-              </AreaChart>
-            </ResponsiveContainer>
+
+          <div className="evolution-period-totals" aria-live="polite">
+            <div>
+              <span><i className="income" />Entradas</span>
+              <strong>{currency(evolution.totals.income)}</strong>
+            </div>
+            <div>
+              <span><i className="expense" />Saídas</span>
+              <strong>{currency(evolution.totals.expense)}</strong>
+            </div>
+            <div className={evolution.totals.balance < 0 ? "negative" : "positive"}>
+              <span>Resultado</span>
+              <strong>{currency(evolution.totals.balance)}</strong>
+            </div>
+          </div>
+
+          <div className="evolution-chart-frame">
+            {evolution.hasActivity ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart key={evolutionRange} data={evolution.series} margin={{ top: 10, right: 4, bottom: 0, left: 0 }}>
+                  <defs>
+                    <linearGradient id="evolutionIncomeFill" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stopColor="#10b981" stopOpacity={0.24} />
+                      <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+                    </linearGradient>
+                    <linearGradient id="evolutionExpenseFill" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stopColor="#ef4444" stopOpacity={0.2} />
+                      <stop offset="100%" stopColor="#ef4444" stopOpacity={0.01} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 4" vertical={false} opacity={0.18} />
+                  <XAxis axisLine={false} dataKey="label" minTickGap={18} tickLine={false} />
+                  <YAxis axisLine={false} tickFormatter={compactCurrency} tickLine={false} width={64} />
+                  <Tooltip
+                    formatter={(value) => currency(value)}
+                    labelFormatter={(label, payload) => payload?.[0]?.payload?.fullLabel || label}
+                  />
+                  <Area
+                    dataKey="income"
+                    fill="url(#evolutionIncomeFill)"
+                    isAnimationActive={!reduceChartMotion}
+                    name="Entradas"
+                    stroke="#10b981"
+                    strokeWidth={2.25}
+                    type="monotone"
+                  />
+                  <Area
+                    dataKey="expense"
+                    fill="url(#evolutionExpenseFill)"
+                    isAnimationActive={!reduceChartMotion}
+                    name="Saídas"
+                    stroke="#ef4444"
+                    strokeWidth={2.25}
+                    type="monotone"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="evolution-empty-state">
+                <ChartNoAxesCombined aria-hidden="true" size={24} />
+                <strong>Sem movimentações neste período</strong>
+                <span>Escolha outra visão ou registre uma transação para começar.</span>
+              </div>
+            )}
           </div>
         </div>
 
