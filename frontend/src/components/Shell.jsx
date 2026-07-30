@@ -22,6 +22,7 @@ import { api } from "../api/client";
 import { avatarSrc } from "../utils/avatars";
 import { readStoredValue, storageKeys } from "../utils/storageKeys";
 import { Logo } from "./Logo";
+import { AccountSetupOnboarding } from "./AccountSetupOnboarding";
 import { ProfileSetup } from "./ProfileSetup";
 import { GuidedTour } from "./GuidedTour";
 
@@ -288,7 +289,8 @@ export function Shell() {
 
         <main className="app-content">
           <div className="app-content-inner">
-            <ProfileSetup />
+            <AccountSetupOnboarding />
+            {!user?.accountSetupRequired ? <ProfileSetup /> : null}
             <Outlet />
             <GuidedTour />
           </div>

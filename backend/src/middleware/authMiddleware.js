@@ -29,6 +29,13 @@ async function authMiddleware(req, res, next) {
         message: "Confirme seu e-mail antes de acessar a conta."
       });
     }
+    const accountSetupAllowed = req.baseUrl === "/api/auth" && ["/me", "/complete-account"].includes(req.path);
+    if (user.accountSetupRequired && !accountSetupAllowed) {
+      return res.status(428).json({
+        code: "ACCOUNT_SETUP_REQUIRED",
+        message: "Escolha seu nome de usuário e crie uma senha para continuar."
+      });
+    }
 
     const sessionStartedAt = Number(decoded.sst || decoded.iat || 0);
     if (!sessionStartedAt || sessionStartedAt > Math.floor(Date.now() / 1000) + 300) {

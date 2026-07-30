@@ -100,7 +100,15 @@ function TransactionForm({ editingTransactionId, form, onCancel, onChange, onSub
         </label>
         <label>
           <span>Valor</span>
-          <input min="0" placeholder="R$ 0,00" step="0.01" type="number" value={form.amount} onChange={(event) => onChange("amount", event.target.value)} required />
+          <input
+            autoComplete="off"
+            inputMode="decimal"
+            placeholder="R$ 0,00"
+            type="text"
+            value={form.amount}
+            onChange={(event) => onChange("amount", event.target.value.replace(/[^\d.,]/g, "").slice(0, 24))}
+            required
+          />
         </label>
         <label>
           <span>Setor</span>
@@ -128,12 +136,13 @@ function TransactionForm({ editingTransactionId, form, onCancel, onChange, onSub
 }
 
 function DashboardSnapshot({ usageTone, widgets, windowLabel }) {
+  const registeredBalance = widgets.ledgerBalance ?? widgets.ledgerBankBalance ?? widgets.balance;
   return (
     <div className="dashboard-snapshot" data-tour="financial-overview">
-      <div className={`dashboard-snapshot-balance ${Number(widgets.balance || 0) < 0 ? "negative" : ""}`}>
-        <span>Saldo desta janela</span>
-        <strong>{currency(widgets.balance)}</strong>
-        <small>Entradas menos saídas em {windowLabel || "30 dias"}</small>
+      <div className={`dashboard-snapshot-balance ${Number(registeredBalance || 0) < 0 ? "negative" : ""}`}>
+        <span>Saldo registrado</span>
+        <strong>{currency(registeredBalance)}</strong>
+        <small>Todos os registros · {currency(widgets.balance)} na janela {windowLabel || "atual"}</small>
       </div>
       <div className="dashboard-snapshot-grid">
         <div>
@@ -211,6 +220,7 @@ export function DashboardPage() {
   const [goalNotice, setGoalNotice] = useState("");
   const [editingTransactionId, setEditingTransactionId] = useState(null);
   const [opportunity, setOpportunity] = useState(null);
+  const [transactionNotice, setTransactionNotice] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -220,7 +230,7 @@ export function DashboardPage() {
     try {
       const [summaryResponse, transactionsResponse] = await Promise.all([
         api.get("/transactions/summary", { params: { month } }),
-        api.get("/transactions", { params: { month } })
+        api.get("/transactions")
       ]);
       setSummary(summaryResponse.data);
       setTransactions(transactionsResponse.data.transactions);
@@ -291,14 +301,21 @@ export function DashboardPage() {
   async function createTransaction(event) {
     event.preventDefault();
     setError("");
+    setTransactionNotice("");
     try {
       const response = editingTransactionId
         ? await api.put(`/transactions/${editingTransactionId}`, form)
         : await api.post("/transactions", form);
+      const savedTransaction = response.data.transaction;
+      const action = editingTransactionId ? "atualizada" : "registrada";
       setForm(createEmptyForm());
       setEditingTransactionId(null);
       setOpportunity(response.data.opportunity || null);
       await load();
+      setTransactionNotice(
+        `${savedTransaction?.type === "income" ? "Entrada" : "Saída"} de ${currency(savedTransaction?.amount)} ${action}. ` +
+        "O saldo total e a linha do tempo já foram atualizados; os gráficos respeitam o período selecionado."
+      );
       window.dispatchEvent(new Event("betterway:transactions-changed"));
     } catch (err) {
       setError(getErrorMessage(err));
@@ -522,6 +539,12 @@ export function DashboardPage() {
       />
 
       {error ? <p className="rounded-lg bg-red-500/10 p-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p> : null}
+      {transactionNotice ? (
+        <p className="transaction-success-notice" role="status">
+          <CheckCircle2 aria-hidden="true" size={18} />
+          <span>{transactionNotice}</span>
+        </p>
+      ) : null}
 
       <section className="guided-page-section" id="resumo-financeiro">
         <GuidedSectionHeader

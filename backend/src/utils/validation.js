@@ -49,8 +49,24 @@ function availableUsername(value, usedValues, fallback = "usuario") {
   return candidate;
 }
 
+function parseLocalizedNumber(value) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : NaN;
+
+  const normalized = String(value ?? "")
+    .trim()
+    .replace(/\s|\u00a0/g, "")
+    .replace(/^R\$/i, "");
+  if (!normalized) return NaN;
+
+  const decimal = normalized.includes(",")
+    ? normalized.replace(/\./g, "").replace(",", ".")
+    : normalized;
+  if (!/^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(decimal)) return NaN;
+  return Number(decimal);
+}
+
 function numberInRange(value, min = 0, max = Number.MAX_SAFE_INTEGER) {
-  const number = Number(value);
+  const number = parseLocalizedNumber(value);
   return Number.isFinite(number) && number >= min && number <= max ? number : null;
 }
 
@@ -84,6 +100,7 @@ module.exports = {
   isValidEmail,
   isValidUsername,
   normalizeUsername,
+  parseLocalizedNumber,
   numberInRange,
   isValidDateKey,
   isValidMonthKey,

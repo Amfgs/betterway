@@ -50,6 +50,53 @@
     padding: 12px var(--bw-mobile-gutter) calc(var(--bw-mobile-nav) + 16px) !important;
   }
 
+  .account-setup-backdrop {
+    align-items: end;
+    padding: 0;
+  }
+
+  .account-setup-dialog {
+    width: 100%;
+    max-height: 96dvh;
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 8px 8px 0 0;
+  }
+
+  .account-setup-header {
+    min-height: 168px;
+    padding: 18px;
+  }
+
+  .account-setup-logo {
+    margin-bottom: 26px;
+  }
+
+  .account-setup-header > span {
+    margin-bottom: 8px;
+  }
+
+  .account-setup-header h1 {
+    font-size: 1.45rem;
+  }
+
+  .account-setup-header p {
+    display: none;
+  }
+
+  .account-setup-form {
+    gap: 13px;
+    padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
+  }
+
+  .account-setup-passwords {
+    grid-template-columns: 1fr;
+    gap: 11px;
+  }
+
   .workspace-page.space-y-6 > :not([hidden]) ~ :not([hidden]),
   .embedded-page.space-y-6 > :not([hidden]) ~ :not([hidden]) {
     margin-top: 14px;

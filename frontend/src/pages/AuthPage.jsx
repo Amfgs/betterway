@@ -7,6 +7,7 @@ import { AppLoader } from "../components/AppLoader";
 import { GoogleSignInButton } from "../components/GoogleSignInButton";
 import { Logo } from "../components/Logo";
 import { useAuth } from "../context/AuthContext";
+import { passwordResetTransition } from "../utils/authFlow";
 
 export function AuthPage() {
   const {
@@ -195,16 +196,20 @@ export function AuthPage() {
         navigate(location.state?.from?.pathname || "/dashboard", { replace: true });
       } else if (mode === "forgot") {
         const response = await forgotPassword({ email: form.email });
+        const transition = passwordResetTransition(response, form.email);
+        setMode(transition.mode);
         setSuccess(response.message);
-        if (response.devResetToken) {
-          setMode("reset");
-          setForm((current) => ({ ...current, resetToken: response.devResetToken, password: "" }));
-        }
+        setForm((current) => ({ ...current, resetToken: transition.resetToken, password: "" }));
+        navigate(transition.route, {
+          replace: true,
+          state: location.state?.from ? { from: location.state.from } : undefined
+        });
       } else if (mode === "reset") {
         const response = await resetPassword({ email: form.email, token: form.resetToken, newPassword: form.password });
         setSuccess(response.message);
         setMode("login");
         setForm((current) => ({ ...current, password: "", resetToken: "" }));
+        navigate("/login", { replace: true });
       }
     } catch (err) {
       const message = getErrorMessage(err);
@@ -229,6 +234,7 @@ export function AuthPage() {
     setShowPassword(false);
     setShowConfirmPassword(false);
     setRegisterStep(1);
+    if (nextMode === "login" && location.search) navigate("/login", { replace: true });
   }
 
   async function continueWithGoogle(credential) {
@@ -252,6 +258,18 @@ export function AuthPage() {
       const response = await resendVerification({ email: form.email });
       setSuccess(response.message);
       if (response.devVerificationToken) update("verificationToken", response.devVerificationToken);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  }
+
+  async function resendResetCode() {
+    setError("");
+    setSuccess("");
+    try {
+      const response = await forgotPassword({ email: form.email });
+      setSuccess(response.message);
+      if (response.devResetToken) update("resetToken", response.devResetToken);
     } catch (err) {
       setError(getErrorMessage(err));
     }
@@ -524,6 +542,7 @@ export function AuthPage() {
             </button>
             {mode === "login" ? <button className="auth-forgot" onClick={() => switchMode("forgot")} type="button">Esqueceu a senha?</button> : null}
             {mode === "verify" ? <button className="auth-forgot" onClick={resendCode} type="button">Reenviar código</button> : null}
+            {mode === "reset" ? <button className="auth-forgot" onClick={resendResetCode} type="button">Reenviar código</button> : null}
           </form>
 
           <p className="auth-security-note">

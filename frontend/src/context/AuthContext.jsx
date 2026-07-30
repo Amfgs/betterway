@@ -65,7 +65,11 @@ export function AuthProvider({ children }) {
       if (readAuthSession()) restoreSession({ showLoading: false });
     };
     window.addEventListener("online", reconnect);
-    return () => window.removeEventListener("online", reconnect);
+    window.addEventListener("pageshow", reconnect);
+    return () => {
+      window.removeEventListener("online", reconnect);
+      window.removeEventListener("pageshow", reconnect);
+    };
   }, [restoreSession]);
 
   useEffect(() => {
@@ -131,6 +135,20 @@ export function AuthProvider({ children }) {
 
   async function register(payload) {
     const response = await api.post("/auth/register", payload);
+    return response.data;
+  }
+
+  async function completeAccountSetup(payload) {
+    const response = await api.post("/auth/complete-account", payload);
+    const current = readAuthSession();
+    const nextSession = storeAuthSession(response.data.token, {
+      persistent: current?.persistent ?? true,
+      startedAt: current?.startedAt
+    });
+    setSession(nextSession);
+    setUser(response.data.user);
+    lastSessionCheckAtRef.current = Date.now();
+    setRestoreError("");
     return response.data;
   }
 
@@ -211,6 +229,7 @@ export function AuthProvider({ children }) {
       login,
       loginWithGoogle,
       register,
+      completeAccountSetup,
       checkUsernameAvailability,
       verifyEmail,
       resendVerification,

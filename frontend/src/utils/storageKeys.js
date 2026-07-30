@@ -78,11 +78,17 @@ export function storeAuthSession(token, { persistent = true, startedAt } = {}) {
 export function readAuthSession() {
   const sessionToken = sessionStorage.getItem(storageKeys.authToken);
   const persistentToken = readStoredValue(storageKeys.authToken, storageKeys.legacyAuthToken);
-  const token = sessionToken || persistentToken;
+  const persistentPreference = localStorage.getItem(storageKeys.authSessionPersistent) !== "false";
+  const usePersistentToken = Boolean(persistentToken && (persistentPreference || !sessionToken));
+  const token = usePersistentToken ? persistentToken : sessionToken;
   if (!token) return null;
 
-  const persistent = !sessionToken;
+  const persistent = usePersistentToken;
   const storage = persistent ? localStorage : sessionStorage;
+  if (persistent && sessionToken) {
+    sessionStorage.removeItem(storageKeys.authToken);
+    sessionStorage.removeItem(storageKeys.authSessionStartedAt);
+  }
   const storedStart = Number(storage.getItem(storageKeys.authSessionStartedAt));
   const startedAt = storedStart > 0 ? storedStart : tokenStartedAt(token);
   const expiresAt = startedAt + AUTH_SESSION_TTL_MS;

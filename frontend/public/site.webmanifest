@@ -3,7 +3,7 @@
   "short_name": "BW",
   "id": "/",
   "description": "Inteligência financeira para decisões melhores, planejamento e investimentos.",
-  "start_url": "/login",
+  "start_url": "/dashboard?source=pwa",
   "scope": "/",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],

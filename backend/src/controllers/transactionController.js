@@ -127,7 +127,8 @@ const create = asyncHandler(async (req, res) => {
 
   const cleanTitle = cleanText(title, 120);
   const cleanCategory = cleanText(category, 80);
-  const validAmount = numberInRange(amount, 0.01, 1e15);
+  const parsedAmount = numberInRange(amount, 0.01, 1e15);
+  const validAmount = parsedAmount === null ? null : Math.round(parsedAmount * 100) / 100;
   if (!cleanTitle || validAmount === null || !["income", "expense"].includes(type) || !cleanCategory) {
     return res.status(400).json({ message: "Título, valor, tipo e categoria são obrigatórios." });
   }
@@ -162,7 +163,7 @@ const update = asyncHandler(async (req, res) => {
   const currentTransaction = currentTransactions.find((transaction) => String(transaction.id) === String(req.params.id));
   const fields = ["title", "amount", "type", "category", "isSuperfluous", "date", "notes"].reduce((acc, key) => {
     if (req.body[key] !== undefined) {
-      if (key === "amount") acc[key] = Math.abs(asNumber(req.body[key]));
+      if (key === "amount") acc[key] = req.body[key];
       else if (key === "date") acc[key] = normalizeDateForStorage(req.body[key]);
       else acc[key] = req.body[key];
     }
@@ -175,7 +176,8 @@ const update = asyncHandler(async (req, res) => {
     if (!fields.title) return res.status(400).json({ message: "Informe um título válido." });
   }
   if (fields.amount !== undefined) {
-    const amountValue = numberInRange(req.body.amount, 0.01, 1e15);
+    const parsedAmount = numberInRange(req.body.amount, 0.01, 1e15);
+    const amountValue = parsedAmount === null ? null : Math.round(parsedAmount * 100) / 100;
     if (amountValue === null) return res.status(400).json({ message: "Informe um valor válido." });
     fields.amount = amountValue;
   }
@@ -279,6 +281,8 @@ const summary = asyncHandler(async (req, res) => {
       behaviorMessage: buildBehaviorMessage(status, usagePercent),
       bankBalance,
       ledgerBankBalance,
+      ledgerBalance: ledgerBankBalance,
+      analysisBalance: balance,
       bankBalanceSource: connected.accountCount ? "connected" : "transactions",
       connectedAccountBalance: connected.accountBalance,
       connectedInvestmentBalance: connected.investmentBalance,
@@ -292,7 +296,7 @@ const summary = asyncHandler(async (req, res) => {
       progress: goal.targetAmount ? Math.min((goal.currentAmount / goal.targetAmount) * 100, 100) : 0
     })),
     limits: buildLimitUsage(limits, categories),
-    recentTransactions: periodTransactions.slice(0, 5)
+    recentTransactions: allTransactions.slice(0, 5)
   });
 });
 

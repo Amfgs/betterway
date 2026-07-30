@@ -1,4 +1,4 @@
-const CACHE_NAME = "betterway-shell-v1";
+const CACHE_NAME = "betterway-shell-v2";
 const SHELL_ASSETS = [
   "/favicon.png",
   "/icon-192.png",

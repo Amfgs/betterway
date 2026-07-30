@@ -604,13 +604,27 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
     body: { title: "Aporte", amount: 800, type: "expense", category: "Investimentos", date: "2026-07-03" }
   });
   assert.equal(investment.status, 201);
+  const lateDecimalIncome = await api(baseUrl, "/transactions", {
+    method: "POST",
+    token: userA.token,
+    body: { title: "Entrada com centavos", amount: "50.92", type: "income", category: "Renda", date: "2026-07-30" }
+  });
+  assert.equal(lateDecimalIncome.status, 201);
+  assert.equal(lateDecimalIncome.data.transaction.amount, 50.92);
 
   const windowTransactions = await api(baseUrl, "/transactions?month=2026-07", { token: userA.token });
   assert.equal(windowTransactions.status, 200);
   assert.equal(windowTransactions.data.transactions.length, 3);
+  const fullTimeline = await api(baseUrl, "/transactions", { token: userA.token });
+  assert.equal(fullTimeline.status, 200);
+  assert.equal(fullTimeline.data.transactions.length, 4);
+  assert.equal(fullTimeline.data.transactions[0].id, lateDecimalIncome.data.transaction.id);
   const summary = await api(baseUrl, "/transactions/summary?month=2026-07", { token: userA.token });
   assert.equal(summary.status, 200);
   assert.equal(summary.data.widgets.expensesForLimit, 200);
+  assert.equal(summary.data.widgets.analysisBalance, 1000);
+  assert.equal(summary.data.widgets.ledgerBalance, 1050.92);
+  assert.equal(summary.data.recentTransactions[0].id, lateDecimalIncome.data.transaction.id);
   const isolated = await api(baseUrl, "/transactions?month=2026-07", { token: userB.token });
   assert.equal(isolated.data.transactions.length, 0);
 
@@ -797,6 +811,33 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
   assert.match(firstDeviceAfterSecondLogin.data.message, /outro dispositivo/);
   const secondDeviceSession = await api(baseUrl, "/auth/me", { token: secondDeviceLogin.data.token });
   assert.equal(secondDeviceSession.status, 200);
+
+  await repository.updateUser(userB.user.id, { accountSetupRequired: true });
+  const blockedBeforeAccountSetup = await api(baseUrl, "/transactions", { token: secondDeviceLogin.data.token });
+  assert.equal(blockedBeforeAccountSetup.status, 428);
+  assert.equal(blockedBeforeAccountSetup.data.code, "ACCOUNT_SETUP_REQUIRED");
+  const completedUsername = `complete_${Date.now().toString().slice(-10)}`;
+  const completedPassword = "CompletedPass123";
+  const completedAccount = await api(baseUrl, "/auth/complete-account", {
+    method: "POST",
+    token: secondDeviceLogin.data.token,
+    body: {
+      username: completedUsername,
+      password: completedPassword,
+      confirmPassword: completedPassword
+    }
+  });
+  assert.equal(completedAccount.status, 200);
+  assert.equal(completedAccount.data.user.accountSetupRequired, false);
+  assert.equal(completedAccount.data.user.username, completedUsername);
+  const revokedSetupToken = await api(baseUrl, "/auth/me", { token: secondDeviceLogin.data.token });
+  assert.equal(revokedSetupToken.status, 401);
+  const loginAfterAccountSetup = await api(baseUrl, "/auth/login", {
+    method: "POST",
+    body: { email: userB.email, password: completedPassword }
+  });
+  assert.equal(loginAfterAccountSetup.status, 200);
+  assert.equal(loginAfterAccountSetup.data.user.username, completedUsername);
 
   const malformedJson = await api(baseUrl, "/auth/login", {
     method: "POST",

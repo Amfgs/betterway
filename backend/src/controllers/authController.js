@@ -356,6 +356,7 @@ const googleLogin = asyncHandler(async (req, res) => {
         email,
         passwordHash,
         googleSubject: subject,
+        accountSetupRequired: true,
         emailVerified: true,
         emailVerifiedAt: new Date().toISOString(),
         salary: 0,
@@ -379,6 +380,51 @@ const googleLogin = asyncHandler(async (req, res) => {
   return res.json({
     token: signToken(user),
     sessionExpiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000).toISOString(),
+    user: cleanUser(user)
+  });
+});
+
+const completeAccount = asyncHandler(async (req, res) => {
+  const username = normalizeUsername(req.body?.username);
+  const password = req.body?.password;
+  const confirmPassword = req.body?.confirmPassword;
+
+  if (!req.user.accountSetupRequired) {
+    return res.status(409).json({ message: "As credenciais desta conta já foram configuradas." });
+  }
+  if (!isValidUsername(username)) {
+    return res.status(400).json({
+      message: "O nome de usuário deve ter de 3 a 24 caracteres e usar apenas letras, números, ponto ou sublinhado."
+    });
+  }
+  if (!validPassword(password)) {
+    return res.status(400).json({ message: passwordRequirementMessage() });
+  }
+  if (password !== confirmPassword) {
+    return res.status(400).json({ message: "As senhas não coincidem." });
+  }
+
+  const existing = await repository.findUserByUsername(username);
+  if (existing && String(existing.id) !== String(req.user.id)) {
+    return res.status(409).json({ message: "Este nome de usuário já está em uso." });
+  }
+
+  const currentUser = await repository.findUserById(req.user.id, true);
+  if (!currentUser) {
+    return res.status(404).json({ message: "Usuário não encontrado." });
+  }
+
+  const user = await repository.updateUser(req.user.id, {
+    username,
+    passwordHash: await bcrypt.hash(password, 10),
+    accountSetupRequired: false,
+    authVersion: Number(currentUser.authVersion || 0) + 1
+  });
+
+  return res.json({
+    message: "Nome de usuário e senha configurados.",
+    token: signToken(user, req.auth?.sessionStartedAt),
+    sessionExpiresAt: new Date((req.auth?.sessionStartedAt || Math.floor(Date.now() / 1000)) * 1000 + SESSION_TTL_SECONDS * 1000).toISOString(),
     user: cleanUser(user)
   });
 });
@@ -756,6 +802,7 @@ module.exports = {
   login,
   authProviders,
   googleLogin,
+  completeAccount,
   verifyEmail,
   resendVerification,
   forgotPassword,

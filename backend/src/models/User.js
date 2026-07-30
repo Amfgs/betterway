@@ -39,6 +39,10 @@ const userSchema = new mongoose.Schema(
       sparse: true,
       select: false
     },
+    accountSetupRequired: {
+      type: Boolean,
+      default: false
+    },
     cpfHash: {
       type: String,
       default: "",
