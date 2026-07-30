@@ -40,7 +40,7 @@ api.interceptors.response.use(
   async (error) => {
     const hadToken = Boolean(readAuthToken());
     const requestUrl = error?.config?.url || "";
-    const isAuthRequest = /\/auth\/(login|google|register|verify-email|forgot-password|reset-password|complete-account|me)/.test(requestUrl);
+    const isAuthRequest = /\/auth\/(login|google|register|verify-email|forgot-password|verify-reset-code|reset-password|complete-account|me)/.test(requestUrl);
     if (error?.response?.status === 402 && error?.response?.data?.code === "PLUS_REQUIRED") {
       window.dispatchEvent(new CustomEvent("betterway:plan-required", {
         detail: { feature: error.response.data.feature || "Este recurso" }

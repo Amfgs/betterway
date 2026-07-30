@@ -839,6 +839,93 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
   assert.equal(loginAfterAccountSetup.status, 200);
   assert.equal(loginAfterAccountSetup.data.user.username, completedUsername);
 
+  const recoveryForUnknownEmail = await api(baseUrl, "/auth/forgot-password", {
+    method: "POST",
+    body: { email: `missing-${Date.now()}@example.com` }
+  });
+  assert.equal(recoveryForUnknownEmail.status, 404);
+  assert.equal(recoveryForUnknownEmail.data.code, "EMAIL_NOT_FOUND");
+  assert.equal(recoveryForUnknownEmail.data.devResetToken, undefined);
+
+  const recoveryRequest = await api(baseUrl, "/auth/forgot-password", {
+    method: "POST",
+    body: { email: userB.email }
+  });
+  assert.equal(recoveryRequest.status, 200);
+  assert.equal(recoveryRequest.data.codeSent, true);
+  assert.match(recoveryRequest.data.devResetToken, /^\d{8}$/);
+
+  const resetWithoutVerifiedCode = await api(baseUrl, "/auth/reset-password", {
+    method: "POST",
+    body: {
+      email: userB.email,
+      token: recoveryRequest.data.devResetToken,
+      newPassword: "RecoveredPass123",
+      confirmPassword: "RecoveredPass123"
+    }
+  });
+  assert.equal(resetWithoutVerifiedCode.status, 400);
+
+  const invalidResetCode = await api(baseUrl, "/auth/verify-reset-code", {
+    method: "POST",
+    body: { email: userB.email, token: "00000000" }
+  });
+  assert.equal(invalidResetCode.status, 400);
+
+  const verifiedResetCode = await api(baseUrl, "/auth/verify-reset-code", {
+    method: "POST",
+    body: { email: userB.email, token: recoveryRequest.data.devResetToken }
+  });
+  assert.equal(verifiedResetCode.status, 200);
+  assert.ok(verifiedResetCode.data.resetGrant);
+  assert.equal(jwt.decode(verifiedResetCode.data.resetGrant).purpose, "password_reset");
+
+  const mismatchedResetPasswords = await api(baseUrl, "/auth/reset-password", {
+    method: "POST",
+    body: {
+      email: userB.email,
+      resetGrant: verifiedResetCode.data.resetGrant,
+      newPassword: "RecoveredPass123",
+      confirmPassword: "DifferentPass123"
+    }
+  });
+  assert.equal(mismatchedResetPasswords.status, 400);
+  assert.match(mismatchedResetPasswords.data.message, /não coincidem/);
+
+  const completedPasswordReset = await api(baseUrl, "/auth/reset-password", {
+    method: "POST",
+    body: {
+      email: userB.email,
+      resetGrant: verifiedResetCode.data.resetGrant,
+      newPassword: "RecoveredPass123",
+      confirmPassword: "RecoveredPass123"
+    }
+  });
+  assert.equal(completedPasswordReset.status, 200);
+
+  const replayedResetGrant = await api(baseUrl, "/auth/reset-password", {
+    method: "POST",
+    body: {
+      email: userB.email,
+      resetGrant: verifiedResetCode.data.resetGrant,
+      newPassword: "AnotherPass123",
+      confirmPassword: "AnotherPass123"
+    }
+  });
+  assert.equal(replayedResetGrant.status, 401);
+  assert.equal(replayedResetGrant.data.code, "RESET_GRANT_INVALID");
+
+  const oldPasswordAfterRecovery = await api(baseUrl, "/auth/login", {
+    method: "POST",
+    body: { email: userB.email, password: completedPassword }
+  });
+  assert.equal(oldPasswordAfterRecovery.status, 401);
+  const newPasswordAfterRecovery = await api(baseUrl, "/auth/login", {
+    method: "POST",
+    body: { email: userB.email, password: "RecoveredPass123" }
+  });
+  assert.equal(newPasswordAfterRecovery.status, 200);
+
   const malformedJson = await api(baseUrl, "/auth/login", {
     method: "POST",
     rawBody: "{not-json"

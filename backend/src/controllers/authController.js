@@ -29,6 +29,7 @@ const MAX_PASSWORD_BYTES = 72;
 const MAX_CODE_ATTEMPTS = 5;
 const EMAIL_RESEND_COOLDOWN_MS = 60 * 1000;
 const SESSION_TTL_SECONDS = 15 * 24 * 60 * 60;
+const PASSWORD_RESET_GRANT_TTL_SECONDS = 10 * 60;
 const DEFAULT_NOTIFICATION_PREFERENCES = {
   dailyEntryReminder: true,
   emailEnabled: true,
@@ -108,6 +109,34 @@ function normalizeEmail(email) {
 
 function createVerificationCode() {
   return String(crypto.randomInt(10000000, 100000000));
+}
+
+function createPasswordResetGrant(user) {
+  return jwt.sign(
+    {
+      sub: String(user.id),
+      purpose: "password_reset",
+      email: normalizeEmail(user.email),
+      ver: Number(user.authVersion || 0),
+      ref: crypto
+        .createHmac("sha256", getJwtSecret())
+        .update(String(user.resetPasswordHash || ""))
+        .digest("hex")
+    },
+    getJwtSecret(),
+    {
+      algorithm: "HS256",
+      expiresIn: PASSWORD_RESET_GRANT_TTL_SECONDS
+    }
+  );
+}
+
+function verifyPasswordResetGrant(resetGrant) {
+  try {
+    return jwt.verify(String(resetGrant || ""), getJwtSecret(), { algorithms: ["HS256"] });
+  } catch {
+    return null;
+  }
 }
 
 function validPassword(value) {
@@ -507,9 +536,9 @@ const resendVerification = asyncHandler(async (req, res) => {
 
 const forgotPassword = asyncHandler(async (req, res) => {
   const { email } = req.body;
-  const genericMessage = "Se o e-mail estiver cadastrado, enviaremos um código de redefinição.";
+  const normalizedEmail = normalizeEmail(email);
 
-  if (!isValidEmail(email)) {
+  if (!isValidEmail(normalizedEmail)) {
     return res.status(400).json({ message: "Informe um e-mail válido." });
   }
 
@@ -517,12 +546,18 @@ const forgotPassword = asyncHandler(async (req, res) => {
     return res.status(503).json({ message: "A recuperação por e-mail está temporariamente indisponível." });
   }
 
-  const user = await repository.findUserByEmail(normalizeEmail(email), true);
+  const user = await repository.findUserByEmail(normalizedEmail, true);
   if (!user) {
-    return res.json({ message: genericMessage });
+    return res.status(404).json({
+      code: "EMAIL_NOT_FOUND",
+      message: "Nenhuma conta foi encontrada com este e-mail."
+    });
   }
   if (sentRecently(user.resetPasswordSentAt)) {
-    return res.json({ message: genericMessage });
+    return res.json({
+      codeSent: true,
+      message: "Um código já foi enviado recentemente. Verifique seu e-mail ou aguarde para solicitar outro."
+    });
   }
 
   const resetToken = createVerificationCode();
@@ -535,22 +570,23 @@ const forgotPassword = asyncHandler(async (req, res) => {
   await sendPasswordResetEmail({ email: user.email, name: user.name, token: resetToken });
 
   return res.json({
-    message: emailConfigured() ? genericMessage : "No ambiente local, o código foi preenchido automaticamente.",
+    codeSent: true,
+    message: emailConfigured()
+      ? "Enviamos um código de redefinição para o e-mail cadastrado."
+      : "No ambiente local, o código foi preenchido automaticamente.",
     devResetToken: !isProduction() && !emailConfigured() ? resetToken : undefined
   });
 });
 
-const resetPassword = asyncHandler(async (req, res) => {
-  const { email, token, newPassword } = req.body;
+const verifyResetCode = asyncHandler(async (req, res) => {
+  const { email, token } = req.body;
+  const normalizedEmail = normalizeEmail(email);
 
-  if (!isValidEmail(email) || !/^\d{8}$/.test(String(token || "")) || !newPassword) {
-    return res.status(400).json({ message: "E-mail, código e nova senha são obrigatórios." });
-  }
-  if (!validPassword(newPassword)) {
-    return res.status(400).json({ message: passwordRequirementMessage("A nova senha") });
+  if (!isValidEmail(normalizedEmail) || !/^\d{8}$/.test(String(token || ""))) {
+    return res.status(400).json({ message: "Informe o e-mail e o código de 8 dígitos." });
   }
 
-  const user = await repository.findUserByEmail(normalizeEmail(email), true);
+  const user = await repository.findUserByEmail(normalizedEmail, true);
   const expired = user?.resetPasswordExpiresAt && new Date(user.resetPasswordExpiresAt).getTime() < Date.now();
   const tokenMatches = user?.resetPasswordHash && user.resetPasswordHash === hashToken(token);
   if (!user || expired || !tokenMatches) {
@@ -563,6 +599,55 @@ const resetPassword = asyncHandler(async (req, res) => {
       });
     }
     return res.status(400).json({ message: "Código de redefinição inválido ou expirado." });
+  }
+
+  const resetGrant = createPasswordResetGrant(user);
+  await repository.updateUser(user.id, {
+    resetPasswordAttempts: 0
+  });
+
+  return res.json({
+    message: "Código confirmado. Agora crie sua nova senha.",
+    resetGrant
+  });
+});
+
+const resetPassword = asyncHandler(async (req, res) => {
+  const { email, resetGrant, newPassword, confirmPassword } = req.body;
+  const normalizedEmail = normalizeEmail(email);
+
+  if (!isValidEmail(normalizedEmail) || !resetGrant || !newPassword || !confirmPassword) {
+    return res.status(400).json({ message: "E-mail, autorização e as duas senhas são obrigatórios." });
+  }
+  if (!validPassword(newPassword)) {
+    return res.status(400).json({ message: passwordRequirementMessage("A nova senha") });
+  }
+  if (newPassword !== confirmPassword) {
+    return res.status(400).json({ message: "As senhas não coincidem." });
+  }
+
+  const grant = verifyPasswordResetGrant(resetGrant);
+  const user = await repository.findUserByEmail(normalizedEmail, true);
+  const expired = user?.resetPasswordExpiresAt && new Date(user.resetPasswordExpiresAt).getTime() < Date.now();
+  const validGrant = Boolean(
+    grant &&
+    grant.purpose === "password_reset" &&
+    String(grant.sub) === String(user?.id || "") &&
+    normalizeEmail(grant.email) === normalizedEmail &&
+    Number(grant.ver) === Number(user?.authVersion || 0) &&
+    grant.ref &&
+    grant.ref === crypto
+      .createHmac("sha256", getJwtSecret())
+      .update(String(user?.resetPasswordHash || ""))
+      .digest("hex") &&
+    !expired
+  );
+
+  if (!validGrant) {
+    return res.status(401).json({
+      code: "RESET_GRANT_INVALID",
+      message: "A autorização expirou ou já foi usada. Valide o código novamente."
+    });
   }
 
   const passwordHash = await bcrypt.hash(newPassword, 10);
@@ -806,6 +891,7 @@ module.exports = {
   verifyEmail,
   resendVerification,
   forgotPassword,
+  verifyResetCode,
   resetPassword,
   me,
   profileProgress,

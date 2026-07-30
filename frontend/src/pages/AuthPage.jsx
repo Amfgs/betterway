@@ -18,6 +18,7 @@ export function AuthPage() {
     verifyEmail,
     resendVerification,
     forgotPassword,
+    verifyResetCode,
     resetPassword,
     isAuthenticated,
     loading,
@@ -34,6 +35,7 @@ export function AuthPage() {
     confirmPassword: "",
     verificationToken: "",
     resetToken: "",
+    resetGrant: "",
     salary: "",
     monthlyLimit: "",
     hourlyRate: "",
@@ -63,8 +65,8 @@ export function AuthPage() {
         verificationToken: location.state?.verificationToken || params.get("token") || current.verificationToken
       }));
       if (location.state?.message) setSuccess(location.state.message);
-    } else if (requested === "reset") {
-      setMode("reset");
+    } else if (requested === "reset" || requested === "reset-code") {
+      setMode("reset-code");
       setForm((current) => ({
         ...current,
         email: params.get("email") || current.email,
@@ -199,21 +201,58 @@ export function AuthPage() {
         const transition = passwordResetTransition(response, form.email);
         setMode(transition.mode);
         setSuccess(response.message);
-        setForm((current) => ({ ...current, resetToken: transition.resetToken, password: "" }));
+        setForm((current) => ({
+          ...current,
+          resetToken: transition.resetToken,
+          resetGrant: "",
+          password: "",
+          confirmPassword: ""
+        }));
         navigate(transition.route, {
           replace: true,
           state: location.state?.from ? { from: location.state.from } : undefined
         });
-      } else if (mode === "reset") {
-        const response = await resetPassword({ email: form.email, token: form.resetToken, newPassword: form.password });
+      } else if (mode === "reset-code") {
+        const response = await verifyResetCode({ email: form.email, token: form.resetToken });
+        setMode("reset-password");
+        setSuccess(response.message);
+        setForm((current) => ({
+          ...current,
+          resetToken: "",
+          resetGrant: response.resetGrant,
+          password: "",
+          confirmPassword: ""
+        }));
+      } else if (mode === "reset-password") {
+        if (form.password !== form.confirmPassword) {
+          setError("As senhas não coincidem.");
+          return;
+        }
+        const response = await resetPassword({
+          email: form.email,
+          resetGrant: form.resetGrant,
+          newPassword: form.password,
+          confirmPassword: form.confirmPassword
+        });
         setSuccess(response.message);
         setMode("login");
-        setForm((current) => ({ ...current, password: "", resetToken: "" }));
+        setForm((current) => ({
+          ...current,
+          password: "",
+          confirmPassword: "",
+          resetToken: "",
+          resetGrant: ""
+        }));
         navigate("/login", { replace: true });
       }
     } catch (err) {
       const message = getErrorMessage(err);
       setError(message);
+      if (err?.response?.data?.code === "RESET_GRANT_INVALID") {
+        setMode("reset-code");
+        setForm((current) => ({ ...current, resetGrant: "", password: "", confirmPassword: "" }));
+        navigate(`/login?mode=reset-code&email=${encodeURIComponent(form.email.trim())}`, { replace: true });
+      }
       setShowVerificationHint(err?.response?.data?.code === "EMAIL_NOT_VERIFIED");
       setShowForgotHint(
         message.toLowerCase().includes("e-mail já está cadastrado") ||
@@ -234,6 +273,15 @@ export function AuthPage() {
     setShowPassword(false);
     setShowConfirmPassword(false);
     setRegisterStep(1);
+    if (["login", "forgot"].includes(nextMode)) {
+      setForm((current) => ({
+        ...current,
+        password: "",
+        confirmPassword: "",
+        resetToken: "",
+        resetGrant: ""
+      }));
+    }
     if (nextMode === "login" && location.search) navigate("/login", { replace: true });
   }
 
@@ -304,11 +352,17 @@ export function AuthPage() {
       description: "Informe o e-mail da conta. Enviaremos um código numérico para você voltar com segurança.",
       cta: "Enviar código"
     },
-    reset: {
-      eyebrow: "Proteja sua conta",
-      heading: "Defina uma nova senha",
-      description: "Use o código recebido por e-mail e escolha uma senha com pelo menos 8 caracteres.",
-      cta: "Redefinir senha"
+    "reset-code": {
+      eyebrow: "Recuperação · etapa 1 de 2",
+      heading: "Confirme o código",
+      description: "Digite o código de 8 dígitos enviado para o e-mail cadastrado.",
+      cta: "Validar código"
+    },
+    "reset-password": {
+      eyebrow: "Recuperação · etapa 2 de 2",
+      heading: "Crie uma nova senha",
+      description: "Escolha uma senha com pelo menos 8 caracteres e confirme antes de concluir.",
+      cta: "Salvar nova senha"
     }
   };
   const { eyebrow, heading, description, cta } = modeCopy[mode] || modeCopy.login;
@@ -407,7 +461,16 @@ export function AuthPage() {
             {mode !== "register" || registerStep === 1 ? (
               <label className={mode === "register" ? "auth-field-wide" : undefined}>
                 <span>E-mail</span>
-                <input autoComplete="email" className={inputClass} onChange={(event) => update("email", event.target.value)} placeholder="voce@email.com" required type="email" value={form.email} />
+                <input
+                  autoComplete="email"
+                  className={inputClass}
+                  onChange={(event) => update("email", event.target.value)}
+                  placeholder="voce@email.com"
+                  readOnly={["reset-code", "reset-password"].includes(mode)}
+                  required
+                  type="email"
+                  value={form.email}
+                />
               </label>
             ) : null}
             {mode === "register" && registerStep === 1 ? (
@@ -432,9 +495,9 @@ export function AuthPage() {
                 <small className="auth-inline-hint">Usado para validar pagamentos. A BW guarda apenas um hash seguro.</small>
               </label>
             ) : null}
-            {(["login", "reset"].includes(mode) || (mode === "register" && registerStep === 2)) ? (
+            {(["login", "reset-password"].includes(mode) || (mode === "register" && registerStep === 2)) ? (
               <label>
-                <span>{mode === "reset" ? "Nova senha" : "Senha"}</span>
+                <span>{mode === "reset-password" ? "Nova senha" : "Senha"}</span>
                 <div className="auth-password-input">
                   <input
                     autoComplete={mode === "login" ? "current-password" : "new-password"}
@@ -462,7 +525,7 @@ export function AuthPage() {
                 </div>
               </label>
             ) : null}
-            {mode === "register" && registerStep === 2 ? (
+            {(mode === "reset-password" || (mode === "register" && registerStep === 2)) ? (
               <label>
                 <span>Confirme a senha</span>
                 <div className="auth-password-input">
@@ -498,7 +561,7 @@ export function AuthPage() {
                 <input autoComplete="one-time-code" className={inputClass} inputMode="numeric" onChange={(event) => update("verificationToken", event.target.value.replace(/\D/g, "").slice(0, 8))} placeholder="00000000" required value={form.verificationToken} />
               </label>
             ) : null}
-            {mode === "reset" ? (
+            {mode === "reset-code" ? (
               <label><span>Código recebido por e-mail</span><input autoComplete="one-time-code" className={inputClass} inputMode="numeric" onChange={(event) => update("resetToken", event.target.value.replace(/\D/g, "").slice(0, 8))} placeholder="00000000" required value={form.resetToken} /></label>
             ) : null}
             {mode === "register" && registerStep === 3 ? (
@@ -542,7 +605,7 @@ export function AuthPage() {
             </button>
             {mode === "login" ? <button className="auth-forgot" onClick={() => switchMode("forgot")} type="button">Esqueceu a senha?</button> : null}
             {mode === "verify" ? <button className="auth-forgot" onClick={resendCode} type="button">Reenviar código</button> : null}
-            {mode === "reset" ? <button className="auth-forgot" onClick={resendResetCode} type="button">Reenviar código</button> : null}
+            {mode === "reset-code" ? <button className="auth-forgot" onClick={resendResetCode} type="button">Reenviar código</button> : null}
           </form>
 
           <p className="auth-security-note">

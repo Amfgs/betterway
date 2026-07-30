@@ -9,14 +9,14 @@ test("abre a etapa do código mesmo quando a API não devolve token de desenvolv
   );
 
   assert.deepEqual(transition, {
-    mode: "reset",
+    mode: "reset-code",
     resetToken: "",
-    route: "/login?mode=reset&email=pessoa%40example.com"
+    route: "/login?mode=reset-code&email=pessoa%40example.com"
   });
 });
 
 test("preenche automaticamente apenas o código devolvido no ambiente local", () => {
   const transition = passwordResetTransition({ devResetToken: "12345678" }, "local@example.com");
-  assert.equal(transition.mode, "reset");
+  assert.equal(transition.mode, "reset-code");
   assert.equal(transition.resetToken, "12345678");
 });

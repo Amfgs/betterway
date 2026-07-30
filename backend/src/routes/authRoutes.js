@@ -45,6 +45,7 @@ router.post("/google", loginLimiter, authController.googleLogin);
 router.post("/verify-email", codeAttemptLimiter, authController.verifyEmail);
 router.post("/resend-verification", emailActionLimiter, authController.resendVerification);
 router.post("/forgot-password", emailActionLimiter, authController.forgotPassword);
+router.post("/verify-reset-code", codeAttemptLimiter, authController.verifyResetCode);
 router.post("/reset-password", codeAttemptLimiter, authController.resetPassword);
 router.get("/me", authMiddleware, authController.me);
 router.post("/complete-account", codeAttemptLimiter, authMiddleware, authController.completeAccount);

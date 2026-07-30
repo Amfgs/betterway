@@ -14,6 +14,7 @@ const initialForm = {
   confirmPassword: "",
   verificationToken: "",
   resetToken: "",
+  resetGrant: "",
   salary: "",
   monthlyLimit: "",
   hourlyRate: "",
@@ -30,7 +31,8 @@ export function AuthScreen() {
     resendVerification,
     resetPassword,
     restoreError,
-    verifyEmail
+    verifyEmail,
+    verifyResetCode
   } = useAuth();
   const [mode, setMode] = useState("login");
   const [registerStep, setRegisterStep] = useState(1);
@@ -97,6 +99,15 @@ export function AuthScreen() {
     setRegisterStep(1);
     setError("");
     setSuccess("");
+    if (["login", "forgot"].includes(nextMode)) {
+      setForm((current) => ({
+        ...current,
+        password: "",
+        confirmPassword: "",
+        resetToken: "",
+        resetGrant: ""
+      }));
+    }
   }
 
   function validateIdentityStep() {
@@ -137,23 +148,57 @@ export function AuthScreen() {
       } else if (mode === "forgot") {
         const data = await forgotPassword({ email: form.email });
         setSuccess(data.message);
-        if (data.devResetToken) {
-          setMode("reset");
-          setForm((current) => ({ ...current, resetToken: data.devResetToken, password: "" }));
-        }
-      } else if (mode === "reset") {
+        setMode("reset-code");
+        setForm((current) => ({
+          ...current,
+          resetToken: data.devResetToken || "",
+          resetGrant: "",
+          password: "",
+          confirmPassword: ""
+        }));
+      } else if (mode === "reset-code") {
+        const data = await verifyResetCode({ email: form.email, token: form.resetToken });
+        setSuccess(data.message);
+        setMode("reset-password");
+        setForm((current) => ({
+          ...current,
+          resetToken: "",
+          resetGrant: data.resetGrant,
+          password: "",
+          confirmPassword: ""
+        }));
+      } else if (mode === "reset-password") {
         if (form.password.length < 8) {
           setError("A nova senha precisa ter pelo menos 8 caracteres.");
           return;
         }
-        const data = await resetPassword({ email: form.email, token: form.resetToken, newPassword: form.password });
+        if (form.password !== form.confirmPassword) {
+          setError("As senhas não coincidem.");
+          return;
+        }
+        const data = await resetPassword({
+          email: form.email,
+          resetGrant: form.resetGrant,
+          newPassword: form.password,
+          confirmPassword: form.confirmPassword
+        });
         setSuccess(data.message);
         setMode("login");
-        setForm((current) => ({ ...current, password: "", resetToken: "" }));
+        setForm((current) => ({
+          ...current,
+          password: "",
+          confirmPassword: "",
+          resetToken: "",
+          resetGrant: ""
+        }));
       }
     } catch (err) {
       setError(err.message);
       if (err.code === "EMAIL_NOT_VERIFIED") setMode("verify");
+      if (err.code === "RESET_GRANT_INVALID") {
+        setMode("reset-code");
+        setForm((current) => ({ ...current, resetGrant: "", password: "", confirmPassword: "" }));
+      }
     }
   }
 
@@ -164,6 +209,18 @@ export function AuthScreen() {
       const data = await resendVerification({ email: form.email });
       setSuccess(data.message);
       if (data.devVerificationToken) update("verificationToken", data.devVerificationToken);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function resendResetCode() {
+    setError("");
+    setSuccess("");
+    try {
+      const data = await forgotPassword({ email: form.email });
+      setSuccess(data.message);
+      if (data.devResetToken) update("resetToken", data.devResetToken);
     } catch (err) {
       setError(err.message);
     }
@@ -210,7 +267,9 @@ export function AuthScreen() {
         ? "Confirme seu e-mail"
         : mode === "forgot"
           ? "Recupere seu acesso"
-          : "Defina uma nova senha";
+          : mode === "reset-code"
+            ? "Confirme o código"
+            : "Defina uma nova senha";
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.screen}>
@@ -284,15 +343,29 @@ export function AuthScreen() {
 
             {mode !== "register" ? (
               <>
-                <Field autoCapitalize="none" autoCorrect={false} label="E-mail" value={form.email} onChangeText={(value) => update("email", value)} keyboardType="email-address" />
+                <Field
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!["reset-code", "reset-password"].includes(mode)}
+                  keyboardType="email-address"
+                  label="E-mail"
+                  onChangeText={(value) => update("email", value)}
+                  value={form.email}
+                />
                 {mode === "forgot" ? (
                   <Text style={styles.fieldHint}>Enviaremos um código numérico para o e-mail cadastrado.</Text>
                 ) : mode === "verify" ? (
                   <Field label="Código de verificação" value={form.verificationToken} onChangeText={(value) => update("verificationToken", value.replace(/\D/g, "").slice(0, 8))} keyboardType="number-pad" />
+                ) : mode === "reset-code" ? (
+                  <Field label="Código recebido" value={form.resetToken} onChangeText={(value) => update("resetToken", value.replace(/\D/g, "").slice(0, 8))} keyboardType="number-pad" />
+                ) : mode === "reset-password" ? (
+                  <>
+                    <Field label="Nova senha" maxLength={72} value={form.password} onChangeText={(value) => update("password", value)} secureTextEntry />
+                    <Field label="Confirme a nova senha" maxLength={72} value={form.confirmPassword} onChangeText={(value) => update("confirmPassword", value)} secureTextEntry />
+                  </>
                 ) : (
-                  <Field label={mode === "reset" ? "Nova senha" : "Senha"} maxLength={72} value={form.password} onChangeText={(value) => update("password", value)} secureTextEntry />
+                  <Field label="Senha" maxLength={72} value={form.password} onChangeText={(value) => update("password", value)} secureTextEntry />
                 )}
-                {mode === "reset" ? <Field label="Código recebido" value={form.resetToken} onChangeText={(value) => update("resetToken", value.replace(/\D/g, "").slice(0, 8))} keyboardType="number-pad" /> : null}
               </>
             ) : null}
 
@@ -311,12 +384,12 @@ export function AuthScreen() {
             {success ? <Text style={styles.success}>{success}</Text> : null}
 
             <Button tone="brand" onPress={submit}>
-              {mode === "login" ? "Entrar" : mode === "register" ? registerStep === 1 ? "Continuar" : "Criar conta" : mode === "verify" ? "Confirmar e entrar" : mode === "forgot" ? "Enviar código" : "Redefinir senha"}
+              {mode === "login" ? "Entrar" : mode === "register" ? registerStep === 1 ? "Continuar" : "Criar conta" : mode === "verify" ? "Confirmar e entrar" : mode === "forgot" ? "Enviar código" : mode === "reset-code" ? "Validar código" : "Salvar nova senha"}
             </Button>
             {mode === "register" && registerStep === 2 ? <Button tone="brandLink" onPress={() => setRegisterStep(1)}>Voltar aos dados de acesso</Button> : null}
             {mode === "login" ? <Button tone="brandLink" onPress={() => switchMode("forgot")}>Esqueceu a senha?</Button> : null}
-            {mode === "forgot" ? <Button tone="brandLink" onPress={() => switchMode("reset")}>Já tenho um código</Button> : null}
             {mode === "verify" ? <Button tone="brandLink" onPress={resendCode}>Reenviar código</Button> : null}
+            {mode === "reset-code" ? <Button tone="brandLink" onPress={resendResetCode}>Reenviar código</Button> : null}
             {!(["login", "register"].includes(mode)) ? <Button tone="brandLink" onPress={() => switchMode("login")}>Voltar ao login</Button> : null}
           </View>
 

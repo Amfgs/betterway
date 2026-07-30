@@ -253,6 +253,10 @@ export function AuthProvider({ children }) {
     return apiRequest("/auth/forgot-password", { method: "POST", body: payload });
   }
 
+  async function verifyResetCode(payload) {
+    return apiRequest("/auth/verify-reset-code", { method: "POST", body: payload });
+  }
+
   async function resetPassword(payload) {
     return apiRequest("/auth/reset-password", { method: "POST", body: payload });
   }
@@ -337,7 +341,8 @@ export function AuthProvider({ children }) {
       updateProfile,
       usePasswordInstead,
       user,
-      verifyEmail
+      verifyEmail,
+      verifyResetCode
     }),
     [biometric, booting, lastEmail, locked, restoreError, session, token, unlockError, user]
   );

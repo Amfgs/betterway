@@ -177,6 +177,11 @@ export function AuthProvider({ children }) {
     return response.data;
   }
 
+  async function verifyResetCode(payload) {
+    const response = await api.post("/auth/verify-reset-code", payload);
+    return response.data;
+  }
+
   async function resetPassword(payload) {
     const response = await api.post("/auth/reset-password", payload);
     return response.data;
@@ -234,6 +239,7 @@ export function AuthProvider({ children }) {
       verifyEmail,
       resendVerification,
       forgotPassword,
+      verifyResetCode,
       resetPassword,
       logout,
       retrySession: restoreSession,
