@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, LoaderCircle, LockKeyhole, ShieldCheck, X } from "lucide-react";
 import heroImage from "../assets/landing/betterway-hero.webp";
 import { getErrorMessage } from "../api/client";
@@ -51,6 +51,7 @@ export function AuthPage() {
   const [usernameStatus, setUsernameStatus] = useState({ state: "idle", message: "" });
   const [registerStep, setRegisterStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  const submitLockRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -137,6 +138,8 @@ export function AuthPage() {
 
   async function submit(event) {
     event.preventDefault();
+    if (submitLockRef.current) return;
+    submitLockRef.current = true;
     setError("");
     setSuccess("");
     setShowForgotHint(false);
@@ -260,6 +263,7 @@ export function AuthPage() {
           message.toLowerCase().includes("email ja esta cadastrado")
       );
     } finally {
+      submitLockRef.current = false;
       setSubmitting(false);
     }
   }
@@ -286,6 +290,8 @@ export function AuthPage() {
   }
 
   async function continueWithGoogle(credential) {
+    if (submitLockRef.current) return;
+    submitLockRef.current = true;
     setError("");
     setSuccess("");
     setSubmitting(true);
@@ -295,6 +301,7 @@ export function AuthPage() {
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
+      submitLockRef.current = false;
       setSubmitting(false);
     }
   }
@@ -378,7 +385,7 @@ export function AuthPage() {
       <aside className="auth-visual">
         <img alt="Pessoa planejando a vida financeira" src={heroImage} />
         <div className="auth-visual-shade" />
-        <a className="auth-back-link" href="/"><ArrowLeft size={16} /> Voltar ao início</a>
+        <Link className="auth-back-link" to="/"><ArrowLeft size={16} /> Voltar ao início</Link>
         <div className="auth-visual-copy">
           <Logo className="auth-visual-logo" size={42} />
           <p>Uma relação mais inteligente com o dinheiro.</p>
@@ -393,7 +400,7 @@ export function AuthPage() {
 
       <main className="auth-panel">
         <div className="auth-panel-top">
-          <a aria-label="Better Way início" className="auth-mobile-logo" href="/"><Logo size={36} /></a>
+          <Link aria-label="Better Way início" className="auth-mobile-logo" to="/"><Logo size={36} /></Link>
         </div>
 
         <div className={`auth-form-wrap auth-form-wrap-${mode}`}>

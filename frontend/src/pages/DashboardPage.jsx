@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Area, AreaChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
@@ -78,16 +78,16 @@ const emptyLimitForm = {
   amount: ""
 };
 
-function TransactionForm({ editingTransactionId, form, onCancel, onChange, onSubmit }) {
+function TransactionForm({ editingTransactionId, form, onCancel, onChange, onSubmit, submitting }) {
   return (
-    <form className="transaction-priority-form" data-tour="transaction-form" id="novo-registro" onSubmit={onSubmit}>
+    <form aria-busy={submitting} className="transaction-priority-form" data-tour="transaction-form" id="novo-registro" onSubmit={onSubmit}>
       <div className="transaction-priority-heading">
         <div>
           <h3>{editingTransactionId ? "Editar transação" : "O que mudou no seu dinheiro?"}</h3>
           <p>Registre uma entrada ou saída para manter saldo, teto e gráficos atualizados.</p>
         </div>
         {editingTransactionId ? (
-          <button className="transaction-cancel" onClick={onCancel} type="button">
+          <button className="transaction-cancel" disabled={submitting} onClick={onCancel} type="button">
             <X size={15} />
             Cancelar
           </button>
@@ -95,10 +95,10 @@ function TransactionForm({ editingTransactionId, form, onCancel, onChange, onSub
       </div>
 
       <div className="transaction-type-toggle" role="group" aria-label="Tipo de movimentação">
-        <button aria-pressed={form.type === "expense"} onClick={() => onChange("type", "expense")} type="button">
+        <button aria-pressed={form.type === "expense"} disabled={submitting} onClick={() => onChange("type", "expense")} type="button">
           <ArrowDownCircle size={17} /> Saída
         </button>
-        <button aria-pressed={form.type === "income"} onClick={() => onChange("type", "income")} type="button">
+        <button aria-pressed={form.type === "income"} disabled={submitting} onClick={() => onChange("type", "income")} type="button">
           <ArrowUpCircle size={17} /> Entrada
         </button>
       </div>
@@ -136,9 +136,9 @@ function TransactionForm({ editingTransactionId, form, onCancel, onChange, onSub
           <input checked={form.isSuperfluous} onChange={(event) => onChange("isSuperfluous", event.target.checked)} type="checkbox" />
           <span><strong>Ativar Raio-X</strong><small>Mostra o custo de oportunidade desta compra.</small></span>
         </label>
-        <button className="transaction-submit" type="submit">
+        <button className="transaction-submit" disabled={submitting} type="submit">
           {editingTransactionId ? <Pencil size={18} /> : <Plus size={18} />}
-          {editingTransactionId ? "Salvar edição" : "Registrar transação"}
+          {submitting ? "Salvando..." : editingTransactionId ? "Salvar edição" : "Registrar transação"}
         </button>
       </div>
     </form>
@@ -231,9 +231,11 @@ export function DashboardPage() {
   const [editingTransactionId, setEditingTransactionId] = useState(null);
   const [opportunity, setOpportunity] = useState(null);
   const [transactionNotice, setTransactionNotice] = useState("");
+  const [transactionSubmitting, setTransactionSubmitting] = useState(false);
   const [evolutionRange, setEvolutionRange] = useState("week");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const transactionSubmitRef = useRef(false);
 
   async function load() {
     setLoading(true);
@@ -276,7 +278,11 @@ export function DashboardPage() {
   }, [month]);
 
   function updateForm(key, value) {
-    setForm((current) => ({ ...current, [key]: value }));
+    setForm((current) => ({
+      ...current,
+      [key]: value,
+      ...(key === "type" && value === "income" ? { isSuperfluous: false } : {})
+    }));
   }
 
   function updateGoalForm(key, value) {
@@ -311,6 +317,9 @@ export function DashboardPage() {
 
   async function createTransaction(event) {
     event.preventDefault();
+    if (transactionSubmitRef.current) return;
+    transactionSubmitRef.current = true;
+    setTransactionSubmitting(true);
     setError("");
     setTransactionNotice("");
     try {
@@ -330,6 +339,9 @@ export function DashboardPage() {
       window.dispatchEvent(new Event("betterway:transactions-changed"));
     } catch (err) {
       setError(getErrorMessage(err));
+    } finally {
+      transactionSubmitRef.current = false;
+      setTransactionSubmitting(false);
     }
   }
 
@@ -594,6 +606,7 @@ export function DashboardPage() {
           onCancel={cancelEditTransaction}
           onChange={updateForm}
           onSubmit={createTransaction}
+          submitting={transactionSubmitting}
         />
       </section>
 

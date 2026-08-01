@@ -2080,7 +2080,7 @@ textarea:focus-visible {
 
 .auth-back-link {
   position: absolute;
-  z-index: 2;
+  z-index: 4;
   top: 22px;
   left: 26px;
   display: inline-flex;
@@ -2104,6 +2104,7 @@ textarea:focus-visible {
   bottom: 34px;
   left: 36px;
   max-width: 520px;
+  pointer-events: none;
 }
 
 .auth-visual-copy > p {
@@ -9854,6 +9855,8 @@ html {
     min-height: 44px;
     padding: 0 8px;
     border-radius: 8px;
+    background: rgba(4, 13, 9, 0.28);
+    backdrop-filter: blur(8px);
   }
 
   .auth-back-link:active {
@@ -9868,6 +9871,10 @@ html {
 
   .auth-visual-logo .brand-logo-wordmark {
     font-size: 1rem;
+  }
+
+  .auth-visual-logo {
+    display: none;
   }
 
   .auth-visual-copy h2 {
@@ -14153,4 +14160,20 @@ body.quick-actions-open {
   .evolution-range-switch button {
     transition: none;
   }
+}
+
+/* iOS Safari amplia automaticamente controles abaixo de 16px ao receber foco. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+.transaction-submit:disabled,
+.transaction-type-toggle button:disabled,
+.transaction-cancel:disabled {
+  cursor: wait;
+  opacity: 0.58;
 }

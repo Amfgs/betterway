@@ -58,9 +58,17 @@ function parseLocalizedNumber(value) {
     .replace(/^R\$/i, "");
   if (!normalized) return NaN;
 
-  const decimal = normalized.includes(",")
-    ? normalized.replace(/\./g, "").replace(",", ".")
-    : normalized;
+  const lastComma = normalized.lastIndexOf(",");
+  const lastDot = normalized.lastIndexOf(".");
+  let decimal = normalized;
+
+  if (lastComma >= 0 && lastDot >= 0) {
+    decimal = lastComma > lastDot
+      ? normalized.replace(/\./g, "").replace(",", ".")
+      : normalized.replace(/,/g, "");
+  } else if (lastComma >= 0) {
+    decimal = normalized.replace(",", ".");
+  }
   if (!/^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(decimal)) return NaN;
   return Number(decimal);
 }

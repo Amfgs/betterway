@@ -1,24 +1,41 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { apiRequest } from "../api/client";
 import { Button, Field, LoadingBlock, StatCard, colors, styles } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 import { categoryLabel, currency, percent, todayInput } from "../utils/formatters";
 
-const categoryOptions = ["Alimentacao", "Transporte", "Saude", "Moradia", "Lazer", "Produtos Necessarios", "Investimentos"];
+const categoryOptions = [
+  "Alimentacao",
+  "Transporte",
+  "Saude",
+  "Moradia",
+  "Produtos Necessarios",
+  "Lazer",
+  "Educacao",
+  "Investimentos",
+  "Renda",
+  "Freelance",
+  "Outros"
+];
+
+function emptyTransactionForm() {
+  return {
+    title: "",
+    amount: "",
+    type: "expense",
+    category: "Alimentacao",
+    isSuperfluous: false,
+    date: todayInput(),
+    notes: ""
+  };
+}
 
 export function DashboardScreen() {
   const { token } = useAuth();
   const [summary, setSummary] = useState(null);
   const [error, setError] = useState("");
-  const [form, setForm] = useState({
-    title: "",
-    amount: "",
-    type: "expense",
-    category: "Lazer",
-    isSuperfluous: false,
-    date: todayInput()
-  });
+  const [form, setForm] = useState(() => emptyTransactionForm());
   const [editingTransactionId, setEditingTransactionId] = useState(null);
   const [goalForm, setGoalForm] = useState({
     name: "",
@@ -31,6 +48,8 @@ export function DashboardScreen() {
     amount: ""
   });
   const [opportunity, setOpportunity] = useState(null);
+  const [savingTransaction, setSavingTransaction] = useState(false);
+  const transactionSubmitRef = useRef(false);
 
   async function load() {
     setError("");
@@ -47,7 +66,11 @@ export function DashboardScreen() {
   }, []);
 
   function update(key, value) {
-    setForm((current) => ({ ...current, [key]: value }));
+    setForm((current) => ({
+      ...current,
+      [key]: value,
+      ...(key === "type" && value === "income" ? { isSuperfluous: false } : {})
+    }));
   }
 
   function updateGoal(key, value) {
@@ -59,6 +82,17 @@ export function DashboardScreen() {
   }
 
   async function submit() {
+    if (transactionSubmitRef.current) return;
+    if (!form.title.trim()) {
+      setError("Informe uma descrição para a transação.");
+      return;
+    }
+    if (!form.amount.trim()) {
+      setError("Informe um valor para a transação.");
+      return;
+    }
+    transactionSubmitRef.current = true;
+    setSavingTransaction(true);
     setError("");
     try {
       const data = await apiRequest(editingTransactionId ? `/transactions/${editingTransactionId}` : "/transactions", {
@@ -68,10 +102,13 @@ export function DashboardScreen() {
       });
       setOpportunity(data.opportunity || null);
       setEditingTransactionId(null);
-      setForm({ ...form, title: "", amount: "", type: "expense", category: "Lazer", isSuperfluous: false, date: todayInput() });
+      setForm(emptyTransactionForm());
       await load();
     } catch (err) {
       setError(err.message);
+    } finally {
+      transactionSubmitRef.current = false;
+      setSavingTransaction(false);
     }
   }
 
@@ -84,13 +121,14 @@ export function DashboardScreen() {
       type: transaction.type,
       category: transaction.category,
       isSuperfluous: Boolean(transaction.isSuperfluous),
-      date: transaction.date ? transaction.date.slice(0, 10) : todayInput()
+      date: transaction.date ? transaction.date.slice(0, 10) : todayInput(),
+      notes: transaction.notes || ""
     });
   }
 
   function cancelEditTransaction() {
     setEditingTransactionId(null);
-    setForm({ title: "", amount: "", type: "expense", category: "Lazer", isSuperfluous: false, date: todayInput() });
+    setForm(emptyTransactionForm());
   }
 
   async function submitGoal() {
@@ -182,7 +220,12 @@ export function DashboardScreen() {
           ) : null}
         </View>
         <Field label="Título" value={form.title} onChangeText={(value) => update("title", value)} />
-        <Field label="Valor" value={form.amount} keyboardType="numeric" onChangeText={(value) => update("amount", value)} />
+        <Field
+          label="Valor"
+          value={form.amount}
+          keyboardType="decimal-pad"
+          onChangeText={(value) => update("amount", value.replace(/[^\d.,]/g, "").slice(0, 24))}
+        />
         <Text style={styles.label}>Tipo</Text>
         <View style={styles.chipRow}>
           {[
@@ -209,7 +252,31 @@ export function DashboardScreen() {
           })}
         </View>
         <Field label="Data" value={form.date} onChangeText={(value) => update("date", value)} />
-        <Button onPress={submit}>{editingTransactionId ? "Salvar edição" : "Registrar com Raio-X"}</Button>
+        <Field
+          label="Observações (opcional)"
+          value={form.notes}
+          onChangeText={(value) => update("notes", value.slice(0, 1000))}
+          multiline
+        />
+        {form.type === "expense" ? (
+          <Pressable
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: form.isSuperfluous }}
+            onPress={() => update("isSuperfluous", !form.isSuperfluous)}
+            style={styles.sessionChoice}
+          >
+            <View style={[styles.checkbox, form.isSuperfluous ? styles.checkboxActive : null]}>
+              {form.isSuperfluous ? <Text style={styles.checkboxMark}>✓</Text> : null}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sessionChoiceTitle}>Ativar Raio-X da compra</Text>
+              <Text style={styles.fieldHint}>Mostra o custo de oportunidade desta saída.</Text>
+            </View>
+          </Pressable>
+        ) : null}
+        <Button disabled={savingTransaction} onPress={submit}>
+          {savingTransaction ? "Salvando..." : editingTransactionId ? "Salvar edição" : "Registrar transação"}
+        </Button>
       </View>
 
       {opportunity ? (

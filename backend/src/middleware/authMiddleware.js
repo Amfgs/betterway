@@ -3,15 +3,21 @@ const { getJwtSecret } = require("../config/security");
 const repository = require("../services/repository");
 
 async function authMiddleware(req, res, next) {
+  const header = req.headers.authorization || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+
+  if (!token) {
+    return res.status(401).json({ message: "Token ausente." });
+  }
+
+  let decoded;
   try {
-    const header = req.headers.authorization || "";
-    const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+    decoded = jwt.verify(token, getJwtSecret(), { algorithms: ["HS256"] });
+  } catch {
+    return res.status(401).json({ message: "Sessão inválida ou expirada." });
+  }
 
-    if (!token) {
-      return res.status(401).json({ message: "Token ausente." });
-    }
-
-    const decoded = jwt.verify(token, getJwtSecret(), { algorithms: ["HS256"] });
+  try {
     const user = await repository.findUserById(decoded.sub);
 
     if (!user) {
@@ -46,7 +52,7 @@ async function authMiddleware(req, res, next) {
     req.auth = { sessionStartedAt };
     return next();
   } catch (error) {
-    return res.status(401).json({ message: "Sessão inválida ou expirada." });
+    return next(error);
   }
 }
 

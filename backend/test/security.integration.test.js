@@ -598,12 +598,15 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
     body: { title: "Mercado", amount: 200, type: "expense", category: "Alimentacao", date: "2026-07-02" }
   });
   assert.equal(expense.status, 201);
+  assert.equal(expense.data.transaction.type, "expense");
+  assert.equal(expense.data.transaction.investmentStatus, "not_applicable");
   const investment = await api(baseUrl, "/transactions", {
     method: "POST",
     token: userA.token,
     body: { title: "Aporte", amount: 800, type: "expense", category: "Investimentos", date: "2026-07-03" }
   });
   assert.equal(investment.status, 201);
+  assert.equal(investment.data.transaction.investmentStatus, "pending");
   const lateDecimalIncome = await api(baseUrl, "/transactions", {
     method: "POST",
     token: userA.token,
@@ -625,6 +628,70 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
   assert.equal(summary.data.widgets.analysisBalance, 1000);
   assert.equal(summary.data.widgets.ledgerBalance, 1050.92);
   assert.equal(summary.data.recentTransactions[0].id, lateDecimalIncome.data.transaction.id);
+
+  const decimalExpense = await api(baseUrl, "/transactions", {
+    method: "POST",
+    token: userA.token,
+    body: {
+      title: "Consulta com centavos",
+      amount: "50,92",
+      type: "expense",
+      category: "Saude",
+      isSuperfluous: true,
+      date: "2026-07-04",
+      notes: "Pagamento no cartão"
+    }
+  });
+  assert.equal(decimalExpense.status, 201);
+  assert.equal(decimalExpense.data.transaction.amount, 50.92);
+  assert.equal(decimalExpense.data.transaction.type, "expense");
+  assert.equal(decimalExpense.data.transaction.category, "Saude");
+  assert.equal(decimalExpense.data.transaction.isSuperfluous, true);
+  assert.equal(decimalExpense.data.transaction.notes, "Pagamento no cartão");
+  assert.equal(decimalExpense.data.opportunity.messages.length, 3);
+
+  const internationalExpense = await api(baseUrl, "/transactions", {
+    method: "POST",
+    token: userA.token,
+    body: {
+      title: "Saída em outro formato",
+      amount: "1,234.56",
+      type: "expense",
+      category: "Outros",
+      date: "2026-07-05"
+    }
+  });
+  assert.equal(internationalExpense.status, 201);
+  assert.equal(internationalExpense.data.transaction.amount, 1234.56);
+
+  const originalListTransactions = repository.listTransactions;
+  let resilientExpense;
+  try {
+    repository.listTransactions = async () => {
+      throw new Error("falha transitória após o salvamento");
+    };
+    resilientExpense = await api(baseUrl, "/transactions", {
+      method: "POST",
+      token: userA.token,
+      body: {
+        title: "Saída persistente",
+        amount: "25.35",
+        type: "expense",
+        category: "Produtos Necessarios",
+        date: "2026-07-06"
+      }
+    });
+  } finally {
+    repository.listTransactions = originalListTransactions;
+  }
+  assert.equal(resilientExpense.status, 201);
+  const expensesAfterRecovery = await api(baseUrl, "/transactions?type=expense", { token: userA.token });
+  assert.equal(expensesAfterRecovery.status, 200);
+  assert.equal(
+    expensesAfterRecovery.data.transactions.some((transaction) => transaction.id === resilientExpense.data.transaction.id),
+    true
+  );
+
   const isolated = await api(baseUrl, "/transactions?month=2026-07", { token: userB.token });
   assert.equal(isolated.data.transactions.length, 0);
 

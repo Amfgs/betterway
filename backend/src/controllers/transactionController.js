@@ -100,17 +100,23 @@ function buildBehaviorMessage(status, usagePercent) {
 }
 
 async function notifyLimitForMonth(user, referenceDate) {
-  const month = monthKey(referenceDate);
-  const transactions = await repository.listTransactions(user.id, { month });
-  const spent = transactions
-    .filter(isSpendingForLimit)
-    .reduce((sum, transaction) => sum + asNumber(transaction.amount), 0);
-  await maybeSendLimitAlert({
-    user,
-    month,
-    spent,
-    limit: asNumber(user.monthlyLimit)
-  });
+  try {
+    const month = monthKey(referenceDate);
+    const transactions = await repository.listTransactions(user.id, { month });
+    const spent = transactions
+      .filter(isSpendingForLimit)
+      .reduce((sum, transaction) => sum + asNumber(transaction.amount), 0);
+    await maybeSendLimitAlert({
+      user,
+      month,
+      spent,
+      limit: asNumber(user.monthlyLimit)
+    });
+  } catch (error) {
+    if (process.env.NODE_ENV !== "test") {
+      console.warn("A transação foi salva, mas o alerta de limite não pôde ser atualizado:", error.message);
+    }
+  }
 }
 
 const list = asyncHandler(async (req, res) => {
@@ -140,17 +146,25 @@ const create = asyncHandler(async (req, res) => {
     amount: validAmount,
     type,
     category: cleanCategory,
-    isSuperfluous: Boolean(isSuperfluous),
+    isSuperfluous: type === "expense" && Boolean(isSuperfluous),
     date: normalizeDateForStorage(date || new Date()),
     notes: cleanText(notes, 1000),
-    investmentStatus: isInvestmentTransaction({ type, category }) ? "pending" : "not_applicable"
+    investmentStatus: isInvestmentTransaction({ type, category: cleanCategory }) ? "pending" : "not_applicable"
   });
 
   let opportunity = null;
   if (transaction.type === "expense" && transaction.isSuperfluous) {
-    const monthTransactions = await repository.listTransactions(req.user.id, { month: monthKey(transaction.date) });
-    const goals = await repository.listGoals(req.user.id);
-    opportunity = calculateOpportunity(transaction, req.user, goals, monthTransactions);
+    try {
+      const [monthTransactions, goals] = await Promise.all([
+        repository.listTransactions(req.user.id, { month: monthKey(transaction.date) }),
+        repository.listGoals(req.user.id)
+      ]);
+      opportunity = calculateOpportunity(transaction, req.user, goals, monthTransactions);
+    } catch (error) {
+      if (process.env.NODE_ENV !== "test") {
+        console.warn("A transação foi salva, mas o Raio-X não pôde ser calculado:", error.message);
+      }
+    }
   }
 
   await notifyLimitForMonth(req.user, transaction.date);
@@ -193,6 +207,9 @@ const update = asyncHandler(async (req, res) => {
   }
   if (fields.notes !== undefined) fields.notes = cleanText(fields.notes, 1000);
   if (fields.isSuperfluous !== undefined) fields.isSuperfluous = Boolean(fields.isSuperfluous);
+
+  const resultingType = fields.type || currentTransaction.type;
+  if (resultingType === "income") fields.isSuperfluous = false;
 
   if (fields.type !== undefined || fields.category !== undefined || fields.amount !== undefined) {
     const nextTransaction = {

@@ -334,6 +334,7 @@ export const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     color: colors.text,
+    fontSize: 16,
     minHeight: 48,
     paddingHorizontal: 12,
     paddingVertical: 11

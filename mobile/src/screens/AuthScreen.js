@@ -43,6 +43,8 @@ export function AuthScreen() {
   const [usernameStatus, setUsernameStatus] = useState({ state: "idle", message: "" });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const submitLockRef = React.useRef(false);
 
   useEffect(() => {
     if (!__DEV__) return;
@@ -119,6 +121,9 @@ export function AuthScreen() {
   }
 
   async function submit() {
+    if (submitLockRef.current) return;
+    submitLockRef.current = true;
+    setSubmitting(true);
     setError("");
     setSuccess("");
     try {
@@ -199,6 +204,9 @@ export function AuthScreen() {
         setMode("reset-code");
         setForm((current) => ({ ...current, resetGrant: "", password: "", confirmPassword: "" }));
       }
+    } finally {
+      submitLockRef.current = false;
+      setSubmitting(false);
     }
   }
 
@@ -383,8 +391,8 @@ export function AuthScreen() {
             {error ? <Text style={styles.error}>{error}</Text> : null}
             {success ? <Text style={styles.success}>{success}</Text> : null}
 
-            <Button tone="brand" onPress={submit}>
-              {mode === "login" ? "Entrar" : mode === "register" ? registerStep === 1 ? "Continuar" : "Criar conta" : mode === "verify" ? "Confirmar e entrar" : mode === "forgot" ? "Enviar código" : mode === "reset-code" ? "Validar código" : "Salvar nova senha"}
+            <Button disabled={submitting} tone="brand" onPress={submit}>
+              {submitting ? "Aguarde..." : mode === "login" ? "Entrar" : mode === "register" ? registerStep === 1 ? "Continuar" : "Criar conta" : mode === "verify" ? "Confirmar e entrar" : mode === "forgot" ? "Enviar código" : mode === "reset-code" ? "Validar código" : "Salvar nova senha"}
             </Button>
             {mode === "register" && registerStep === 2 ? <Button tone="brandLink" onPress={() => setRegisterStep(1)}>Voltar aos dados de acesso</Button> : null}
             {mode === "login" ? <Button tone="brandLink" onPress={() => switchMode("forgot")}>Esqueceu a senha?</Button> : null}
