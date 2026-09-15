@@ -28,7 +28,9 @@ globalThis.sessionStorage = new MemoryStorage();
 globalThis.window = { atob: globalThis.atob };
 
 const {
+  clearAuthSession,
   readAuthSession,
+  readOrCreateDeviceId,
   storageKeys,
   storeAuthSession
 } = await import("../src/utils/storageKeys.js");
@@ -68,4 +70,28 @@ test("um token temporário antigo não substitui a sessão persistente de 15 dia
   assert.equal(restored.token, persistentToken);
   assert.equal(restored.persistent, true);
   assert.equal(sessionStorage.getItem(storageKeys.authToken), null);
+});
+
+test("uma resposta atrasada não apaga um token mais novo", () => {
+  localStorage.clear();
+  sessionStorage.clear();
+  const startedAt = Date.now();
+  const oldToken = token(Math.floor(startedAt / 1000), "old");
+  const newToken = token(Math.floor(startedAt / 1000), "new");
+
+  storeAuthSession(oldToken, { persistent: true, startedAt });
+  storeAuthSession(newToken, { persistent: true, startedAt });
+
+  assert.equal(clearAuthSession({ expectedToken: oldToken }), false);
+  assert.equal(readAuthSession().token, newToken);
+  assert.equal(clearAuthSession({ expectedToken: newToken }), true);
+  assert.equal(readAuthSession(), null);
+});
+
+test("mantém um identificador estável para reconhecer o mesmo aparelho", () => {
+  localStorage.clear();
+  const first = readOrCreateDeviceId();
+  const second = readOrCreateDeviceId();
+  assert.ok(first.length >= 16);
+  assert.equal(second, first);
 });

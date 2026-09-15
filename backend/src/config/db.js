@@ -1,10 +1,11 @@
 const mongoose = require("mongoose");
 const { isProduction } = require("./security");
 
-let memoryMode = false;
+const configuredMongoUri = () => process.env.MONGO_URI || process.env.MONGODB_URI;
+let memoryMode = !configuredMongoUri() && !isProduction();
 
 async function connectDatabase() {
-  const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
+  const mongoUri = configuredMongoUri();
 
   if (!mongoUri) {
     if (isProduction()) {
@@ -15,8 +16,13 @@ async function connectDatabase() {
     return false;
   }
 
-  if (!isDatabaseConnected()) {
-    await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 10000 });
+  try {
+    if (!isDatabaseConnected()) {
+      await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 10000 });
+    }
+  } catch (error) {
+    if (!isProduction()) memoryMode = true;
+    throw error;
   }
   const { ensureLegacyUsernames } = require("../services/userMigration");
   await ensureLegacyUsernames();
@@ -30,7 +36,7 @@ function isDatabaseConnected() {
 }
 
 function isMemoryMode() {
-  return memoryMode || !isDatabaseConnected();
+  return memoryMode;
 }
 
 module.exports = {

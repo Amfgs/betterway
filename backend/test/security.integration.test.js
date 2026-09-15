@@ -1,4 +1,5 @@
 const assert = require("node:assert/strict");
+const nodeCrypto = require("node:crypto");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -992,6 +993,33 @@ test("protege contas, compartilhamentos e dados financeiros de ponta a ponta", a
     body: { email: userB.email, password: "RecoveredPass123" }
   });
   assert.equal(newPasswordAfterRecovery.status, 200);
+
+  const sameDeviceId = `bw-test-${nodeCrypto.randomBytes(18).toString("hex")}`;
+  const sameDeviceLoginA = await api(baseUrl, "/auth/login", {
+    method: "POST",
+    body: { email: userB.email, password: "RecoveredPass123", deviceId: sameDeviceId }
+  });
+  const sameDeviceLoginB = await api(baseUrl, "/auth/login", {
+    method: "POST",
+    body: { email: userB.email, password: "RecoveredPass123", deviceId: sameDeviceId }
+  });
+  assert.equal(sameDeviceLoginA.status, 200);
+  assert.equal(sameDeviceLoginB.status, 200);
+  assert.equal((await api(baseUrl, "/auth/me", { token: sameDeviceLoginA.data.token })).status, 200);
+  assert.equal((await api(baseUrl, "/auth/me", { token: sameDeviceLoginB.data.token })).status, 200);
+
+  const otherDeviceLogin = await api(baseUrl, "/auth/login", {
+    method: "POST",
+    body: {
+      email: userB.email,
+      password: "RecoveredPass123",
+      deviceId: `bw-test-${nodeCrypto.randomBytes(18).toString("hex")}`
+    }
+  });
+  assert.equal(otherDeviceLogin.status, 200);
+  const replacedSameDeviceSession = await api(baseUrl, "/auth/me", { token: sameDeviceLoginB.data.token });
+  assert.equal(replacedSameDeviceSession.status, 401);
+  assert.equal(replacedSameDeviceSession.data.code, "SESSION_REPLACED");
 
   const malformedJson = await api(baseUrl, "/auth/login", {
     method: "POST",

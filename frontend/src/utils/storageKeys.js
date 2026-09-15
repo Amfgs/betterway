@@ -3,6 +3,7 @@ export const storageKeys = {
   legacyAuthToken: ["valorize_token", "fintrack_token"],
   authSessionStartedAt: "betterway_session_started_at",
   authSessionPersistent: "betterway_session_persistent",
+  authDeviceId: "betterway_device_id",
   theme: "betterway_theme",
   legacyTheme: ["valorize_theme", "fintrack_theme"],
   calendarSpecs: "betterway:calendar-specs",
@@ -16,6 +17,12 @@ export const storageKeys = {
 };
 
 export const AUTH_SESSION_TTL_MS = 15 * 24 * 60 * 60 * 1000;
+
+function createDeviceId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  const random = Array.from({ length: 4 }, () => Math.random().toString(36).slice(2)).join("");
+  return `bw-${Date.now().toString(36)}-${random}`;
+}
 
 function legacyKeys(value) {
   if (!value) return [];
@@ -53,20 +60,33 @@ function tokenStartedAt(token) {
   }
 }
 
-export function clearAuthSession() {
+function rawAuthToken() {
+  const sessionToken = sessionStorage.getItem(storageKeys.authToken);
+  const persistentToken = localStorage.getItem(storageKeys.authToken)
+    || legacyKeys(storageKeys.legacyAuthToken).map((key) => localStorage.getItem(key)).find(Boolean);
+  const persistentPreference = localStorage.getItem(storageKeys.authSessionPersistent) !== "false";
+  return persistentToken && (persistentPreference || !sessionToken) ? persistentToken : sessionToken;
+}
+
+export function clearAuthSession({ expectedToken } = {}) {
+  if (expectedToken && rawAuthToken() !== expectedToken) return false;
   removeStoredValue(storageKeys.authToken, storageKeys.legacyAuthToken);
   localStorage.removeItem(storageKeys.authSessionStartedAt);
   sessionStorage.removeItem(storageKeys.authToken);
   sessionStorage.removeItem(storageKeys.authSessionStartedAt);
+  return true;
 }
 
 export function storeAuthSession(token, { persistent = true, startedAt } = {}) {
-  clearAuthSession();
   const storage = persistent ? localStorage : sessionStorage;
+  const otherStorage = persistent ? sessionStorage : localStorage;
   const resolvedStartedAt = Number(startedAt) || tokenStartedAt(token);
   storage.setItem(storageKeys.authToken, token);
   storage.setItem(storageKeys.authSessionStartedAt, String(resolvedStartedAt));
   localStorage.setItem(storageKeys.authSessionPersistent, String(persistent));
+  otherStorage.removeItem(storageKeys.authToken);
+  otherStorage.removeItem(storageKeys.authSessionStartedAt);
+  legacyKeys(storageKeys.legacyAuthToken).forEach((candidate) => localStorage.removeItem(candidate));
   return {
     token,
     persistent,
@@ -94,7 +114,7 @@ export function readAuthSession() {
   const expiresAt = startedAt + AUTH_SESSION_TTL_MS;
 
   if (expiresAt <= Date.now()) {
-    clearAuthSession();
+    clearAuthSession({ expectedToken: token });
     return null;
   }
   if (!storedStart) storage.setItem(storageKeys.authSessionStartedAt, String(startedAt));
@@ -103,6 +123,14 @@ export function readAuthSession() {
 
 export function readAuthToken() {
   return readAuthSession()?.token || null;
+}
+
+export function readOrCreateDeviceId() {
+  const existing = localStorage.getItem(storageKeys.authDeviceId);
+  if (existing) return existing;
+  const deviceId = createDeviceId();
+  localStorage.setItem(storageKeys.authDeviceId, deviceId);
+  return deviceId;
 }
 
 export function scopedStorageKey(key, userId) {

@@ -1,12 +1,18 @@
-const { connectDatabase } = require("../src/config/db");
+const { connectDatabase, isDatabaseConnected } = require("../src/config/db");
 
 let app;
 let connectionPromise;
 
 module.exports = async function handler(req, res) {
   try {
-    if (!connectionPromise) connectionPromise = connectDatabase();
-    await connectionPromise;
+    if (!isDatabaseConnected()) {
+      if (!connectionPromise) {
+        connectionPromise = connectDatabase().finally(() => {
+          connectionPromise = null;
+        });
+      }
+      await connectionPromise;
+    }
     if (!app) app = require("../src/app");
     return app(req, res);
   } catch (error) {

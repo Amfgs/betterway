@@ -8,7 +8,7 @@ const BankConnection = require("../models/BankConnection");
 const PluggyWebhookEvent = require("../models/PluggyWebhookEvent");
 const SharedPlanProposal = require("../models/SharedPlanProposal");
 const Payment = require("../models/Payment");
-const { isDatabaseConnected } = require("../config/db");
+const { isMemoryMode } = require("../config/db");
 const { financialWindow, isInsideFinancialWindow } = require("../utils/financial");
 const { normalizeAvatarValue } = require("../utils/avatars");
 const { subscriptionState } = require("../utils/subscription");
@@ -40,6 +40,7 @@ function safeUser(doc) {
   delete user.emailVerificationSentAt;
   delete user.googleSubject;
   delete user.cpfHash;
+  delete user.activeDeviceHash;
   user.cpfConfigured = cpfConfigured;
   user.subscription = subscriptionState(user);
   user.avatarUrl = normalizeAvatarValue(user.avatarUrl);
@@ -47,7 +48,7 @@ function safeUser(doc) {
 }
 
 const privateUserSelection =
-  "+passwordHash +googleSubject +cpfHash +resetPasswordHash +resetPasswordExpiresAt +resetPasswordAttempts +resetPasswordSentAt +emailVerificationHash +emailVerificationExpiresAt +emailVerificationAttempts +emailVerificationSentAt";
+  "+passwordHash +googleSubject +cpfHash +activeDeviceHash +resetPasswordHash +resetPasswordExpiresAt +resetPasswordAttempts +resetPasswordSentAt +emailVerificationHash +emailVerificationExpiresAt +emailVerificationAttempts +emailVerificationSentAt";
 
 function publicUser(doc) {
   const user = normalize(doc);
@@ -68,7 +69,7 @@ function analysisRange(month) {
 }
 
 async function findUserByEmail(email, includePassword = false) {
-  if (!isDatabaseConnected()) return memoryStore.findUserByEmail(email, includePassword);
+  if (isMemoryMode()) return memoryStore.findUserByEmail(email, includePassword);
   let query = User.findOne({ email: String(email).toLowerCase() });
   if (includePassword) {
     query = query.select(privateUserSelection);
@@ -78,7 +79,7 @@ async function findUserByEmail(email, includePassword = false) {
 }
 
 async function findUserByUsername(username, includePassword = false) {
-  if (!isDatabaseConnected()) return memoryStore.findUserByUsername(username, includePassword);
+  if (isMemoryMode()) return memoryStore.findUserByUsername(username, includePassword);
   let query = User.findOne({ username: String(username).toLowerCase() });
   if (includePassword) {
     query = query.select(privateUserSelection);
@@ -88,7 +89,7 @@ async function findUserByUsername(username, includePassword = false) {
 }
 
 async function findUserById(id, includePassword = false) {
-  if (!isDatabaseConnected()) return memoryStore.findUserById(id, includePassword);
+  if (isMemoryMode()) return memoryStore.findUserById(id, includePassword);
   let query = User.findById(id);
   if (includePassword) {
     query = query.select(privateUserSelection);
@@ -98,31 +99,55 @@ async function findUserById(id, includePassword = false) {
 }
 
 async function findUserByGoogleSubject(subject) {
-  if (!isDatabaseConnected()) return memoryStore.findUserByGoogleSubject(subject);
+  if (isMemoryMode()) return memoryStore.findUserByGoogleSubject(subject);
   const user = await User.findOne({ googleSubject: String(subject) }).select("+googleSubject");
   return normalize(user);
 }
 
 async function createUser(payload) {
-  if (!isDatabaseConnected()) return memoryStore.createUser(payload);
+  if (isMemoryMode()) return memoryStore.createUser(payload);
   const user = await User.create(payload);
   return safeUser(user);
 }
 
 async function updateUser(id, fields) {
-  if (!isDatabaseConnected()) return memoryStore.updateUser(id, fields);
+  if (isMemoryMode()) return memoryStore.updateUser(id, fields);
   const user = await User.findByIdAndUpdate(id, fields, { new: true, runValidators: true });
   return safeUser(user);
 }
 
+async function beginUserSession(id, deviceHash) {
+  if (isMemoryMode()) return memoryStore.beginUserSession(id, deviceHash);
+  const user = await User.findByIdAndUpdate(
+    id,
+    [
+      {
+        $set: {
+          sessionVersion: {
+            $cond: [
+              { $eq: [{ $ifNull: ["$activeDeviceHash", ""] }, deviceHash] },
+              { $ifNull: ["$sessionVersion", 0] },
+              { $add: [{ $ifNull: ["$sessionVersion", 0] }, 1] }
+            ]
+          },
+          activeDeviceHash: deviceHash,
+          updatedAt: "$$NOW"
+        }
+      }
+    ],
+    { new: true }
+  );
+  return safeUser(user);
+}
+
 async function listUsers() {
-  if (!isDatabaseConnected()) return memoryStore.listUsers();
+  if (isMemoryMode()) return memoryStore.listUsers();
   const users = await User.find({});
   return users.map(safeUser);
 }
 
 async function listTransactions(userId, filters = {}) {
-  if (!isDatabaseConnected()) {
+  if (isMemoryMode()) {
     let transactions = await memoryStore.listTransactions(userId);
     const range = analysisRange(filters.month);
     if (range) {
@@ -146,12 +171,12 @@ async function listTransactions(userId, filters = {}) {
 }
 
 async function createTransaction(payload) {
-  if (!isDatabaseConnected()) return memoryStore.createTransaction(payload);
+  if (isMemoryMode()) return memoryStore.createTransaction(payload);
   return normalize(await Transaction.create(payload));
 }
 
 async function updateTransaction(userId, transactionId, fields) {
-  if (!isDatabaseConnected()) return memoryStore.updateTransaction(userId, transactionId, fields);
+  if (isMemoryMode()) return memoryStore.updateTransaction(userId, transactionId, fields);
   return normalize(
     await Transaction.findOneAndUpdate({ _id: transactionId, userId }, fields, {
       new: true,
@@ -161,7 +186,7 @@ async function updateTransaction(userId, transactionId, fields) {
 }
 
 async function claimInvestmentTransaction(userId, transactionId) {
-  if (!isDatabaseConnected()) return memoryStore.claimInvestmentTransaction(userId, transactionId);
+  if (isMemoryMode()) return memoryStore.claimInvestmentTransaction(userId, transactionId);
   return normalize(
     await Transaction.findOneAndUpdate(
       {
@@ -178,19 +203,19 @@ async function claimInvestmentTransaction(userId, transactionId) {
 }
 
 async function deleteTransaction(userId, transactionId) {
-  if (!isDatabaseConnected()) return memoryStore.deleteTransaction(userId, transactionId);
+  if (isMemoryMode()) return memoryStore.deleteTransaction(userId, transactionId);
   const result = await Transaction.deleteOne({ _id: transactionId, userId });
   return result.deletedCount > 0;
 }
 
 async function listGoals(userId) {
-  if (!isDatabaseConnected()) return memoryStore.listGoals(userId);
+  if (isMemoryMode()) return memoryStore.listGoals(userId);
   const goals = await Goal.find({ $or: [{ userId }, { participantIds: userId }] }).sort({ dueDate: 1 });
   return goals.map(normalize);
 }
 
 async function listProductGoals(userId, limit = 40) {
-  if (!isDatabaseConnected()) return memoryStore.listProductGoals(userId, limit);
+  if (isMemoryMode()) return memoryStore.listProductGoals(userId, limit);
   const query = { "product.enabled": true };
   if (userId) query.$or = [{ userId }, { participantIds: userId }];
   const goals = await Goal.find(query)
@@ -200,12 +225,12 @@ async function listProductGoals(userId, limit = 40) {
 }
 
 async function createGoal(payload) {
-  if (!isDatabaseConnected()) return memoryStore.createGoal(payload);
+  if (isMemoryMode()) return memoryStore.createGoal(payload);
   return normalize(await Goal.create(payload));
 }
 
 async function updateGoal(userId, goalId, fields) {
-  if (!isDatabaseConnected()) return memoryStore.updateGoal(userId, goalId, fields);
+  if (isMemoryMode()) return memoryStore.updateGoal(userId, goalId, fields);
   return normalize(
     await Goal.findOneAndUpdate({ _id: goalId, userId }, fields, {
       new: true,
@@ -215,7 +240,7 @@ async function updateGoal(userId, goalId, fields) {
 }
 
 async function updateProductGoal(goalId, fields) {
-  if (!isDatabaseConnected()) return memoryStore.updateProductGoal(goalId, fields);
+  if (isMemoryMode()) return memoryStore.updateProductGoal(goalId, fields);
   return normalize(
     await Goal.findOneAndUpdate({ _id: goalId, "product.enabled": true }, fields, {
       new: true,
@@ -225,7 +250,7 @@ async function updateProductGoal(goalId, fields) {
 }
 
 async function addGoalMovement(userId, goalId, movement) {
-  if (!isDatabaseConnected()) return memoryStore.addGoalMovement(userId, goalId, movement);
+  if (isMemoryMode()) return memoryStore.addGoalMovement(userId, goalId, movement);
 
   const goal = await Goal.findOne({ _id: goalId, $or: [{ userId }, { participantIds: userId }] });
   if (!goal) return null;
@@ -251,24 +276,24 @@ async function addGoalMovement(userId, goalId, movement) {
 }
 
 async function deleteGoal(userId, goalId) {
-  if (!isDatabaseConnected()) return memoryStore.deleteGoal(userId, goalId);
+  if (isMemoryMode()) return memoryStore.deleteGoal(userId, goalId);
   const result = await Goal.deleteOne({ _id: goalId, userId });
   return result.deletedCount > 0;
 }
 
 async function listLimits(userId) {
-  if (!isDatabaseConnected()) return memoryStore.listLimits(userId);
+  if (isMemoryMode()) return memoryStore.listLimits(userId);
   const limits = await Limit.find({ active: { $ne: false }, $or: [{ userId }, { participantIds: userId }] }).sort({ category: 1 });
   return limits.map(normalize);
 }
 
 async function createLimit(payload) {
-  if (!isDatabaseConnected()) return memoryStore.createLimit(payload);
+  if (isMemoryMode()) return memoryStore.createLimit(payload);
   return normalize(await Limit.create(payload));
 }
 
 async function updateLimit(userId, limitId, fields) {
-  if (!isDatabaseConnected()) return memoryStore.updateLimit(userId, limitId, fields);
+  if (isMemoryMode()) return memoryStore.updateLimit(userId, limitId, fields);
   return normalize(
     await Limit.findOneAndUpdate({ _id: limitId, userId }, fields, {
       new: true,
@@ -278,13 +303,13 @@ async function updateLimit(userId, limitId, fields) {
 }
 
 async function deleteLimit(userId, limitId) {
-  if (!isDatabaseConnected()) return memoryStore.deleteLimit(userId, limitId);
+  if (isMemoryMode()) return memoryStore.deleteLimit(userId, limitId);
   const result = await Limit.deleteOne({ _id: limitId, userId });
   return result.deletedCount > 0;
 }
 
 async function listFriendships(userId) {
-  if (!isDatabaseConnected()) return memoryStore.listFriendships(userId);
+  if (isMemoryMode()) return memoryStore.listFriendships(userId);
   const user = await User.findById(userId)
     .populate("acceptedFriendIds", "name username avatarUrl")
     .populate("receivedFriendRequestIds", "name username avatarUrl")
@@ -297,7 +322,7 @@ async function listFriendships(userId) {
 }
 
 async function requestFriend(userId, friendUsername) {
-  if (!isDatabaseConnected()) return memoryStore.requestFriend(userId, friendUsername);
+  if (isMemoryMode()) return memoryStore.requestFriend(userId, friendUsername);
   const friend = await User.findOne({ username: String(friendUsername).toLowerCase() });
   if (!friend || String(friend._id) === String(userId)) return null;
   const user = await User.findById(userId);
@@ -330,7 +355,7 @@ async function requestFriend(userId, friendUsername) {
 }
 
 async function acceptFriend(userId, requesterId) {
-  if (!isDatabaseConnected()) return memoryStore.acceptFriend(userId, requesterId);
+  if (isMemoryMode()) return memoryStore.acceptFriend(userId, requesterId);
   const user = await User.findOne({ _id: userId, receivedFriendRequestIds: requesterId });
   const requester = await User.findById(requesterId);
   if (!user || !requester) return null;
@@ -348,7 +373,7 @@ async function acceptFriend(userId, requesterId) {
 }
 
 async function deleteFriendRequest(userId, otherId) {
-  if (!isDatabaseConnected()) return memoryStore.deleteFriendRequest(userId, otherId);
+  if (isMemoryMode()) return memoryStore.deleteFriendRequest(userId, otherId);
   await Promise.all([
     User.findByIdAndUpdate(userId, {
       $pull: { sentFriendRequestIds: otherId, receivedFriendRequestIds: otherId }
@@ -361,7 +386,7 @@ async function deleteFriendRequest(userId, otherId) {
 }
 
 async function deleteFriend(userId, friendId) {
-  if (!isDatabaseConnected()) return memoryStore.deleteFriend(userId, friendId);
+  if (isMemoryMode()) return memoryStore.deleteFriend(userId, friendId);
   await Promise.all([
     User.findByIdAndUpdate(userId, { $pull: { acceptedFriendIds: friendId } }),
     User.findByIdAndUpdate(friendId, { $pull: { acceptedFriendIds: userId } }),
@@ -378,29 +403,29 @@ async function deleteFriend(userId, friendId) {
 }
 
 async function getAcceptedFriendIds(userId) {
-  if (!isDatabaseConnected()) return memoryStore.getAcceptedFriendIds(userId);
+  if (isMemoryMode()) return memoryStore.getAcceptedFriendIds(userId);
   const user = await User.findById(userId).select("acceptedFriendIds");
   return (user?.acceptedFriendIds || []).map(String);
 }
 
 async function listSharedPlanProposals(userId) {
-  if (!isDatabaseConnected()) return memoryStore.listSharedPlanProposals(userId);
+  if (isMemoryMode()) return memoryStore.listSharedPlanProposals(userId);
   const proposals = await SharedPlanProposal.find({ participantIds: userId }).sort({ updatedAt: -1 });
   return proposals.map(normalize);
 }
 
 async function findSharedPlanProposal(userId, proposalId) {
-  if (!isDatabaseConnected()) return memoryStore.findSharedPlanProposal(userId, proposalId);
+  if (isMemoryMode()) return memoryStore.findSharedPlanProposal(userId, proposalId);
   return normalize(await SharedPlanProposal.findOne({ _id: proposalId, participantIds: userId }));
 }
 
 async function createSharedPlanProposal(payload) {
-  if (!isDatabaseConnected()) return memoryStore.createSharedPlanProposal(payload);
+  if (isMemoryMode()) return memoryStore.createSharedPlanProposal(payload);
   return normalize(await SharedPlanProposal.create(payload));
 }
 
 async function counterSharedPlanProposal(userId, proposalId, terms) {
-  if (!isDatabaseConnected()) return memoryStore.counterSharedPlanProposal(userId, proposalId, terms);
+  if (isMemoryMode()) return memoryStore.counterSharedPlanProposal(userId, proposalId, terms);
   const current = await SharedPlanProposal.findOne({
     _id: proposalId,
     participantIds: userId,
@@ -427,7 +452,7 @@ async function counterSharedPlanProposal(userId, proposalId, terms) {
 }
 
 async function rejectSharedPlanProposal(userId, proposalId) {
-  if (!isDatabaseConnected()) return memoryStore.rejectSharedPlanProposal(userId, proposalId);
+  if (isMemoryMode()) return memoryStore.rejectSharedPlanProposal(userId, proposalId);
   return normalize(
     await SharedPlanProposal.findOneAndUpdate(
       { _id: proposalId, currentRecipientId: userId, status: "pending" },
@@ -438,7 +463,7 @@ async function rejectSharedPlanProposal(userId, proposalId) {
 }
 
 async function acceptSharedPlanProposal(userId, proposalId) {
-  if (!isDatabaseConnected()) return memoryStore.acceptSharedPlanProposal(userId, proposalId);
+  if (isMemoryMode()) return memoryStore.acceptSharedPlanProposal(userId, proposalId);
   const session = await mongoose.startSession();
   let accepted = null;
   try {
@@ -485,18 +510,18 @@ async function acceptSharedPlanProposal(userId, proposalId) {
 }
 
 async function listAssets(userId) {
-  if (!isDatabaseConnected()) return memoryStore.listAssets(userId);
+  if (isMemoryMode()) return memoryStore.listAssets(userId);
   const assets = await Asset.find({ userId }).sort({ ticker: 1 });
   return assets.map(normalize);
 }
 
 async function createAsset(payload) {
-  if (!isDatabaseConnected()) return memoryStore.createAsset(payload);
+  if (isMemoryMode()) return memoryStore.createAsset(payload);
   return normalize(await Asset.create(payload));
 }
 
 async function updateAsset(userId, assetId, fields) {
-  if (!isDatabaseConnected()) return memoryStore.updateAsset(userId, assetId, fields);
+  if (isMemoryMode()) return memoryStore.updateAsset(userId, assetId, fields);
   return normalize(
     await Asset.findOneAndUpdate({ _id: assetId, userId }, fields, {
       new: true,
@@ -506,24 +531,24 @@ async function updateAsset(userId, assetId, fields) {
 }
 
 async function deleteAsset(userId, assetId) {
-  if (!isDatabaseConnected()) return memoryStore.deleteAsset(userId, assetId);
+  if (isMemoryMode()) return memoryStore.deleteAsset(userId, assetId);
   const result = await Asset.deleteOne({ _id: assetId, userId });
   return result.deletedCount > 0;
 }
 
 async function listBankConnections(userId) {
-  if (!isDatabaseConnected()) return memoryStore.listBankConnections(userId);
+  if (isMemoryMode()) return memoryStore.listBankConnections(userId);
   const connections = await BankConnection.find({ userId }).sort({ updatedAt: -1 });
   return connections.map(normalize);
 }
 
 async function findBankConnection(userId, connectionId) {
-  if (!isDatabaseConnected()) return memoryStore.findBankConnection(userId, connectionId);
+  if (isMemoryMode()) return memoryStore.findBankConnection(userId, connectionId);
   return normalize(await BankConnection.findOne({ _id: connectionId, userId }));
 }
 
 async function upsertBankConnection(userId, provider, externalId, fields) {
-  if (!isDatabaseConnected()) {
+  if (isMemoryMode()) {
     return memoryStore.upsertBankConnection(userId, provider, externalId, fields);
   }
   return normalize(
@@ -536,13 +561,13 @@ async function upsertBankConnection(userId, provider, externalId, fields) {
 }
 
 async function deleteBankConnection(userId, connectionId) {
-  if (!isDatabaseConnected()) return memoryStore.deleteBankConnection(userId, connectionId);
+  if (isMemoryMode()) return memoryStore.deleteBankConnection(userId, connectionId);
   const result = await BankConnection.deleteOne({ _id: connectionId, userId });
   return result.deletedCount > 0;
 }
 
 async function markBankConnectionError(userId, provider, externalId, syncError) {
-  if (!isDatabaseConnected()) return memoryStore.markBankConnectionError(userId, provider, externalId, syncError);
+  if (isMemoryMode()) return memoryStore.markBankConnectionError(userId, provider, externalId, syncError);
   return normalize(
     await BankConnection.findOneAndUpdate(
       { userId, provider, externalId },
@@ -553,7 +578,7 @@ async function markBankConnectionError(userId, provider, externalId, syncError) 
 }
 
 async function enqueuePluggyWebhook(payload) {
-  if (!isDatabaseConnected()) return memoryStore.enqueuePluggyWebhook(payload);
+  if (isMemoryMode()) return memoryStore.enqueuePluggyWebhook(payload);
   try {
     return normalize(await PluggyWebhookEvent.create({
       ...payload,
@@ -571,12 +596,12 @@ async function enqueuePluggyWebhook(payload) {
 }
 
 async function completePluggyWebhook(eventId, status) {
-  if (!isDatabaseConnected()) return memoryStore.completePluggyWebhook(eventId, status);
+  if (isMemoryMode()) return memoryStore.completePluggyWebhook(eventId, status);
   return normalize(await PluggyWebhookEvent.findOneAndUpdate({ eventId }, { status }, { new: true }));
 }
 
 async function listPendingPluggyWebhooks() {
-  if (!isDatabaseConnected()) return memoryStore.listPendingPluggyWebhooks();
+  if (isMemoryMode()) return memoryStore.listPendingPluggyWebhooks();
   const events = await PluggyWebhookEvent.find({ status: "pending" })
     .sort({ createdAt: 1 })
     .limit(10);
@@ -584,7 +609,7 @@ async function listPendingPluggyWebhooks() {
 }
 
 async function createPayment(payload) {
-  if (!isDatabaseConnected()) return memoryStore.createPayment(payload);
+  if (isMemoryMode()) return memoryStore.createPayment(payload);
   try {
     return normalize(await Payment.create(payload));
   } catch (error) {
@@ -596,17 +621,17 @@ async function createPayment(payload) {
 }
 
 async function findPaymentByIdempotencyKey(idempotencyKey) {
-  if (!isDatabaseConnected()) return memoryStore.findPaymentByIdempotencyKey(idempotencyKey);
+  if (isMemoryMode()) return memoryStore.findPaymentByIdempotencyKey(idempotencyKey);
   return normalize(await Payment.findOne({ idempotencyKey }));
 }
 
 async function findPaymentByProviderId(providerPaymentId) {
-  if (!isDatabaseConnected()) return memoryStore.findPaymentByProviderId(providerPaymentId);
+  if (isMemoryMode()) return memoryStore.findPaymentByProviderId(providerPaymentId);
   return normalize(await Payment.findOne({ providerPaymentId: String(providerPaymentId) }));
 }
 
 async function findPaymentForUser(userId, paymentId) {
-  if (!isDatabaseConnected()) return memoryStore.findPaymentForUser(userId, paymentId);
+  if (isMemoryMode()) return memoryStore.findPaymentForUser(userId, paymentId);
   return normalize(await Payment.findOne({
     userId,
     $or: [{ _id: mongoose.isValidObjectId(paymentId) ? paymentId : null }, { providerPaymentId: String(paymentId) }]
@@ -614,7 +639,7 @@ async function findPaymentForUser(userId, paymentId) {
 }
 
 async function listPayments(userId, limit = 20) {
-  if (!isDatabaseConnected()) return memoryStore.listPayments(userId, limit);
+  if (isMemoryMode()) return memoryStore.listPayments(userId, limit);
   const payments = await Payment.find({ userId })
     .sort({ createdAt: -1 })
     .limit(Math.max(1, Math.min(Number(limit) || 20, 50)));
@@ -622,7 +647,7 @@ async function listPayments(userId, limit = 20) {
 }
 
 async function updatePayment(paymentId, fields) {
-  if (!isDatabaseConnected()) return memoryStore.updatePayment(paymentId, fields);
+  if (isMemoryMode()) return memoryStore.updatePayment(paymentId, fields);
   const query = mongoose.isValidObjectId(paymentId)
     ? { $or: [{ _id: paymentId }, { providerPaymentId: String(paymentId) }] }
     : { providerPaymentId: String(paymentId) };
@@ -630,7 +655,7 @@ async function updatePayment(paymentId, fields) {
 }
 
 async function claimPaymentAccess(paymentId, claimedAt) {
-  if (!isDatabaseConnected()) return memoryStore.claimPaymentAccess(paymentId, claimedAt);
+  if (isMemoryMode()) return memoryStore.claimPaymentAccess(paymentId, claimedAt);
   const query = mongoose.isValidObjectId(paymentId)
     ? { _id: paymentId, accessGrantedAt: null }
     : { providerPaymentId: String(paymentId), accessGrantedAt: null };
@@ -642,7 +667,7 @@ async function claimPaymentAccess(paymentId, claimedAt) {
 }
 
 async function releasePaymentAccess(paymentId, claimedAt) {
-  if (!isDatabaseConnected()) return memoryStore.releasePaymentAccess(paymentId, claimedAt);
+  if (isMemoryMode()) return memoryStore.releasePaymentAccess(paymentId, claimedAt);
   const query = mongoose.isValidObjectId(paymentId)
     ? { _id: paymentId, accessGrantedAt: claimedAt }
     : { providerPaymentId: String(paymentId), accessGrantedAt: claimedAt };
@@ -656,6 +681,7 @@ module.exports = {
   findUserByGoogleSubject,
   createUser,
   updateUser,
+  beginUserSession,
   listUsers,
   listTransactions,
   createTransaction,

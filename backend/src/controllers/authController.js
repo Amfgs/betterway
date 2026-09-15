@@ -74,10 +74,16 @@ function signToken(user, sessionStartedAt) {
   );
 }
 
-async function beginExclusiveSession(user) {
-  return repository.updateUser(user.id, {
-    sessionVersion: Number(user.sessionVersion || 0) + 1
-  });
+function deviceSessionHash(deviceId) {
+  const normalized = String(deviceId || "").trim();
+  const stableId = /^[a-zA-Z0-9._:-]{16,160}$/.test(normalized)
+    ? normalized
+    : crypto.randomBytes(32).toString("hex");
+  return crypto.createHmac("sha256", getJwtSecret()).update(stableId).digest("hex");
+}
+
+async function beginExclusiveSession(user, deviceId) {
+  return repository.beginUserSession(user.id, deviceSessionHash(deviceId));
 }
 
 function cleanUser(user) {
@@ -94,6 +100,9 @@ function cleanUser(user) {
   delete copy.emailVerificationSentAt;
   delete copy.googleSubject;
   delete copy.cpfHash;
+  delete copy.activeDeviceHash;
+  delete copy.authVersion;
+  delete copy.sessionVersion;
   copy.cpfConfigured = cpfConfigured;
   copy.subscription = subscriptionState(copy);
   return copy;
@@ -291,7 +300,7 @@ const usernameAvailability = asyncHandler(async (req, res) => {
 });
 
 const login = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, deviceId } = req.body;
   if (!isValidEmail(email) || !validPassword(password)) {
     return res.status(401).json({ message: "Credenciais inválidas." });
   }
@@ -312,7 +321,7 @@ const login = asyncHandler(async (req, res) => {
     });
   }
 
-  const sessionUser = await beginExclusiveSession(user);
+  const sessionUser = await beginExclusiveSession(user, deviceId);
   return res.json({
     token: signToken(sessionUser),
     sessionExpiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000).toISOString(),
@@ -405,7 +414,7 @@ const googleLogin = asyncHandler(async (req, res) => {
     });
   }
 
-  user = await beginExclusiveSession(user);
+  user = await beginExclusiveSession(user, req.body?.deviceId);
   return res.json({
     token: signToken(user),
     sessionExpiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000).toISOString(),
@@ -459,7 +468,7 @@ const completeAccount = asyncHandler(async (req, res) => {
 });
 
 const verifyEmail = asyncHandler(async (req, res) => {
-  const { email, token } = req.body;
+  const { email, token, deviceId } = req.body;
 
   if (!isValidEmail(email) || !/^\d{8}$/.test(String(token || ""))) {
     return res.status(400).json({ message: "E-mail e código de verificação são obrigatórios." });
@@ -495,15 +504,15 @@ const verifyEmail = asyncHandler(async (req, res) => {
     emailVerificationHash: "",
     emailVerificationExpiresAt: null,
     emailVerificationAttempts: 0,
-    emailVerificationSentAt: null,
-    sessionVersion: Number(user.sessionVersion || 0) + 1
+    emailVerificationSentAt: null
   });
+  const sessionUser = await beginExclusiveSession(verifiedUser, deviceId);
 
   return res.json({
     message: "E-mail confirmado. Sua conta está pronta.",
-    token: signToken(verifiedUser),
+    token: signToken(sessionUser),
     sessionExpiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000).toISOString(),
-    user: cleanUser(verifiedUser)
+    user: cleanUser(sessionUser)
   });
 });
 
@@ -664,7 +673,7 @@ const resetPassword = asyncHandler(async (req, res) => {
 });
 
 const me = asyncHandler(async (req, res) => {
-  return res.json({ user: req.user });
+  return res.json({ user: cleanUser(req.user) });
 });
 
 const profileProgress = asyncHandler(async (req, res) => {
@@ -876,7 +885,7 @@ const updateProfile = asyncHandler(async (req, res) => {
   }
 
   return res.json({
-    user,
+    user: cleanUser(user),
     token: sensitiveChange ? signToken(user, req.auth?.sessionStartedAt) : undefined
   });
 });

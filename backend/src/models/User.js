@@ -63,6 +63,11 @@ const userSchema = new mongoose.Schema(
       min: 0,
       default: 0
     },
+    activeDeviceHash: {
+      type: String,
+      default: "",
+      select: false
+    },
     resetPasswordHash: {
       type: String,
       default: "",

@@ -1,6 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
-import { clearAuthSession, readAuthSession, storeAuthSession } from "../utils/storageKeys";
+import {
+  clearAuthSession,
+  readAuthSession,
+  readOrCreateDeviceId,
+  storageKeys,
+  storeAuthSession
+} from "../utils/storageKeys";
 
 const AuthContext = createContext(null);
 
@@ -9,7 +15,7 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [restoreError, setRestoreError] = useState("");
-  const restorePromiseRef = useRef(null);
+  const restoreOperationRef = useRef(null);
   const lastSessionCheckAtRef = useRef(0);
 
   const restoreSession = useCallback(async ({ showLoading = true } = {}) => {
@@ -26,32 +32,47 @@ export function AuthProvider({ children }) {
     setRestoreError("");
     if (showLoading) setLoading(true);
 
-    if (!restorePromiseRef.current) {
-      restorePromiseRef.current = (async () => {
-        try {
-          const response = await api.get("/auth/me");
-          setUser(response.data.user);
-          lastSessionCheckAtRef.current = Date.now();
-          return true;
-        } catch (error) {
-          const status = Number(error?.response?.status || 0);
-          if (status === 401 || status === 403) {
-            clearAuthSession();
-            setUser(null);
-            setSession(null);
-          } else {
-            setRestoreError("Sua sessão continua salva, mas não conseguimos confirmá-la agora.");
+    let operation = restoreOperationRef.current;
+    if (!operation || operation.token !== storedSession.token) {
+      const capturedToken = storedSession.token;
+      operation = {
+        token: capturedToken,
+        promise: (async () => {
+          try {
+            const response = await api.get("/auth/me", {
+              headers: { Authorization: `Bearer ${capturedToken}` },
+              _bwAuthToken: capturedToken,
+              _bwPreserveAuthToken: true
+            });
+            if (readAuthSession()?.token !== capturedToken) return false;
+            setUser(response.data.user);
+            lastSessionCheckAtRef.current = Date.now();
+            return true;
+          } catch (error) {
+            const status = Number(error?.response?.status || 0);
+            const code = error?.response?.data?.code || "";
+            const invalidSession = status === 401 || (status === 403 && code === "EMAIL_NOT_VERIFIED");
+            if (invalidSession) {
+              const cleared = clearAuthSession({ expectedToken: capturedToken });
+              if (cleared) {
+                setUser(null);
+                setSession(null);
+              }
+            } else if (readAuthSession()?.token === capturedToken) {
+              setRestoreError("Sua sessão continua salva, mas não conseguimos confirmá-la agora.");
+            }
+            return false;
           }
-          return false;
-        }
-      })();
+        })()
+      };
+      restoreOperationRef.current = operation;
     }
 
-    const activeRestore = restorePromiseRef.current;
+    const activeRestore = operation;
     try {
-      return await activeRestore;
+      return await activeRestore.promise;
     } finally {
-      if (restorePromiseRef.current === activeRestore) restorePromiseRef.current = null;
+      if (restoreOperationRef.current === activeRestore) restoreOperationRef.current = null;
       if (showLoading) setLoading(false);
     }
   }, []);
@@ -89,8 +110,10 @@ export function AuthProvider({ children }) {
   }, [restoreSession, session?.token, user?.id]);
 
   useEffect(() => {
-    const expireSession = () => {
-      clearAuthSession();
+    const expireSession = (event) => {
+      const expectedToken = event?.detail?.token;
+      const cleared = clearAuthSession({ expectedToken });
+      if (!cleared) return;
       setUser(null);
       setSession(null);
       setRestoreError("");
@@ -103,18 +126,38 @@ export function AuthProvider({ children }) {
     if (!session?.expiresAt) return undefined;
     const remaining = session.expiresAt - Date.now();
     if (remaining <= 0) {
-      window.dispatchEvent(new Event("betterway:session-expired"));
+      window.dispatchEvent(new CustomEvent("betterway:session-expired", {
+        detail: { token: session.token, code: "TOKEN_EXPIRED" }
+      }));
       return undefined;
     }
     const timer = window.setTimeout(
-      () => window.dispatchEvent(new Event("betterway:session-expired")),
+      () => window.dispatchEvent(new CustomEvent("betterway:session-expired", {
+        detail: { token: session.token, code: "TOKEN_EXPIRED" }
+      })),
       Math.min(remaining, 2_147_000_000)
     );
     return () => window.clearTimeout(timer);
-  }, [session?.expiresAt]);
+  }, [session?.expiresAt, session?.token]);
+
+  useEffect(() => {
+    const syncPersistentSession = (event) => {
+      if (![storageKeys.authToken, storageKeys.authSessionStartedAt].includes(event.key)) return;
+      const storedSession = readAuthSession();
+      if (!storedSession) {
+        setUser(null);
+        setSession(null);
+        return;
+      }
+      setSession(storedSession);
+      restoreSession({ showLoading: false });
+    };
+    window.addEventListener("storage", syncPersistentSession);
+    return () => window.removeEventListener("storage", syncPersistentSession);
+  }, [restoreSession]);
 
   async function login(credentials, { persistent = true } = {}) {
-    const response = await api.post("/auth/login", credentials);
+    const response = await api.post("/auth/login", { ...credentials, deviceId: readOrCreateDeviceId() });
     const nextSession = storeAuthSession(response.data.token, { persistent });
     setSession(nextSession);
     setUser(response.data.user);
@@ -124,7 +167,7 @@ export function AuthProvider({ children }) {
   }
 
   async function loginWithGoogle(credential, { persistent = true } = {}) {
-    const response = await api.post("/auth/google", { credential });
+    const response = await api.post("/auth/google", { credential, deviceId: readOrCreateDeviceId() });
     const nextSession = storeAuthSession(response.data.token, { persistent });
     setSession(nextSession);
     setUser(response.data.user);
@@ -158,7 +201,7 @@ export function AuthProvider({ children }) {
   }
 
   async function verifyEmail(payload, { persistent = true } = {}) {
-    const response = await api.post("/auth/verify-email", payload);
+    const response = await api.post("/auth/verify-email", { ...payload, deviceId: readOrCreateDeviceId() });
     const nextSession = storeAuthSession(response.data.token, { persistent });
     setSession(nextSession);
     setUser(response.data.user);
@@ -219,6 +262,8 @@ export function AuthProvider({ children }) {
         persistent: current?.persistent ?? true,
         startedAt: current?.startedAt
       }));
+      lastSessionCheckAtRef.current = Date.now();
+      setRestoreError("");
     }
     setUser(response.data.user);
     return response.data;

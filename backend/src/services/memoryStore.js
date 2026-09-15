@@ -71,6 +71,7 @@ function normalizeUsers(users) {
       receivedFriendRequestIds: [],
       authVersion: 0,
       sessionVersion: 0,
+      activeDeviceHash: "",
       accountSetupRequired: false,
       emailVerified: true,
       workHoursPerDay: 8,
@@ -173,6 +174,7 @@ function withoutPassword(user) {
   delete clean.googleSubject;
   const cpfConfigured = Boolean(clean.cpfHash || clean.cpfLast4);
   delete clean.cpfHash;
+  delete clean.activeDeviceHash;
   clean.cpfConfigured = cpfConfigured;
   clean.subscription = subscriptionState(clean);
   clean.avatarUrl = normalizeAvatarValue(clean.avatarUrl);
@@ -252,6 +254,7 @@ module.exports = {
       theme: "dark",
       authVersion: 0,
       sessionVersion: 0,
+      activeDeviceHash: "",
       accountSetupRequired: false,
       emailVerified: true,
       friendIds: [],
@@ -292,6 +295,18 @@ module.exports = {
       ...(username ? { username } : {}),
       updatedAt: new Date().toISOString()
     };
+    saveState();
+    return withoutPassword(state.users[index]);
+  },
+  async beginUserSession(idToFind, deviceHash) {
+    const index = state.users.findIndex((item) => String(item.id) === String(idToFind));
+    if (index === -1) return null;
+    const sameDevice = Boolean(deviceHash) && state.users[index].activeDeviceHash === deviceHash;
+    if (!sameDevice) {
+      state.users[index].sessionVersion = Number(state.users[index].sessionVersion || 0) + 1;
+    }
+    state.users[index].activeDeviceHash = deviceHash;
+    state.users[index].updatedAt = new Date().toISOString();
     saveState();
     return withoutPassword(state.users[index]);
   },

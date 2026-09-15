@@ -61,5 +61,27 @@ test("mantém 401 para token realmente inválido", async () => {
 
   assert.equal(res.statusCode, 401);
   assert.equal(res.payload.message, "Sessão inválida ou expirada.");
+  assert.equal(res.payload.code, "TOKEN_INVALID");
   assert.equal(nextCalled, false);
+});
+
+test("encaminha falha de configuração JWT sem fingir que a sessão expirou", async (t) => {
+  const previousNodeEnv = process.env.NODE_ENV;
+  const previousSecret = process.env.JWT_SECRET;
+  t.after(() => {
+    process.env.NODE_ENV = previousNodeEnv;
+    process.env.JWT_SECRET = previousSecret;
+  });
+  process.env.NODE_ENV = "production";
+  process.env.JWT_SECRET = "curta";
+
+  const req = { headers: { authorization: "Bearer token-qualquer" } };
+  const res = responseMock();
+  let nextError = null;
+  await authMiddleware(req, res, (error) => {
+    nextError = error;
+  });
+
+  assert.equal(res.statusCode, null);
+  assert.match(nextError.message, /JWT_SECRET/);
 });

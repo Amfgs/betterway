@@ -9,6 +9,7 @@ const legacyTokenStorageKey = "valorize_mobile_token";
 const sessionStartedAtKey = "betterway_mobile_session_started_at";
 const biometricEnabledKey = "betterway_mobile_biometric_enabled";
 const lastEmailKey = "betterway_mobile_last_email";
+const deviceIdStorageKey = "betterway_mobile_device_id";
 const SESSION_TTL_MS = 15 * 24 * 60 * 60 * 1000;
 
 function biometricName(types = []) {
@@ -44,12 +45,30 @@ async function promptForBiometrics() {
   });
 }
 
-async function removeStoredSession() {
+function createDeviceId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return `bw-mobile-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+}
+
+async function getDeviceId() {
+  const existing = await SecureStore.getItemAsync(deviceIdStorageKey);
+  if (existing) return existing;
+  const deviceId = createDeviceId();
+  await SecureStore.setItemAsync(deviceIdStorageKey, deviceId);
+  return deviceId;
+}
+
+async function removeStoredSession(expectedToken) {
+  if (expectedToken) {
+    const currentToken = await SecureStore.getItemAsync(tokenStorageKey);
+    if (currentToken !== expectedToken) return false;
+  }
   await Promise.all([
     SecureStore.deleteItemAsync(tokenStorageKey),
     SecureStore.deleteItemAsync(legacyTokenStorageKey),
     SecureStore.deleteItemAsync(sessionStartedAtKey)
   ]);
+  return true;
 }
 
 export function AuthProvider({ children }) {
@@ -113,7 +132,9 @@ export function AuthProvider({ children }) {
       await activateSession(storedToken, storedStart, true);
       return true;
     } catch (error) {
-      if ([401, 403].includes(error.status)) await removeStoredSession();
+      if (error.status === 401 || (error.status === 403 && error.code === "EMAIL_NOT_VERIFIED")) {
+        await removeStoredSession(storedToken);
+      }
       setUnlockError(error.message || "Não foi possível restaurar sua sessão.");
       setRestoreError(error.message || "Não foi possível restaurar sua sessão.");
       setLocked(false);
@@ -188,7 +209,9 @@ export function AuthProvider({ children }) {
 
         await activateSession(storedToken, startedAt, true);
       } catch (error) {
-        if ([401, 403].includes(error.status)) await removeStoredSession();
+        if (error.status === 401 || (error.status === 403 && error.code === "EMAIL_NOT_VERIFIED")) {
+          await removeStoredSession(pendingToken.current);
+        }
         if (alive) setRestoreError(error.message || "Não foi possível restaurar sua sessão.");
       } finally {
         if (alive) setBooting(false);
@@ -213,7 +236,10 @@ export function AuthProvider({ children }) {
   }
 
   async function login(credentials, { persistent = true } = {}) {
-    const data = await apiRequest("/auth/login", { method: "POST", body: credentials });
+    const data = await apiRequest("/auth/login", {
+      method: "POST",
+      body: { ...credentials, deviceId: await getDeviceId() }
+    });
     const startedAt = Date.now();
     await persistSession(data.token, startedAt, persistent);
     await SecureStore.setItemAsync(lastEmailKey, credentials.email.trim().toLowerCase());
@@ -234,7 +260,10 @@ export function AuthProvider({ children }) {
   }
 
   async function verifyEmail(payload, { persistent = true } = {}) {
-    const data = await apiRequest("/auth/verify-email", { method: "POST", body: payload });
+    const data = await apiRequest("/auth/verify-email", {
+      method: "POST",
+      body: { ...payload, deviceId: await getDeviceId() }
+    });
     const startedAt = Date.now();
     await persistSession(data.token, startedAt, persistent);
     await SecureStore.setItemAsync(lastEmailKey, payload.email.trim().toLowerCase());

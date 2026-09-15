@@ -1,5 +1,5 @@
 import axios from "axios";
-import { clearAuthSession, readAuthToken } from "../utils/storageKeys";
+import { readAuthToken } from "../utils/storageKeys";
 
 const productionApiUrl = "https://betterway-api.vercel.app/api";
 const localApiUrl = "http://localhost:5050/api";
@@ -8,11 +8,11 @@ export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || (import.meta.env.PROD ? productionApiUrl : localApiUrl)
 });
 
-let sessionValidationPromise = null;
+const sessionValidations = new Map();
 
 async function validateStoredSession(token) {
-  if (!sessionValidationPromise) {
-    sessionValidationPromise = axios.get(`${api.defaults.baseURL}/auth/me`, {
+  if (!sessionValidations.has(token)) {
+    const validation = axios.get(`${api.defaults.baseURL}/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
       timeout: 12000,
       validateStatus: () => true
@@ -21,16 +21,18 @@ async function validateStoredSession(token) {
       if ([401, 403].includes(response.status)) return "invalid";
       return "unknown";
     }).catch(() => "unknown").finally(() => {
-      sessionValidationPromise = null;
+      sessionValidations.delete(token);
     });
+    sessionValidations.set(token, validation);
   }
-  return sessionValidationPromise;
+  return sessionValidations.get(token);
 }
 
 api.interceptors.request.use((config) => {
-  const token = readAuthToken();
+  const token = config._bwPreserveAuthToken ? config._bwAuthToken : readAuthToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+    config._bwAuthToken = token;
   }
   return config;
 });
@@ -38,7 +40,7 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const hadToken = Boolean(readAuthToken());
+    const failedToken = error?.config?._bwAuthToken;
     const requestUrl = error?.config?.url || "";
     const isAuthRequest = /\/auth\/(login|google|register|verify-email|forgot-password|verify-reset-code|reset-password|complete-account|me)/.test(requestUrl);
     if (error?.response?.status === 402 && error?.response?.data?.code === "PLUS_REQUIRED") {
@@ -46,15 +48,23 @@ api.interceptors.response.use(
         detail: { feature: error.response.data.feature || "Este recurso" }
       }));
     }
-    if (hadToken && error?.response?.status === 401 && !isAuthRequest && !error?.config?._bwSessionConfirmed) {
-      const token = readAuthToken();
-      const sessionState = token ? await validateStoredSession(token) : "invalid";
+    if (failedToken && error?.response?.status === 401 && !isAuthRequest && !error?.config?._bwSessionConfirmed) {
+      const currentToken = readAuthToken();
+      if (currentToken && currentToken !== failedToken) {
+        return api.request({ ...error.config, _bwSessionConfirmed: true, _bwAuthToken: currentToken });
+      }
+      const sessionState = currentToken === failedToken ? await validateStoredSession(failedToken) : "invalid";
       if (sessionState === "valid") {
         return api.request({ ...error.config, _bwSessionConfirmed: true });
       }
-      if (sessionState === "invalid") {
-        clearAuthSession();
-        window.dispatchEvent(new Event("betterway:session-expired"));
+      if (sessionState === "invalid" && readAuthToken() === failedToken) {
+        window.dispatchEvent(new CustomEvent("betterway:session-expired", {
+          detail: {
+            token: failedToken,
+            code: error?.response?.data?.code || "TOKEN_INVALID",
+            message: error?.response?.data?.message || "Sua sessão terminou. Entre novamente."
+          }
+        }));
       }
     }
     return Promise.reject(error);

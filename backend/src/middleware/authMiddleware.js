@@ -7,27 +7,39 @@ async function authMiddleware(req, res, next) {
   const token = header.startsWith("Bearer ") ? header.slice(7) : null;
 
   if (!token) {
-    return res.status(401).json({ message: "Token ausente." });
+    return res.status(401).json({ code: "TOKEN_MISSING", message: "Token ausente." });
   }
 
   let decoded;
   try {
     decoded = jwt.verify(token, getJwtSecret(), { algorithms: ["HS256"] });
-  } catch {
-    return res.status(401).json({ message: "Sessão inválida ou expirada." });
+  } catch (error) {
+    if (error?.name === "TokenExpiredError") {
+      return res.status(401).json({ code: "TOKEN_EXPIRED", message: "Sua sessão de 15 dias terminou. Entre novamente." });
+    }
+    if (["JsonWebTokenError", "NotBeforeError"].includes(error?.name)) {
+      return res.status(401).json({ code: "TOKEN_INVALID", message: "Sessão inválida ou expirada." });
+    }
+    return next(error);
   }
 
   try {
     const user = await repository.findUserById(decoded.sub);
 
     if (!user) {
-      return res.status(401).json({ message: "Usuário não encontrado." });
+      return res.status(401).json({ code: "USER_NOT_FOUND", message: "Usuário não encontrado." });
     }
     if (Number(decoded.ver || 0) !== Number(user.authVersion || 0)) {
-      return res.status(401).json({ message: "Sua sessão foi encerrada após uma alteração de segurança." });
+      return res.status(401).json({
+        code: "SECURITY_CHANGED",
+        message: "Sua sessão foi encerrada após uma alteração de segurança. Entre novamente."
+      });
     }
     if (Number(decoded.sv || 0) !== Number(user.sessionVersion || 0)) {
-      return res.status(401).json({ message: "Sua conta entrou em outro dispositivo. Este acesso foi encerrado." });
+      return res.status(401).json({
+        code: "SESSION_REPLACED",
+        message: "Sua conta entrou em outro dispositivo. Este acesso foi encerrado."
+      });
     }
     if (user.emailVerified === false) {
       return res.status(403).json({
@@ -45,7 +57,7 @@ async function authMiddleware(req, res, next) {
 
     const sessionStartedAt = Number(decoded.sst || decoded.iat || 0);
     if (!sessionStartedAt || sessionStartedAt > Math.floor(Date.now() / 1000) + 300) {
-      return res.status(401).json({ message: "Sessão inválida ou expirada." });
+      return res.status(401).json({ code: "TOKEN_INVALID", message: "Sessão inválida ou expirada." });
     }
 
     req.user = user;
